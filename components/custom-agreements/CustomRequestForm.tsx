@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { CustomInput, SAMPLE_TYPES, validateCustomInput, validateSample } from '@/lib/custom-agreement';
 
 const field = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600';
-const blank: CustomInput = { agreementType: '', purpose: '', language: 'English', instructions: '', preferredDate: '', name: '', phone: '', email: '', contactMethod: 'Call', contactConsent: false };
+const blank: CustomInput = { agreementType: '', purpose: '', language: 'English', instructions: '', preferredDate: '', name: '', phone: '', email: '', contactMethod: 'Call', contactConsent: false, includeNotary: false };
 export function CustomRequestForm() {
   const { user, loading, signInWithGoogle } = useAuth();
   const [data, setData] = useState(blank), [files, setFiles] = useState<File[]>([]);
@@ -67,12 +67,24 @@ export function CustomRequestForm() {
       <legend className="text-lg font-bold mb-4">Tell us what you need</legend>
       <label className="block text-sm font-semibold">Agreement type<input required maxLength={100} className={field} value={data.agreementType} onChange={(e) => update('agreementType', e.target.value)} placeholder="For example, lease or service agreement" /></label>
       <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold">Preferred language<select className={field} value={data.language} onChange={(e) => update('language', e.target.value)}>{['English', 'Tamil', 'Both', 'Other'].map((v) => <option key={v}>{v}</option>)}</select></label><label className="block text-sm font-semibold">Preferred completion date (optional)<input type="date" className={field} value={data.preferredDate} onChange={(e) => update('preferredDate', e.target.value)} /></label></div>
+      <fieldset className="rounded-xl border border-stone-200 p-4">
+        <legend className="px-1 text-sm font-semibold text-stone-900">Do you need a notary signature?</legend>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {[{ value: false, label: 'No, agreement only' }, { value: true, label: 'Yes, add notary signature' }].map((choice) => (
+            <label key={String(choice.value)} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-amber-500 ${Boolean(data.includeNotary) === choice.value ? 'border-amber-600 bg-amber-50 text-amber-900' : 'border-stone-300 bg-white text-stone-700'}`}>
+              <input type="radio" name="custom-notary" checked={Boolean(data.includeNotary) === choice.value} onChange={() => update('includeNotary', choice.value)} className="h-4 w-4 shrink-0 accent-amber-600" />
+              {choice.label}
+            </label>
+          ))}
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-stone-600">If you choose notary service, our team will include it in your quote.</p>
+      </fieldset>
       <label className="block text-sm font-semibold">Purpose<textarea required minLength={5} maxLength={1000} rows={2} className={field} value={data.purpose} onChange={(e) => update('purpose', e.target.value)} placeholder="How will this agreement be used?" /></label>
       <label className="block text-sm font-semibold">Customisation instructions<textarea required minLength={10} maxLength={5000} rows={5} className={field} value={data.instructions} onChange={(e) => update('instructions', e.target.value)} placeholder="Describe what to add, remove or change. Mention any details you want us to clarify." /></label>
       <div>
         <label htmlFor="custom-samples" className="block text-sm font-semibold">Sample templates or photos</label>
         <p id="samples-help" className="my-2 text-sm text-stone-600">Choose up to three PDF, DOCX, JPG or PNG files, up to 10 MB each. Remove unnecessary Aadhaar, bank and other sensitive details before uploading.</p>
-        <input ref={sampleInput} id="custom-samples" type="file" required={files.length === 0} multiple accept=".pdf,.docx,.jpg,.jpeg,.png" aria-describedby="samples-help" className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-100 file:px-4 file:py-2 file:font-semibold file:text-brand-800" onChange={(e) => {
+        <input ref={sampleInput} id="custom-samples" type="file" required={files.length === 0} multiple accept=".pdf,.docx,.jpg,.jpeg,.png" aria-describedby="samples-help" className="block w-full min-w-0 rounded-xl border border-dashed border-amber-300 bg-amber-50/50 p-3 text-sm text-stone-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-amber-600 file:px-5 file:py-3 file:text-sm file:font-bold file:text-white hover:file:bg-amber-700" onChange={(e) => {
           const selected = Array.from(e.target.files ?? []);
           if (!selected.length) return;
           setFiles(selected);

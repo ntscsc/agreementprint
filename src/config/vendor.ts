@@ -83,3 +83,5 @@ export const VENDOR_CONFIG: VendorConfig = {
   },
   placeholdersTodoList: [],
 };
+
+export const VENDOR_SERVICE_TITLE = 'Authorised Non-Judicial Stamp Paper & e-Stamp Vendor';

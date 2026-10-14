@@ -248,7 +248,7 @@ export function RentReceiptGenerator() {
                 </div>
 
                 <p className="mt-20 text-center text-base text-stone-400 sm:mt-24">
-                  This is a system-generated rent receipt from StampSure.
+                  This is a system-generated rent receipt from AgreementPrint.
                 </p>
                 <div className="rent-receipt-bottom-rule mt-12" aria-hidden="true" />
               </article>

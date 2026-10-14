@@ -8,7 +8,7 @@ export const SAMPLE_TYPES: Record<string, string> = {
 export interface CustomInput {
   agreementType: string; purpose: string; language: string; instructions: string;
   preferredDate: string; name: string; phone: string; email: string;
-  contactMethod: string; contactConsent: boolean;
+  contactMethod: string; contactConsent: boolean; includeNotary?: boolean;
 }
 export interface SampleDescriptor { id: string; name: string; size: number; contentType: string; path: string; }
 export interface CustomRequest extends CustomInput {
@@ -26,12 +26,13 @@ export function validDate(value: unknown): value is string {
 export function validateCustomInput(value: unknown): CustomInput {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Request details are required.');
   const d = value as Record<string, unknown>;
+  if (d.includeNotary !== undefined && typeof d.includeNotary !== 'boolean') throw new Error('Choose whether you need notary service.');
   const result = {
     agreementType: bounded(d.agreementType, 'Agreement type', 2, 100), purpose: bounded(d.purpose, 'Purpose', 5, 1000),
     instructions: bounded(d.instructions, 'Customisation instructions', 10, 5000),
     language: bounded(d.language, 'Language', 2, 30), name: bounded(d.name, 'Name', 2, 100),
     phone: bounded(d.phone, 'Mobile number', 10, 10), email: bounded(d.email ?? '', 'Email', 0, 254),
-    preferredDate: bounded(d.preferredDate ?? '', 'Preferred date', 0, 10), contactMethod: bounded(d.contactMethod, 'Contact method', 2, 20), contactConsent: d.contactConsent === true,
+    preferredDate: bounded(d.preferredDate ?? '', 'Preferred date', 0, 10), contactMethod: bounded(d.contactMethod, 'Contact method', 2, 20), contactConsent: d.contactConsent === true, includeNotary: d.includeNotary === true,
   };
   if (!['English', 'Tamil', 'Both', 'Other'].includes(result.language)) throw new Error('Select a preferred language.');
   if (!/^[6-9]\d{9}$/.test(result.phone)) throw new Error('Enter a valid 10-digit Indian mobile number.');

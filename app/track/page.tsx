@@ -3,10 +3,10 @@ import type { Metadata } from 'next';
 import { TrackClient } from './TrackClient';
 
 export const metadata: Metadata = {
-  title: 'Track Rental Agreement Order Status | TN Stamp Paper',
+  title: 'Track Your Order | AgreementPrint',
   description: 'Track your Tamil Nadu non-judicial rental agreement order, verification status, and courier consignment delivery.',
   openGraph: {
-    title: 'Track Rental Agreement Order Status | TN Stamp Paper',
+    title: 'Track Your Order | AgreementPrint',
     description: 'Track your Tamil Nadu non-judicial rental agreement order, verification status, and courier consignment delivery.',
   },
 };

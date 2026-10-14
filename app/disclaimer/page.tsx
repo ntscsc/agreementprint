@@ -4,10 +4,10 @@ import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { VENDOR_CONFIG } from '@/src/config/vendor';
 
 export const metadata: Metadata = {
-  title: 'Disclaimer | Rental Agreement & Stamp Vendor Services Tamil Nadu',
+  title: 'Disclaimer | AgreementPrint',
   description: 'Disclaimer: Authorized stamp vendor and drafting service, not a law firm. We do not provide legal advice.',
   openGraph: {
-    title: 'Disclaimer | Rental Agreement & Stamp Vendor Services Tamil Nadu',
+    title: 'Disclaimer | AgreementPrint',
     description: 'Disclaimer: Authorized stamp vendor and drafting service, not a law firm. We do not provide legal advice.',
   },
 };

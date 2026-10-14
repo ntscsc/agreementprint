@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { 
   ShieldCheck, 
@@ -29,14 +29,16 @@ import {
   Gift,
   MessageSquare,
   Phone,
-  MapPin
+  MapPin,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { CustomRequests } from '@/components/custom-agreements/CustomRequests';
 import { db } from '@/lib/firebase';
 import { 
   collection, 
-  getDocs, 
+  getDocs,
+  deleteDoc,
   doc, 
   updateDoc, 
   setDoc
@@ -91,12 +93,15 @@ export function AdminClient() {
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState<boolean>(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loadingEnquiries, setLoadingEnquiries] = useState<boolean>(false);
   const [enquiriesError, setEnquiriesError] = useState<string | null>(null);
   const [enquirySearch, setEnquirySearch] = useState('');
   const [enquiryStatusFilter, setEnquiryStatusFilter] = useState<'ALL' | Enquiry['status']>('ALL');
   const [updatingEnquiryId, setUpdatingEnquiryId] = useState<string | null>(null);
+  const [deletingEnquiryId, setDeletingEnquiryId] = useState<string | null>(null);
+  const [enquiryNotice, setEnquiryNotice] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
@@ -120,8 +125,33 @@ export function AdminClient() {
   // Stamping Agreement View State
   const [showAgreementPrint, setShowAgreementPrint] = useState<boolean>(false);
 
+  const selectedOrderId = selectedOrder?.orderId;
+  const adminUserId = isAdmin ? user?.uid : undefined;
+  const orderDialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!selectedOrderId || !adminUserId) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    orderDialogRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedOrder(null); setShowAgreementPrint(false); setShowCorrectionForm(false); setShowCourierForm(false);
+      }
+      if (event.key !== 'Tab') return;
+      const elements = Array.from(orderDialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') ?? []).filter((element) => element.getClientRects().length > 0);
+      const first = elements[0], last = elements[elements.length - 1];
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === orderDialogRef.current)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === orderDialogRef.current)) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => { document.removeEventListener('keydown', onKeyDown); document.body.style.overflow = previousOverflow; previousFocus?.focus(); };
+  }, [selectedOrderId, showAgreementPrint, adminUserId]);
+
   const fetchOrderList = useCallback(async () => {
     setLoadingOrders(true);
+    setOrdersError(null);
     try {
       const snap = await getDocs(collection(db, 'orders'));
       const list: Order[] = [];
@@ -131,6 +161,7 @@ export function AdminClient() {
       setOrders(list);
     } catch (err) {
       console.error('Error loading orders:', err);
+      setOrdersError('Orders could not be loaded. Please refresh to try again.');
     } finally {
       setLoadingOrders(false);
     }
@@ -155,8 +186,26 @@ export function AdminClient() {
     }
   }, []);
 
+  const handleDeleteEnquiry = async (enquiry: Enquiry) => {
+    if (!user || !isAdmin || updatingEnquiryId || deletingEnquiryId) return;
+    if (!window.confirm(`Delete the enquiry from ${enquiry.name} (${enquiry.enquiryId})? This cannot be undone.`)) return;
+    setDeletingEnquiryId(enquiry.enquiryId);
+    setEnquiriesError(null);
+    setEnquiryNotice(null);
+    try {
+      await deleteDoc(doc(db, 'enquiries', enquiry.enquiryId));
+      setEnquiries((current) => current.filter((item) => item.enquiryId !== enquiry.enquiryId));
+      setEnquiryNotice(`Enquiry from ${enquiry.name} deleted.`);
+    } catch (error) {
+      console.error('Error deleting enquiry:', error);
+      setEnquiriesError('Could not delete this enquiry. Please try again.');
+    } finally {
+      setDeletingEnquiryId(null);
+    }
+  };
+
   const handleUpdateEnquiryStatus = async (enquiry: Enquiry, status: Enquiry['status']) => {
-    if (status === enquiry.status || updatingEnquiryId) return;
+    if (status === enquiry.status || updatingEnquiryId || deletingEnquiryId) return;
 
     setUpdatingEnquiryId(enquiry.enquiryId);
     setEnquiriesError(null);
@@ -575,8 +624,9 @@ export function AdminClient() {
   // Daily Summary Calculations
   const submittedCount = orders.filter((o) => o.status === 'Submitted').length;
   const pendingVerificationCount = orders.filter(
-    (o) => o.status === 'Under verification' || o.status === 'Documents needed'
+    (o) => o.status === 'Under verification'
   ).length;
+  const documentsNeededCount = orders.filter((o) => o.status === 'Documents needed').length;
   const draftingCount = orders.filter((o) => o.status === 'Drafting').length;
   const dispatchedCount = orders.filter((o) => o.status === 'Dispatched').length;
   const filteredEnquiries = enquiries.filter((enquiry) => {
@@ -610,7 +660,7 @@ export function AdminClient() {
           </div>
 
           <div className="space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800 bg-rose-100 px-3 py-1 rounded-full">
+            <span className="text-xs font-bold uppercase tracking-wider text-rose-800 bg-rose-100 px-3 py-1 rounded-full">
               Admin Role Required
             </span>
             <h1 className="text-2xl font-black text-stone-900 tracking-tight pt-2">
@@ -648,7 +698,7 @@ export function AdminClient() {
               <p>
                 Currently signed in as: <strong>{user.email}</strong>
               </p>
-              <p className="text-stone-500 text-[11px] leading-relaxed">
+              <p className="text-stone-500 text-xs leading-relaxed">
                 Your account is not authorized to access this administrator area.
               </p>
             </div>
@@ -659,118 +709,21 @@ export function AdminClient() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Top Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
-        <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
-            Admin Console
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-black text-stone-900 mt-1">
-            Vendor Fulfillment Desk
-          </h1>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Admin: {user.email}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('orders')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'orders'
-                ? 'bg-stone-900 text-white shadow-sm'
-                : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Fulfillment Queue ({orders.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('enquiries')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'enquiries'
-                ? 'bg-indigo-700 text-white shadow-sm'
-                : 'bg-white text-stone-700 hover:bg-indigo-50 border border-indigo-300'
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>Enquiries ({enquiries.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('pricing')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'pricing'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'bg-white text-stone-700 hover:bg-amber-50 border border-amber-300'
-            }`}
-          >
-            <IndianRupee className="w-3.5 h-3.5 text-amber-500" />
-            <span>Pricing & Rates Settings</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('support')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'support'
-                ? 'bg-sky-700 text-white shadow-sm'
-                : 'bg-white text-stone-700 hover:bg-sky-50 border border-sky-300'
-            }`}
-          >
-            <Mail className="w-3.5 h-3.5" />
-            <span>Support Settings</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('couriers')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'couriers'
-                ? 'bg-emerald-700 text-white shadow-sm'
-                : 'bg-white text-stone-700 hover:bg-emerald-50 border border-emerald-300'
-            }`}
-          >
-            <Package className="w-3.5 h-3.5" />
-            <span>Courier Partners</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('referrals')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'referrals'
-                ? 'bg-purple-700 text-white shadow-sm'
-                : 'bg-white text-stone-700 hover:bg-purple-50 border border-purple-300'
-            }`}
-          >
-            <Gift className="w-3.5 h-3.5" />
-            <span>Referral Credits</span>
-          </button>
-
-          <button onClick={() => setActiveTab('custom')} className={`rounded-xl px-4 py-2 text-sm font-semibold ${activeTab === 'custom' ? 'bg-stone-900 text-white' : 'bg-white text-stone-700 hover:bg-stone-100'}`}>Custom Requests</button>
-          {(activeTab === 'orders' || activeTab === 'enquiries') && (
-            <button
-              type="button"
-              onClick={activeTab === 'orders' ? fetchOrderList : fetchEnquiries}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-300 hover:bg-stone-100 text-xs font-semibold text-stone-700 transition-colors cursor-pointer"
-              title={activeTab === 'orders' ? 'Refresh order queue' : 'Refresh enquiries'}
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
+    <div className="admin-portal max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div><p className="text-sm font-semibold text-amber-800">AgreementPrint Administration</p><h1 className="mt-1 text-2xl font-black text-stone-900 sm:text-3xl">Admin Portal</h1><p className="mt-2 break-all text-sm text-stone-600">Signed in as {user.email}</p></div>
+        <div className="flex flex-wrap gap-3"><Link href="/" className="inline-flex min-h-11 items-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50">View Website</Link>{(activeTab === 'orders' || activeTab === 'enquiries') && <button type="button" onClick={activeTab === 'orders' ? fetchOrderList : fetchEnquiries} disabled={activeTab === 'orders' ? loadingOrders : loadingEnquiries || updatingEnquiryId !== null || deletingEnquiryId !== null} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800 disabled:opacity-50"><RefreshCw className="h-4 w-4" />Refresh {activeTab === 'orders' ? 'Orders' : 'Enquiries'}</button>}</div>
       </div>
+      <nav aria-label="Admin sections" className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
+        <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
+          {[{ label: 'Daily Work', items: [{ id: 'orders' as const, label: 'Rental Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Settings & Rewards', items: [{ id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referral Rewards', icon: Gift }, { id: 'couriers' as const, label: 'Couriers', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }].map((group) => <div key={group.label}><h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-stone-600">{group.label}</h2><div className="flex flex-wrap gap-2">{group.items.map((item) => <button key={item.id} type="button" aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${activeTab === item.id ? 'border-amber-700 bg-amber-700 text-white' : 'border-stone-300 bg-white text-stone-700 hover:bg-amber-50'}`}><item.icon aria-hidden="true" className="h-4 w-4 shrink-0" />{item.label}{'count' in item && <span className={`rounded-md px-1.5 py-0.5 text-xs ${activeTab === item.id ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-700'}`}>{item.count}</span>}</button>)}</div></div>)}
+        </div>
+      </nav>
 
       {activeTab === 'custom' ? <CustomRequests admin /> : activeTab === 'enquiries' ? (
         <section className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5 animate-in fade-in duration-200">
           <div className="border-b border-stone-200 pb-5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-800 bg-indigo-100 px-2.5 py-0.5 rounded-full">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-800 bg-indigo-100 px-2.5 py-0.5 rounded-full">
               Customer Contact
             </span>
             <h2 className="text-xl font-bold text-stone-900 mt-1">Submitted Enquiries</h2>
@@ -807,6 +760,7 @@ export function AdminClient() {
             </label>
           </div>
 
+          {enquiryNotice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{enquiryNotice}</p>}
           {enquiriesError && (
             <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-sm text-rose-800" role="alert">
               {enquiriesError}
@@ -866,7 +820,7 @@ export function AdminClient() {
                       <select
                         id={`enquiry-status-${enquiry.enquiryId}`}
                         value={enquiry.status}
-                        disabled={updatingEnquiryId !== null}
+                        disabled={updatingEnquiryId !== null || deletingEnquiryId !== null}
                         onChange={(event) => void handleUpdateEnquiryStatus(enquiry, event.target.value as Enquiry['status'])}
                         className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-800 disabled:cursor-wait disabled:opacity-60"
                       >
@@ -874,10 +828,11 @@ export function AdminClient() {
                         <option value="In Progress">In Progress</option>
                         <option value="Resolved">Resolved</option>
                       </select>
+                      <button type="button" onClick={() => void handleDeleteEnquiry(enquiry)} disabled={updatingEnquiryId !== null || deletingEnquiryId !== null} aria-label={`Delete enquiry from ${enquiry.name}`} className="inline-flex items-center gap-2 rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-wait disabled:opacity-50"><Trash2 aria-hidden="true" className="h-4 w-4" />{deletingEnquiryId === enquiry.enquiryId ? 'Deleting...' : 'Delete'}</button>
                       {updatingEnquiryId === enquiry.enquiryId && (
-                        <span className="text-[11px] text-stone-500" role="status">Saving…</span>
+                        <span className="text-xs text-stone-500" role="status">Saving…</span>
                       )}
-                      <time className="w-full text-left text-[11px] text-stone-500 sm:text-right">
+                      <time className="w-full text-left text-xs text-stone-500 sm:text-right">
                         {new Date(enquiry.createdAt).toLocaleString()}
                       </time>
                     </div>
@@ -885,7 +840,7 @@ export function AdminClient() {
                   <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-700">
                     {enquiry.message}
                   </p>
-                  <p className="mt-3 text-[10px] font-mono text-stone-400">
+                  <p className="mt-3 text-xs font-mono text-stone-400">
                     Reference: {enquiry.enquiryId}
                   </p>
                 </article>
@@ -896,7 +851,7 @@ export function AdminClient() {
       ) : activeTab === 'referrals' ? (
         <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in duration-200">
           <div className="border-b border-stone-200 pb-5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2.5 py-0.5 rounded-full">
+            <span className="text-xs font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2.5 py-0.5 rounded-full">
               Customer Rewards
             </span>
             <h2 className="text-xl font-bold text-stone-900 mt-1">Referral Credit Settings</h2>
@@ -956,7 +911,7 @@ export function AdminClient() {
       ) : activeTab === 'couriers' ? (
         <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in duration-200">
           <div className="border-b border-stone-200 pb-5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
               Dispatch Options
             </span>
             <h2 className="text-xl font-bold text-stone-900 mt-1">Courier Partners</h2>
@@ -1033,7 +988,7 @@ export function AdminClient() {
       ) : activeTab === 'support' ? (
         <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in duration-200">
           <div className="border-b border-stone-200 pb-5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-sky-800 bg-sky-100 px-2.5 py-0.5 rounded-full">
+            <span className="text-xs font-bold uppercase tracking-wider text-sky-800 bg-sky-100 px-2.5 py-0.5 rounded-full">
               Customer Contact
             </span>
             <h2 className="text-xl font-bold text-stone-900 mt-1">Support Email Address</h2>
@@ -1062,7 +1017,7 @@ export function AdminClient() {
               className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
               placeholder="support@example.com"
             />
-            <p className="text-[11px] text-stone-500">
+            <p className="text-xs text-stone-500">
               Customer enquiry forms are currently saved in the admin system; this setting changes the displayed email address, not automatic enquiry email delivery.
             </p>
           </div>
@@ -1086,7 +1041,7 @@ export function AdminClient() {
         <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-8 animate-in fade-in duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
                 Rate Master
               </span>
               <h2 className="text-xl font-bold text-stone-900 mt-1">
@@ -1158,7 +1113,7 @@ export function AdminClient() {
                       className="w-full pl-7 pr-3 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
-                  <span className="text-[10px] text-stone-500">Default: Rs. 350/-</span>
+                  <span className="text-xs text-stone-500">Default: Rs. 350/-</span>
                 </div>
 
                 <div>
@@ -1177,7 +1132,7 @@ export function AdminClient() {
                       className="w-full pl-7 pr-3 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
-                  <span className="text-[10px] text-stone-500">Default: Rs. 400/-</span>
+                  <span className="text-xs text-stone-500">Default: Rs. 400/-</span>
                 </div>
               </div>
             </div>
@@ -1209,7 +1164,7 @@ export function AdminClient() {
                       className="w-full pl-7 pr-3 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
-                  <span className="text-[10px] text-stone-500">Default: Rs. 450/-</span>
+                  <span className="text-xs text-stone-500">Default: Rs. 450/-</span>
                 </div>
 
                 <div>
@@ -1228,7 +1183,7 @@ export function AdminClient() {
                       className="w-full pl-7 pr-3 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
-                  <span className="text-[10px] text-stone-500">Default: Rs. 500/-</span>
+                  <span className="text-xs text-stone-500">Default: Rs. 500/-</span>
                 </div>
               </div>
             </div>
@@ -1259,7 +1214,7 @@ export function AdminClient() {
                     className="w-full pl-7 pr-3 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
-                <span className="text-[10px] text-stone-500">Default: Rs. 200/- extra</span>
+                <span className="text-xs text-stone-500">Default: Rs. 200/- extra</span>
               </div>
             </div>
           </div>
@@ -1273,25 +1228,25 @@ export function AdminClient() {
               <div className="p-3 bg-white rounded-xl border border-amber-200 shadow-2xs space-y-1">
                 <span className="text-stone-500 block">₹100 Paper • Chennai</span>
                 <p className="text-base font-black text-stone-900">₹{pricingConfig.stamp100Chennai}/-</p>
-                <span className="text-[11px] text-amber-800 block">With Notary: ₹{pricingConfig.stamp100Chennai + pricingConfig.notaryExtraFee}/-</span>
+                <span className="text-xs text-amber-800 block">With Notary: ₹{pricingConfig.stamp100Chennai + pricingConfig.notaryExtraFee}/-</span>
               </div>
 
               <div className="p-3 bg-white rounded-xl border border-amber-200 shadow-2xs space-y-1">
                 <span className="text-stone-500 block">₹100 Paper • Tamil Nadu</span>
                 <p className="text-base font-black text-stone-900">₹{pricingConfig.stamp100TamilNadu}/-</p>
-                <span className="text-[11px] text-amber-800 block">With Notary: ₹{pricingConfig.stamp100TamilNadu + pricingConfig.notaryExtraFee}/-</span>
+                <span className="text-xs text-amber-800 block">With Notary: ₹{pricingConfig.stamp100TamilNadu + pricingConfig.notaryExtraFee}/-</span>
               </div>
 
               <div className="p-3 bg-white rounded-xl border border-amber-200 shadow-2xs space-y-1">
                 <span className="text-stone-500 block">₹200 Paper • Chennai</span>
                 <p className="text-base font-black text-stone-900">₹{pricingConfig.stamp200Chennai}/-</p>
-                <span className="text-[11px] text-amber-800 block">With Notary: ₹{pricingConfig.stamp200Chennai + pricingConfig.notaryExtraFee}/-</span>
+                <span className="text-xs text-amber-800 block">With Notary: ₹{pricingConfig.stamp200Chennai + pricingConfig.notaryExtraFee}/-</span>
               </div>
 
               <div className="p-3 bg-white rounded-xl border border-amber-200 shadow-2xs space-y-1">
                 <span className="text-stone-500 block">₹200 Paper • Tamil Nadu</span>
                 <p className="text-base font-black text-stone-900">₹{pricingConfig.stamp200TamilNadu}/-</p>
-                <span className="text-[11px] text-amber-800 block">With Notary: ₹{pricingConfig.stamp200TamilNadu + pricingConfig.notaryExtraFee}/-</span>
+                <span className="text-xs text-amber-800 block">With Notary: ₹{pricingConfig.stamp200TamilNadu + pricingConfig.notaryExtraFee}/-</span>
               </div>
             </div>
           </div>
@@ -1300,32 +1255,10 @@ export function AdminClient() {
         /* ORDERS FULFILLMENT QUEUE VIEW */
         <>
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-1">
-          <span className="text-xs font-semibold text-stone-400">New Submitted</span>
-          <p className="text-2xl font-black text-amber-600">{submittedCount}</p>
-          <span className="text-[11px] text-stone-500">Awaiting initial review</span>
-        </div>
-
-        <div className="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-1">
-          <span className="text-xs font-semibold text-stone-400">Under Verification</span>
-          <p className="text-2xl font-black text-sky-600">{pendingVerificationCount}</p>
-          <span className="text-[11px] text-stone-500">Checking ID / EB proofs</span>
-        </div>
-
-        <div className="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-1">
-          <span className="text-xs font-semibold text-stone-400">Drafting on Stamp</span>
-          <p className="text-2xl font-black text-purple-600">{draftingCount}</p>
-          <span className="text-[11px] text-stone-500">Printing on stamp paper</span>
-        </div>
-
-        <div className="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-1">
-          <span className="text-xs font-semibold text-stone-400">Dispatched Courier</span>
-          <p className="text-2xl font-black text-emerald-600">{dispatchedCount}</p>
-          <span className="text-[11px] text-stone-500">In postal transit</span>
-        </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {[{ label: 'New Orders', status: 'Submitted', count: submittedCount, hint: 'Ready for review' }, { label: 'Under Review', status: 'Under verification', count: pendingVerificationCount, hint: 'Details being checked' }, { label: 'Waiting for Customer', status: 'Documents needed', count: documentsNeededCount, hint: 'Corrections requested' }, { label: 'Being Prepared', status: 'Drafting', count: draftingCount, hint: 'Preparation and printing' }, { label: 'Sent by Courier', status: 'Dispatched', count: dispatchedCount, hint: 'On the way to customers' }].map((item) => <button key={item.status} type="button" aria-pressed={statusFilter === item.status} onClick={() => { setStatusFilter(statusFilter === item.status ? 'ALL' : item.status); setSearchQuery(''); }} className={`rounded-2xl border p-4 text-left shadow-sm transition sm:p-5 ${statusFilter === item.status ? 'border-amber-600 bg-amber-50' : 'border-stone-200 bg-white hover:border-amber-400'}`}><span className="block text-sm font-semibold text-stone-700">{item.label}</span><span className="mt-2 block text-3xl font-black text-stone-900">{item.count}</span><span className="mt-2 block text-sm text-stone-600">{item.hint}</span></button>)}
       </div>
+      {ordersError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{ordersError}<button type="button" onClick={fetchOrderList} className="ml-3 font-semibold underline">Retry</button></div>}
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -1335,12 +1268,14 @@ export function AdminClient() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by Order ID, Landlord name, Tenant name, phone, or city..."
+            aria-label="Search rental orders"
+            placeholder="Search order number, owner, tenant, phone or city"
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
           />
         </div>
 
         <select
+          aria-label="Filter rental orders by status"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
@@ -1356,6 +1291,7 @@ export function AdminClient() {
         </select>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-stone-600"><p aria-live="polite">{loadingOrders ? 'Loading orders...' : `${filteredOrders.length} of ${orders.length} orders shown`}</p>{(searchQuery || statusFilter !== 'ALL') && <button type="button" onClick={() => { setSearchQuery(''); setStatusFilter('ALL'); }} className="rounded-lg border border-stone-300 bg-white px-3 py-2 font-semibold text-stone-700">Clear Filters</button>}</div>
       {/* Order List Table */}
       <div className="bg-white border border-stone-200 rounded-3xl shadow-sm overflow-hidden">
         {loadingOrders ? (
@@ -1368,17 +1304,21 @@ export function AdminClient() {
             No orders match the selected search or filter criteria.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-stone-600">
-              <thead className="bg-stone-50 border-b border-stone-200 text-[11px] uppercase tracking-wider text-stone-500 font-semibold">
+          <>
+          <div className="grid gap-3 p-4 md:hidden">
+            {filteredOrders.map((order) => <article key={order.orderId} className="space-y-3 rounded-xl border border-stone-200 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="break-all font-mono text-sm font-bold text-stone-900">{order.orderId}</h3><span className="rounded-full bg-stone-100 px-2.5 py-1 text-sm font-semibold text-stone-700">{order.status}</span></div><dl className="space-y-2 text-sm"><div><dt className="inline font-semibold text-stone-700">Owner: </dt><dd className="inline text-stone-600">{order.ownerDetails.fullName}</dd></div><div><dt className="inline font-semibold text-stone-700">Tenant: </dt><dd className="inline text-stone-600">{order.tenantDetails.fullName}</dd></div><div><dt className="inline font-semibold text-stone-700">Location: </dt><dd className="inline text-stone-600">{order.propertyDetails.city}</dd></div><div><dt className="inline font-semibold text-stone-700">Payment: </dt><dd className={`inline font-semibold ${order.payment?.status === 'Paid' ? 'text-emerald-800' : 'text-amber-800'}`}>{order.payment?.status || 'Pending'}</dd></div></dl><button type="button" aria-label={`Review order ${order.orderId}`} onClick={() => setSelectedOrder(order)} className="w-full rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-stone-800">Review Order</button></article>)}
+          </div>
+          <div className="hidden overflow-x-auto md:block" tabIndex={0} role="region" aria-label="Rental order table, scroll to see all columns">
+            <table className="min-w-[760px] w-full text-left text-sm text-stone-700">
+              <thead className="bg-stone-50 border-b border-stone-200 text-xs uppercase tracking-wider text-stone-500 font-semibold">
                 <tr>
-                  <th className="py-3 px-4">Order ID & Date</th>
-                  <th className="py-3 px-4">Landlord & Tenant</th>
-                  <th className="py-3 px-4">Premises City</th>
-                  <th className="py-3 px-4">Monthly Rent</th>
-                  <th className="py-3 px-4">Current Status</th>
-                  <th className="py-3 px-4">Payment</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th scope="col" className="py-3 px-4">Order ID & Date</th>
+                  <th scope="col" className="py-3 px-4">Landlord & Tenant</th>
+                  <th scope="col" className="py-3 px-4">Premises City</th>
+                  <th scope="col" className="py-3 px-4">Monthly Rent</th>
+                  <th scope="col" className="py-3 px-4">Current Status</th>
+                  <th scope="col" className="py-3 px-4">Payment</th>
+                  <th scope="col" className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -1386,7 +1326,7 @@ export function AdminClient() {
                   <tr key={ord.orderId} className="hover:bg-stone-50/60 transition-colors">
                     <td className="py-3.5 px-4">
                       <strong className="font-mono text-stone-900">{ord.orderId}</strong>
-                      <span className="block text-[11px] text-stone-400">
+                      <span className="block text-xs text-stone-400">
                         {new Date(ord.createdAt).toLocaleDateString('en-IN', {
                           day: 'numeric',
                           month: 'short',
@@ -1401,19 +1341,19 @@ export function AdminClient() {
                     </td>
                     <td className="py-3.5 px-4">
                       <span>{ord.propertyDetails.city}</span>
-                      <span className="block text-stone-400 text-[10px]">{ord.propertyDetails.propertyType}</span>
+                      <span className="block text-stone-400 text-xs">{ord.propertyDetails.propertyType}</span>
                     </td>
                     <td className="py-3.5 px-4 font-mono font-semibold text-stone-800">
                       ₹{ord.agreementTerms.monthlyRent?.toLocaleString('en-IN')}
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-stone-100 text-stone-800">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-stone-100 text-stone-800">
                         {ord.status}
                       </span>
                     </td>
                     <td className="py-3.5 px-4">
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        className={`px-2 py-0.5 rounded text-xs font-bold ${
                           ord.payment?.status === 'Paid'
                             ? 'bg-emerald-100 text-emerald-800'
                             : 'bg-amber-100 text-amber-800'
@@ -1424,6 +1364,7 @@ export function AdminClient() {
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <button
+                        aria-label={`Review order ${ord.orderId}`}
                         onClick={() => setSelectedOrder(ord)}
                         className="bg-stone-900 hover:bg-stone-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
                       >
@@ -1435,6 +1376,7 @@ export function AdminClient() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
         </>
@@ -1442,7 +1384,7 @@ export function AdminClient() {
 
       {/* Order Detail Modal */}
       {selectedOrder && (
-        <div className={`fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto ${showAgreementPrint ? 'agreement-print-modal' : ''}`}>
+        <div ref={orderDialogRef} role="dialog" aria-modal="true" aria-label={showAgreementPrint ? 'Agreement print preview' : 'Rental order details'} tabIndex={-1} className={`fixed inset-0 z-[60] bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto ${showAgreementPrint ? 'agreement-print-modal' : ''}`}>
           {showAgreementPrint ? (
             <div className="bg-white rounded-3xl max-w-5xl w-full p-6 sm:p-8 shadow-xl max-h-[95vh] overflow-y-auto space-y-4">
               <RentalAgreementDocument
@@ -1472,7 +1414,7 @@ export function AdminClient() {
               {/* Header */}
               <div className="flex items-start justify-between border-b border-stone-200 pb-4">
                 <div>
-                  <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                     Order Management
                   </span>
                   <h2 className="text-xl font-black font-mono text-stone-900">{selectedOrder.orderId}</h2>
@@ -1484,13 +1426,14 @@ export function AdminClient() {
                   <button
                     type="button"
                     onClick={() => setShowAgreementPrint(true)}
-                    className="bg-amber-600 hover:bg-amber-700 text-stone-900 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                    className="bg-amber-700 hover:bg-amber-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
                     title="Open agreement formatted for non-judicial stamp paper"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     <span>Print Agreement</span>
                   </button>
                   <button
+                    aria-label="Close order details"
                     onClick={() => {
                       setSelectedOrder(null);
                       setShowCorrectionForm(false);
@@ -1513,7 +1456,7 @@ export function AdminClient() {
                 <p>Age: {selectedOrder.ownerDetails.age} yrs • Phone: {selectedOrder.ownerDetails.phone}</p>
                 <p className="font-mono text-emerald-800">Aadhaar Last 4: XXXX-XXXX-{selectedOrder.ownerDetails.aadhaarLast4}</p>
                 {selectedOrder.ownerDetails.pan && <p className="font-mono">PAN: {selectedOrder.ownerDetails.pan}</p>}
-                <p className="text-stone-500">Address: {selectedOrder.ownerDetails.address}</p>
+                <p className="text-stone-500">Address: {selectedOrder.ownerDetails.address}{selectedOrder.ownerDetails.pincode ? ` - ${selectedOrder.ownerDetails.pincode}` : ''}</p>
               </div>
 
               {/* Tenant */}
@@ -1524,7 +1467,7 @@ export function AdminClient() {
                 <p>Age: {selectedOrder.tenantDetails.age} yrs • Phone: {selectedOrder.tenantDetails.phone}</p>
                 <p className="font-mono text-emerald-800">Aadhaar Last 4: XXXX-XXXX-{selectedOrder.tenantDetails.aadhaarLast4}</p>
                 {selectedOrder.tenantDetails.pan && <p className="font-mono">PAN: {selectedOrder.tenantDetails.pan}</p>}
-                <p className="text-stone-500">Address: {selectedOrder.tenantDetails.address}</p>
+                <p className="text-stone-500">Address: {selectedOrder.tenantDetails.address}{selectedOrder.tenantDetails.pincode ? ` - ${selectedOrder.tenantDetails.pincode}` : ''}</p>
               </div>
 
               {/* Property */}
@@ -1538,7 +1481,7 @@ export function AdminClient() {
               <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-2 sm:col-span-2">
                 <div className="flex justify-between items-center border-b border-stone-200/80 pb-1.5">
                   <strong className="block font-bold text-stone-900">Agreement Terms & Selected Stamping Package</strong>
-                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
                     Order Total: ₹{(selectedOrder.payment?.totalBeforeCredits ?? selectedOrder.payment?.amount) || (selectedOrder.agreementTerms.stampPaperDenomination === 200 ? (selectedOrder.agreementTerms.deliveryLocation === 'Within Tamil Nadu' ? 500 : 450) : (selectedOrder.agreementTerms.deliveryLocation === 'Within Tamil Nadu' ? 400 : 350)) + (selectedOrder.agreementTerms.includeNotary ? 200 : 0)}
                   </span>
                 </div>
@@ -1560,6 +1503,7 @@ export function AdminClient() {
                         {selectedOrder.agreementTerms.deliveryRecipient === 'Owner'
                           ? selectedOrder.ownerDetails.address
                           : selectedOrder.tenantDetails.address}
+                    {(selectedOrder.agreementTerms.deliveryRecipient === 'Owner' ? selectedOrder.ownerDetails.pincode : selectedOrder.tenantDetails.pincode) && <> - {selectedOrder.agreementTerms.deliveryRecipient === 'Owner' ? selectedOrder.ownerDetails.pincode : selectedOrder.tenantDetails.pincode}</>}
                       </>
                     ) : (
                       'Not recorded on this order'
@@ -1671,7 +1615,7 @@ export function AdminClient() {
                   <h4 className="font-bold text-sky-900 text-xs">Consignment Courier Details</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-semibold text-sky-900 mb-1">Courier Partner</label>
+                      <label className="block text-xs font-semibold text-sky-900 mb-1">Courier Partner</label>
                       <select
                         value={courierName}
                         onChange={(e) => setCourierName(e.target.value)}
@@ -1684,7 +1628,7 @@ export function AdminClient() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-sky-900 mb-1">Tracking Number</label>
+                      <label className="block text-xs font-semibold text-sky-900 mb-1">Tracking Number</label>
                       <input
                         type="text"
                         value={trackingNumber}

@@ -246,10 +246,10 @@ export function OrderIntakeWizard() {
 
         if (draft && draft.formData) {
           const fd = draft.formData;
-          if (fd.ownerDetails) setOwnerData(fd.ownerDetails);
+          if (fd.ownerDetails) setOwnerData({ ...fd.ownerDetails, pincode: fd.ownerDetails.pincode ?? extractPincode(fd.ownerDetails.address) ?? '' });
           else if (userEmail) setOwnerData((prev) => ({ ...prev, email: userEmail }));
 
-          if (fd.tenantDetails) setTenantData(fd.tenantDetails);
+          if (fd.tenantDetails) setTenantData({ ...fd.tenantDetails, pincode: fd.tenantDetails.pincode ?? extractPincode(fd.tenantDetails.address) ?? '' });
           if (fd.propertyDetails) setPropertyData(fd.propertyDetails);
           if (fd.agreementTerms) setTermsData(fd.agreementTerms);
           if (fd.proofUploads) setProofData(fd.proofUploads);
@@ -375,6 +375,9 @@ export function OrderIntakeWizard() {
       errs.address = 'Complete permanent address required (at least 10 characters)';
     }
 
+    if (!ownerData.pincode || !/^[1-9]\d{5}$/.test(ownerData.pincode)) {
+      errs.pincode = 'Enter a valid 6-digit permanent address PIN code';
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -410,6 +413,9 @@ export function OrderIntakeWizard() {
       errs.address = 'Complete permanent address required (at least 10 characters)';
     }
 
+    if (!tenantData.pincode || !/^[1-9]\d{5}$/.test(tenantData.pincode)) {
+      errs.pincode = 'Enter a valid 6-digit permanent address PIN code';
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -457,10 +463,10 @@ export function OrderIntakeWizard() {
       errs.deliveryRecipient = 'Choose whether delivery should go to the owner or tenant.';
     } else {
       const deliveryAddress = termsData.deliveryRecipient === 'Owner'
-        ? ownerData.address
-        : tenantData.address;
-      if (!extractPincode(deliveryAddress)) {
-        errs.deliveryRecipient = 'Add a six-digit Tamil Nadu PIN code to the selected address in Step 1 or Step 2.';
+        ? ownerData.pincode
+        : tenantData.pincode;
+      if (!deliveryAddress || !/^6\d{5}$/.test(deliveryAddress)) {
+        errs.deliveryRecipient = 'Enter a six-digit Tamil Nadu delivery PIN code in the selected recipient\'s PIN code field in Step 1 or Step 2.';
       }
     }
 
@@ -876,8 +882,10 @@ export function OrderIntakeWizard() {
           <AgreementTermsStep
             data={termsData}
             ownerAddress={ownerData.address}
+            ownerPincode={ownerData.pincode}
             ownerName={ownerData.fullName}
             tenantAddress={tenantData.address}
+            tenantPincode={tenantData.pincode}
             tenantName={tenantData.fullName}
             onChange={(fields) => {
               setTermsData((prev) => ({ ...prev, ...fields }));

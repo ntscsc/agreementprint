@@ -14,6 +14,7 @@ export interface PersonDetails {
   relativeName: string; // Father's or spouse's name
   age: number | string;
   address: string;
+  pincode?: string; // Separate permanent-address PIN; older orders may embed it in address.
   phone: string;
   email?: string;
   aadhaarLast4?: string; // Optional Aadhaar or ID proof number

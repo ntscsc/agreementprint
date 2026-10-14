@@ -26,7 +26,7 @@ export const PropertyStep: React.FC<PropertyStepProps> = ({ data, onChange, erro
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-x-5 gap-y-5">
         {/* Property Type */}
         <div>
           <label htmlFor="property-type" className="block text-xs font-bold text-stone-700 mb-1">
@@ -39,7 +39,7 @@ export const PropertyStep: React.FC<PropertyStepProps> = ({ data, onChange, erro
             onChange={(e) => onChange({ propertyType: e.target.value as PropertyDetails['propertyType'] })}
             aria-invalid={!!errors.propertyType}
             aria-describedby={errors.propertyType ? 'property-type-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 bg-white ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 bg-white ${
               errors.propertyType
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 focus:ring-amber-500'
@@ -64,7 +64,7 @@ export const PropertyStep: React.FC<PropertyStepProps> = ({ data, onChange, erro
             onChange={(e) => onChange({ furnishing: e.target.value as PropertyDetails['furnishing'] })}
             aria-invalid={!!errors.furnishing}
             aria-describedby={errors.furnishing ? 'property-furnishing-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 bg-white ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 bg-white ${
               errors.furnishing
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 focus:ring-amber-500'
@@ -92,7 +92,7 @@ export const PropertyStep: React.FC<PropertyStepProps> = ({ data, onChange, erro
               placeholder="e.g. Sri Balaji Enterprises / Nexus Infotech"
               aria-invalid={!!errors.businessName}
               aria-describedby={errors.businessName ? 'property-businessName-error' : undefined}
-              className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 bg-white ${
+              className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 bg-white ${
                 errors.businessName
                   ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                   : 'border-stone-300 focus:ring-amber-500'
@@ -123,7 +123,7 @@ export const PropertyStep: React.FC<PropertyStepProps> = ({ data, onChange, erro
             placeholder="e.g. Chennai, Madurai, Coimbatore..."
             aria-invalid={!!errors.city}
             aria-describedby={errors.city ? 'property-city-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
               errors.city
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 bg-white focus:ring-amber-500'
@@ -148,7 +148,7 @@ export const PropertyStep: React.FC<PropertyStepProps> = ({ data, onChange, erro
             placeholder="e.g. 600028"
             aria-invalid={!!errors.pincode}
             aria-describedby={errors.pincode ? 'property-pincode-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
               errors.pincode
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 bg-white focus:ring-amber-500'
@@ -176,7 +176,7 @@ export const PropertyStep: React.FC<PropertyStepProps> = ({ data, onChange, erro
             placeholder="Complete premises address including Flat No., Building Name, Door No., Street, Locality, and Landmark"
             aria-invalid={!!errors.fullAddress}
             aria-describedby={errors.fullAddress ? 'property-fullAddress-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
               errors.fullAddress
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 bg-white focus:ring-amber-500'

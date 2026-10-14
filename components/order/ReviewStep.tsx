@@ -425,7 +425,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
               <div><span className="text-stone-400">Aadhaar:</span> <strong className="font-mono text-stone-900">{ownerData.aadhaarLast4}</strong></div>
             )}
             {ownerData.pan && <div><span className="text-stone-400">PAN:</span> <span className="font-mono">{ownerData.pan}</span></div>}
-            <div className="sm:col-span-2"><span className="text-stone-400">Permanent Address:</span> {ownerData.address}</div>
+            <div className="sm:col-span-2"><span className="text-stone-400">Permanent Address:</span> {ownerData.address}{ownerData.pincode ? ` - ${ownerData.pincode}` : ''}</div>
           </div>
         </div>
 
@@ -452,7 +452,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
               <div><span className="text-stone-400">Aadhaar:</span> <strong className="font-mono text-stone-900">{tenantData.aadhaarLast4}</strong></div>
             )}
             {tenantData.pan && <div><span className="text-stone-400">PAN:</span> <span className="font-mono">{tenantData.pan}</span></div>}
-            <div className="sm:col-span-2"><span className="text-stone-400">Permanent Address:</span> {tenantData.address}</div>
+            <div className="sm:col-span-2"><span className="text-stone-400">Permanent Address:</span> {tenantData.address}{tenantData.pincode ? ` - ${tenantData.pincode}` : ''}</div>
           </div>
         </div>
 
@@ -512,6 +512,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
               <div className="sm:col-span-2">
                 <span className="text-stone-400">Delivery Address:</span>{' '}
                 {termsData.deliveryRecipient === 'Owner' ? ownerData.address : tenantData.address}
+                {' - '}{termsData.deliveryRecipient === 'Owner' ? ownerData.pincode : tenantData.pincode}
               </div>
             )}
             <div className="sm:col-span-2">
@@ -528,9 +529,9 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
       <div className="bg-stone-900 text-white rounded-2xl p-6 border border-stone-800 space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-white">Itemized Fee Summary</h3>
+            <h3 className="text-base font-bold text-white">Your Agreement Package</h3>
             <p className="text-xs text-stone-400">
-              Government stamp duty, drafting fee, and courier dispatch charges are calculated separately.
+              Your package includes agreement preparation, stamp paper, printing and courier delivery.
             </p>
           </div>
           <ShieldCheck className="w-6 h-6 text-amber-400" />
@@ -539,15 +540,19 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         {feeState.loading ? (
           <div className="flex items-center justify-center py-6 text-xs text-stone-400 gap-2">
             <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-            <span>Calculating server fee breakdown...</span>
+            <span>Loading your package price...</span>
           </div>
         ) : feeState.feesConfigured && feeState.totalPayable !== null ? (
           <div className="space-y-3 border-t border-stone-800 pt-3 text-xs">
             <div className="flex justify-between text-stone-300">
               <span>
-                Stamping & Delivery Base Package (In Rs.{feeState.stampPaperDenomination || 100} paper, {feeState.deliveryLocation || 'Within Chennai'} with courier):
+                Agreement Package (₹{feeState.stampPaperDenomination || 100} stamp paper):
               </span>
-              <span className="font-mono font-semibold text-white">₹{feeState.basePackagePrice?.toLocaleString('en-IN') ?? 350}</span>
+              <span className="font-mono font-semibold text-white">₹{((feeState.basePackagePrice ?? 350) - (feeState.courierFee ?? 0)).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between text-stone-300">
+              <span>Courier Delivery ({feeState.deliveryLocation}):</span>
+              <span className="font-mono font-semibold text-white">₹{(feeState.courierFee ?? 0).toLocaleString('en-IN')}</span>
             </div>
             <div className="flex justify-between text-stone-300">
               <span>Notary Public Verification & Signature:</span>

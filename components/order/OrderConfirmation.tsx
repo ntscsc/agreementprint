@@ -139,6 +139,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
                   {order.agreementTerms.deliveryRecipient === 'Owner'
                     ? order.ownerDetails.address
                     : order.tenantDetails.address}
+                    {(order.agreementTerms.deliveryRecipient === 'Owner' ? order.ownerDetails.pincode : order.tenantDetails.pincode) && <> - {order.agreementTerms.deliveryRecipient === 'Owner' ? order.ownerDetails.pincode : order.tenantDetails.pincode}</>}
                 </div>
               )}
             </div>

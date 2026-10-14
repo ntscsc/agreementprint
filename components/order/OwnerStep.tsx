@@ -25,9 +25,11 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <fieldset className="min-w-0 rounded-2xl border border-stone-200 p-4 sm:p-5">
+        <legend className="px-2 text-sm font-bold text-stone-900">Personal & Contact Details</legend>
+        <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-x-5 gap-y-5">
         {/* Full Name */}
-        <div className="sm:col-span-2">
+        <div className="min-w-0">
           <label htmlFor="owner-fullName" className="block text-xs font-bold text-stone-700 mb-1">
             Owner Full Legal Name *
           </label>
@@ -40,7 +42,7 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
             placeholder="e.g. S. Ramanathan"
             aria-invalid={!!errors.fullName}
             aria-describedby={errors.fullName ? 'owner-fullName-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
               errors.fullName
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 bg-white focus:ring-amber-500'
@@ -63,7 +65,7 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
             placeholder="e.g. K. Sundaram"
             aria-invalid={!!errors.relativeName}
             aria-describedby={errors.relativeName ? 'owner-relativeName-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
               errors.relativeName
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 bg-white focus:ring-amber-500'
@@ -89,7 +91,7 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
             placeholder="e.g. 48"
             aria-invalid={!!errors.age}
             aria-describedby={errors.age ? 'owner-age-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
               errors.age
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 bg-white focus:ring-amber-500'
@@ -114,7 +116,7 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
             placeholder="10-digit mobile number"
             aria-invalid={!!errors.phone}
             aria-describedby={errors.phone ? 'owner-phone-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
               errors.phone
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 bg-white focus:ring-amber-500'
@@ -123,6 +125,12 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
           {errors.phone && <p id="owner-phone-error" className="text-xs text-rose-600 mt-1">{errors.phone}</p>}
         </div>
 
+        </div>
+      </fieldset>
+
+      <fieldset className="min-w-0 rounded-2xl border border-stone-200 p-4 sm:p-5">
+        <legend className="px-2 text-sm font-bold text-stone-900">Identity Details (Optional)</legend>
+        <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-x-5 gap-y-5">
         {/* Aadhaar Number (Optional) */}
         <div>
           <label htmlFor="owner-aadhaar" className="block text-xs font-bold text-stone-700 mb-1">
@@ -138,7 +146,7 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
             placeholder="e.g. 1234 5678 9012"
             aria-invalid={!!errors.aadhaarLast4}
             aria-describedby={errors.aadhaarLast4 ? 'owner-aadhaar-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-mono text-stone-900 focus:outline-none focus:ring-2 ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm font-mono text-stone-900 focus:outline-none focus:ring-2 ${
               errors.aadhaarLast4
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 bg-white focus:ring-amber-500'
@@ -163,15 +171,21 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
             placeholder="ABCDE1234F"
             aria-invalid={!!errors.pan}
             aria-describedby={errors.pan ? 'owner-pan-error' : undefined}
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 uppercase bg-white text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+            className="w-full min-w-0 px-3.5 py-2.5 rounded-xl border border-stone-300 uppercase bg-white text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
           />
           {errors.pan && <p id="owner-pan-error" className="text-xs text-rose-600 mt-1">{errors.pan}</p>}
         </div>
 
+        </div>
+      </fieldset>
+
+      <fieldset className="min-w-0 rounded-2xl border border-stone-200 p-4 sm:p-5">
+        <legend className="px-2 text-sm font-bold text-stone-900">Permanent Residential Address</legend>
+        <div className="grid grid-cols-1 md:grid-cols-3 items-start gap-x-5 gap-y-5">
         {/* Permanent Address */}
-        <div className="sm:col-span-2">
+        <div className="min-w-0 md:col-span-2">
           <label htmlFor="owner-address" className="block text-xs font-bold text-stone-700 mb-1">
-            Owner Permanent Residential Address *
+            Street Address *
           </label>
           <textarea
             id="owner-address"
@@ -179,10 +193,10 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
             required
             value={data.address || ''}
             onChange={(e) => onChange({ address: e.target.value })}
-            placeholder="Complete address including Door/Flat No., Street, Locality, City, and Pincode as in ID proof"
+            placeholder="Complete address including Door/Flat No., Street, Locality, City and State as in ID proof"
             aria-invalid={!!errors.address}
             aria-describedby={errors.address ? 'owner-address-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
+            className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
               errors.address
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 bg-white focus:ring-amber-500'
@@ -190,7 +204,14 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
           />
           {errors.address && <p id="owner-address-error" className="text-xs text-rose-600 mt-1">{errors.address}</p>}
         </div>
-      </div>
+        <div className="min-w-0">
+          <label htmlFor="owner-pincode" className="block text-xs font-bold text-stone-700 mb-1">PIN Code *</label>
+          <input id="owner-pincode" type="text" inputMode="numeric" autoComplete="postal-code" required maxLength={6} pattern="[1-9][0-9]{5}" value={data.pincode || ''} onChange={(e) => onChange({ pincode: e.target.value.replace(/[^0-9]/g, '').slice(0, 6) })} placeholder="6-digit PIN code" aria-invalid={!!errors.pincode} aria-describedby={errors.pincode ? 'owner-pincode-error' : undefined} className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${errors.pincode ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400' : 'border-stone-300 bg-white focus:ring-amber-500'}`} />
+          {errors.pincode && <p id="owner-pincode-error" className="text-xs text-rose-600 mt-1">{errors.pincode}</p>}
+        </div>
+        </div>
+      </fieldset>
+
     </div>
   );
 };

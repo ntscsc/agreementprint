@@ -5,10 +5,10 @@ import { VENDOR_CONFIG } from '@/src/config/vendor';
 import { SupportEmailLink } from '@/components/SupportEmailLink';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy | Data Protection & Aadhaar Masking Policy | TN Stamp Paper',
+  title: 'Privacy Policy | AgreementPrint',
   description: 'Read how we protect agreement details, contact information and custom agreement sample uploads.',
   openGraph: {
-    title: 'Privacy Policy | Data Protection & Aadhaar Masking Policy | TN Stamp Paper',
+    title: 'Privacy Policy | AgreementPrint',
     description: 'Read how we protect agreement details, contact information and custom agreement sample uploads.',
   },
 };

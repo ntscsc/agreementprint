@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import { ReferralDashboard } from '@/components/referrals/ReferralDashboard';
 
 export const metadata: Metadata = {
-  title: 'Referral Credits | StampSure',
-  description: 'Share your StampSure referral code, track eligible referrals, and view your available credits.',
+  title: 'Referral Credits | AgreementPrint',
+  description: 'Share your AgreementPrint referral code, track eligible referrals, and view your available credits.',
 };
 
 export default function ReferralsPage() {

@@ -3,11 +3,11 @@ import { FaqClient } from './FaqClient';
 import { faqData } from './faq-data';
 
 export const metadata: Metadata = {
-  title: 'Frequently Asked Questions | Rental Agreements & Stamp Duty Tamil Nadu',
-  description: 'Answers about rental agreement duration, stamp paper options, pricing, online payments, privacy, delivery, and refunds.',
+  title: 'FAQs | AgreementPrint',
+  description: 'Simple answers about stamp paper, rental and custom agreements, notary signatures, delivery, payments, referral rewards and free rent receipts.',
   openGraph: {
-    title: 'Frequently Asked Questions | Rental Agreements & Stamp Duty Tamil Nadu',
-    description: 'Answers about rental agreement duration, stamp paper options, pricing, online payments, privacy, delivery, and refunds.',
+    title: 'FAQs | AgreementPrint',
+    description: 'Simple answers about stamp paper, rental and custom agreements, notary signatures, delivery, payments, referral rewards and free rent receipts.',
   },
 };
 

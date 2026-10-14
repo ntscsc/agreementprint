@@ -2,317 +2,140 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { BrandMark } from '@/components/BrandMark';
 import { usePathname } from 'next/navigation';
-import { 
-  Menu, 
-  X, 
-  FileText, 
-  User,
-  LogOut,
-  ChevronDown
-} from 'lucide-react';
+import { Menu, X, FileText, User, LogOut, ChevronDown } from 'lucide-react';
+import { BrandMark } from '@/components/BrandMark';
+import { VENDOR_SERVICE_TITLE } from '@/src/config/vendor';
 import { useI18n } from '@/lib/i18n/context';
 import { useAuth } from '@/lib/auth-context';
 
-interface HeaderProps {
-  onStartAgreement?: () => void;
-}
+interface HeaderProps { onStartAgreement?: () => void; }
+interface NavItem { label: string; href: string; }
 
 export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
   const { t } = useI18n();
-  const { user, signOut, signInWithGoogle } = useAuth();
+  const { user, isAdmin, signOut, signInWithGoogle } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [exploreOpen, setExploreOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
-  const exploreMenuRef = useRef<HTMLDivElement>(null);
-  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const activeMenuRef = useRef<HTMLDivElement>(null);
+  const mobileButtonRef = useRef<HTMLButtonElement>(null);
+  const closeMenus = () => { setOpenMenu(null); setMobileMenuOpen(false); };
 
   useEffect(() => {
-    if (!exploreOpen && !accountOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node) {
-        if (exploreOpen && !exploreMenuRef.current?.contains(event.target)) {
-          setExploreOpen(false);
-        }
-        if (accountOpen && !accountMenuRef.current?.contains(event.target)) {
-          setAccountOpen(false);
-        }
-      }
+    if (!openMenu && !mobileMenuOpen) return;
+    const outside = (event: PointerEvent) => {
+      if (openMenu && event.target instanceof Node && !activeMenuRef.current?.contains(event.target)) setOpenMenu(null);
     };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setExploreOpen(false);
-        setAccountOpen(false);
-      }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (openMenu) document.getElementById(`nav-${openMenu}-button`)?.focus();
+      else mobileButtonRef.current?.focus();
+      setOpenMenu(null); setMobileMenuOpen(false);
     };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [openMenu, mobileMenuOpen]);
 
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [exploreOpen, accountOpen]);
-
-  const primaryNavLinks = [
+  const primary: NavItem[] = [
     { label: t.nav.home, href: '/' },
-    { label: t.nav.howItWorks, href: '/how-it-works' },
-    { label: t.nav.rentReceipt, href: '/rent-receipt' },
+    { label: 'Services', href: '/services' },
     { label: t.nav.pricing, href: '/pricing' },
+    { label: t.nav.howItWorks, href: '/how-it-works' },
   ];
-
-  const exploreLinks = [
-    { label: 'Custom Agreement', href: '/custom-agreement' },
+  const groups = [
+    { id: 'agreements', label: 'Agreements', links: [
+      { label: 'Rental Agreement', href: '/order' },
+      { label: 'Custom Agreement', href: '/custom-agreement' },
+      { label: t.nav.rentReceipt, href: '/rent-receipt' },
+    ] },
+    { id: 'help', label: 'Help', links: [
+      { label: t.nav.faq, href: '/faq' },
+      { label: t.nav.contact, href: '/contact' },
+    ] },
+  ];
+  const account: NavItem[] = [
+    ...(isAdmin ? [{ label: 'Admin Portal', href: '/admin' }] : []),
+    { label: 'My Orders', href: '/my-orders' },
     { label: 'My Requests', href: '/my-requests' },
-    { label: t.nav.faq, href: '/faq' },
-    { label: t.nav.contact, href: '/contact' },
     { label: t.nav.trackOrder, href: '/track' },
+    { label: 'Referral Credits', href: '/referrals' },
   ];
+  const linkClass = (href: string, dropdown = false) => dropdown
+    ? `block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${pathname === href ? 'bg-amber-50 text-amber-900' : 'text-stone-700 hover:bg-stone-100'}`
+    : `rounded-lg px-3 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors ${pathname === href ? 'bg-white/20 text-white' : 'text-blue-50 hover:bg-white/15'}`;
+  const renderLink = (link: NavItem, dropdown = false) => (
+    <Link key={link.href} href={link.href} aria-current={pathname === link.href ? 'page' : undefined} onClick={closeMenus} className={linkClass(link.href, dropdown)}>{link.label}</Link>
+  );
+  const actionClass = 'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white';
+  const start = () => { closeMenus(); onStartAgreement?.(); };
+  const signIn = () => { closeMenus(); void signInWithGoogle().catch(() => {}); };
+  const signOutUser = () => { closeMenus(); void signOut(); };
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#0b4f86] bg-[#0b5e9e] text-white shadow-sm">
-      {/* Main Navigation Bar */}
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20">
-          {/* Logo / Brand */}
-          <Link
-            href="/"
-            className="flex items-center gap-3 text-left group rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
-          >
-            <BrandMark className="h-10 w-10 shrink-0" />
-            <div>
-              <div className="font-extrabold text-base sm:text-lg text-[#ffb15c] tracking-tight group-hover:text-[#ffd29c] transition-colors flex items-center gap-1.5">
-                <span>StampSure</span>
-              </div>
-              <p className="text-[11px] text-blue-100 font-normal leading-tight hidden 2xl:block">
-                Non-Judicial Stamp Paper Agreement Drafting
-              </p>
-            </div>
+      <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8">
+        <div className="flex min-h-20 items-center justify-between gap-3 py-2 sm:gap-4">
+          <Link href="/" onClick={closeMenus} className="group flex min-w-0 items-center gap-1.5 sm:gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
+            <BrandMark className="h-7 w-7 shrink-0 sm:h-10 sm:w-10" />
+            <span className="min-w-0">
+              <span className="block text-base font-extrabold tracking-tight text-[#ffb15c] transition group-hover:text-[#ffd29c] sm:text-lg">AgreementPrint</span>
+              <span className="mt-0.5 block whitespace-nowrap text-[7px] font-medium leading-3 text-blue-100 min-[400px]:text-[8px] sm:text-[10px] sm:leading-4">{VENDOR_SERVICE_TITLE}</span>
+            </span>
           </Link>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden xl:flex items-center gap-1">
-            {primaryNavLinks.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors whitespace-nowrap ${
-                    isActive
-                      ? 'bg-white/20 text-white'
-                      : 'text-blue-50 hover:text-white hover:bg-white/15'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-            <div className="relative" ref={exploreMenuRef}>
-              <button
-                type="button"
-                onClick={() => setExploreOpen((open) => !open)}
-                className={`flex cursor-pointer items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors ${
-                  exploreLinks.some((link) => pathname === link.href) || exploreOpen
-                    ? 'bg-white/20 text-white'
-                    : 'text-blue-50 hover:text-white hover:bg-white/15'
-                }`}
-                aria-expanded={exploreOpen}
-                aria-haspopup="menu"
-              >
-                Explore
-                <ChevronDown className={`h-4 w-4 transition-transform ${exploreOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {exploreOpen && (
-                <div className="absolute left-0 top-full z-50 mt-2 min-w-48 rounded-xl border border-stone-200 bg-white p-2 shadow-xl">
-                  {exploreLinks.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      onClick={() => setExploreOpen(false)}
-                      className={`block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                        pathname === link.href
-                          ? 'bg-brand-100 text-brand-800'
-                          : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
-                      }`}
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+          <nav aria-label="Main navigation" className="hidden items-center gap-1 2xl:flex">
+            {renderLink(primary[0])}
+            {groups.slice(0, 1).map((group) => (
+              <div key={group.id} className="relative" ref={openMenu === group.id ? activeMenuRef : undefined}>
+                <button id={`nav-${group.id}-button`} type="button" aria-expanded={openMenu === group.id} aria-controls={`nav-${group.id}-links`} onClick={() => setOpenMenu(openMenu === group.id ? null : group.id)} className={`flex items-center gap-1 ${linkClass(group.links.some((link) => pathname === link.href) ? pathname : '')}`}>
+                  {group.label}<ChevronDown className={`h-4 w-4 transition-transform ${openMenu === group.id ? 'rotate-180' : ''}`} />
+                </button>
+                {openMenu === group.id && <div id={`nav-${group.id}-links`} className="absolute left-0 top-full mt-2 w-56 rounded-xl border border-stone-200 bg-white p-2 shadow-xl">{group.links.map((link) => renderLink(link, true))}</div>}
+              </div>
+            ))}
+            {primary.slice(1).map((link) => renderLink(link))}
+            {groups.slice(1).map((group) => (
+              <div key={group.id} className="relative" ref={openMenu === group.id ? activeMenuRef : undefined}>
+                <button id={`nav-${group.id}-button`} type="button" aria-expanded={openMenu === group.id} aria-controls={`nav-${group.id}-links`} onClick={() => setOpenMenu(openMenu === group.id ? null : group.id)} className={`flex items-center gap-1 ${linkClass(group.links.some((link) => pathname === link.href) ? pathname : '')}`}>
+                  {group.label}<ChevronDown className={`h-4 w-4 transition-transform ${openMenu === group.id ? 'rotate-180' : ''}`} />
+                </button>
+                {openMenu === group.id && <div id={`nav-${group.id}-links`} className="absolute left-0 top-full mt-2 w-52 rounded-xl border border-stone-200 bg-white p-2 shadow-xl">{group.links.map((link) => renderLink(link, true))}</div>}
+              </div>
+            ))}
           </nav>
 
-          {/* Action CTAs */}
-          <div className="hidden xl:flex items-center gap-2">
-            {/* User Account / Sign In Status */}
-            {user ? (
-              <div className="relative" ref={accountMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => setAccountOpen((open) => !open)}
-                  aria-expanded={accountOpen}
-                  aria-haspopup="menu"
-                  className="flex max-w-40 cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/15"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-100">
-                    <User className="h-4 w-4 fill-current text-brand-800" />
-                  </span>
-                  <span className="truncate">{user.displayName || 'Account'}</span>
-                  <ChevronDown className={`h-4 w-4 shrink-0 text-blue-100 transition-transform ${accountOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {accountOpen && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-stone-200 bg-white p-2 shadow-xl">
-                    <p className="truncate px-3 py-2 text-xs text-stone-500">{user.email}</p>
-                    <Link href="/my-orders" onClick={() => setAccountOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-100 hover:text-stone-900">
-                      My Orders
-                    </Link>
-                    <Link href="/referrals" onClick={() => setAccountOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-100 hover:text-stone-900">
-                      Referral Credits
-                    </Link>
-                    <button
-                      onClick={() => {
-                        setAccountOpen(false);
-                        signOut();
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-100 hover:text-brand-700 cursor-pointer"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Sign Out
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={() => signInWithGoogle().catch(() => {})}
-                className="px-3 py-2 rounded-xl text-sm text-white font-medium transition-colors cursor-pointer flex items-center gap-1.5 hover:bg-white/15"
-              >
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-100">
-                  <User className="h-4 w-4 fill-current text-brand-800" />
-                </span>
-                <span>Sign In</span>
+          <div className="hidden items-center gap-3 2xl:flex">
+            <div className="relative border-l border-white/20 pl-3" ref={openMenu === 'account' ? activeMenuRef : undefined}>
+              <button id="nav-account-button" type="button" aria-expanded={openMenu === 'account'} aria-controls="nav-account-links" onClick={() => setOpenMenu(openMenu === 'account' ? null : 'account')} className={`flex items-center gap-2 ${linkClass(account.some((link) => pathname === link.href) ? pathname : '')}`}>
+                <User className="h-4 w-4" /><span>My Account</span><ChevronDown className={`h-4 w-4 transition-transform ${openMenu === 'account' ? 'rotate-180' : ''}`} />
               </button>
-            )}
-
-            {onStartAgreement ? (
-              <button
-                onClick={onStartAgreement}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow-sm transition-all flex items-center gap-2 hover:shadow-amber-500/20 active:translate-y-0.5 cursor-pointer whitespace-nowrap"
-              >
-                <FileText className="w-4 h-4 text-white" />
-                <span>Start Agreement</span>
-              </button>
-            ) : (
-              <Link
-                href="/order"
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow-sm transition-all flex items-center gap-2 hover:shadow-amber-500/20 active:translate-y-0.5 whitespace-nowrap"
-              >
-                <FileText className="w-4 h-4 text-white" />
-                <span>Start Agreement</span>
-              </Link>
-            )}
+              {openMenu === 'account' && <div id="nav-account-links" className="absolute right-0 top-full mt-2 w-60 rounded-xl border border-stone-200 bg-white p-2 shadow-xl">
+                {user && <div className="border-b border-stone-100 px-3 py-2"><p className="truncate text-sm font-semibold text-stone-900">{user.displayName || 'My Account'}</p><p className="truncate text-xs text-stone-500">{user.email}</p></div>}
+                {account.map((link) => renderLink(link, true))}
+                <div className="mt-1 border-t border-stone-100 pt-1">{user ? <button type="button" onClick={signOutUser} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"><LogOut className="h-4 w-4" />Sign Out</button> : <button type="button" onClick={signIn} className="w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-amber-800 hover:bg-amber-50">Sign In with Google</button>}</div>
+              </div>}
+            </div>
+            {onStartAgreement ? <button type="button" onClick={start} className={actionClass}><FileText className="h-4 w-4" />Start Agreement</button> : <Link href="/order" onClick={closeMenus} className={actionClass}><FileText className="h-4 w-4" />Start Agreement</Link>}
           </div>
 
-          {/* Mobile menu trigger */}
-          <div className="flex xl:hidden items-center gap-2">
-            <Link
-              href="/order"
-              className="bg-amber-600 text-white font-bold px-3 py-2 rounded-lg text-xs whitespace-nowrap"
-            >
-              Start
-            </Link>
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-white hover:text-white hover:bg-white/15 focus:outline-none cursor-pointer"
-              aria-label="Toggle navigation menu"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
+          <div className="flex items-center gap-2 2xl:hidden">
+            <div className="hidden sm:block">{onStartAgreement ? <button type="button" onClick={start} className={actionClass}>Start Agreement</button> : <Link href="/order" onClick={closeMenus} className={actionClass}>Start Agreement</Link>}</div>
+            <button ref={mobileButtonRef} type="button" onClick={() => { setOpenMenu(null); setMobileMenuOpen(!mobileMenuOpen); }} aria-label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" className="rounded-lg p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">{mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
           </div>
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
-      {mobileMenuOpen && (
-        <div className="xl:hidden bg-stone-50 border-t border-stone-200 px-4 pt-3 pb-6 space-y-2">
-          {user ? (
-            <div className="p-3 mb-2 bg-stone-100 rounded-lg text-xs text-stone-800 flex items-center justify-between gap-3">
-              <span className="truncate">{user.displayName || user.email}</span>
-              <button onClick={() => signOut()} className="text-blue-700 font-semibold cursor-pointer">
-                Sign Out
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                signInWithGoogle().catch(() => {});
-              }}
-              className="w-full mb-2 p-3 bg-white border border-stone-200 rounded-xl text-xs text-stone-800 flex items-center justify-center gap-2 cursor-pointer font-medium hover:bg-stone-100"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-100">
-                <User className="h-4 w-4 fill-current text-brand-800" />
-              </span>
-              <span>Sign In with Google</span>
-            </button>
-          )}
-
-          {user && (
-            <div className="grid grid-cols-2 gap-2">
-              <Link
-                href="/my-orders"
-                onClick={() => setMobileMenuOpen(false)}
-                className="rounded-lg bg-white px-3.5 py-2.5 text-sm font-semibold text-stone-800 hover:bg-stone-100"
-              >
-                My Orders
-              </Link>
-              <Link
-                href="/referrals"
-                onClick={() => setMobileMenuOpen(false)}
-                className="rounded-lg bg-white px-3.5 py-2.5 text-sm font-semibold text-stone-800 hover:bg-stone-100"
-              >
-                Referral Credits
-              </Link>
-            </div>
-          )}
-
-          <nav className="flex flex-col space-y-1">
-            {[...primaryNavLinks, ...exploreLinks].map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`text-left px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                    isActive
-                      ? 'bg-brand-100 text-brand-800 font-bold'
-                      : 'text-stone-700 hover:bg-stone-100'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="pt-3 border-t border-stone-200 flex flex-col gap-2">
-            <Link
-              href="/order"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-xl text-center text-sm flex items-center justify-center gap-2"
-            >
-              <FileText className="w-4 h-4" />
-              <span>Start Your Agreement</span>
-            </Link>
+      {mobileMenuOpen && <nav id="mobile-navigation" aria-label="Mobile navigation" className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-stone-200 bg-stone-50 px-4 py-5 2xl:hidden">
+        <div className="mx-auto max-w-3xl space-y-5">
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">{primary.map((link) => renderLink(link, true))}</div>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            {[...groups, { id: 'account', label: 'My Account', links: account }].map((group) => <section key={group.id} aria-labelledby={`mobile-${group.id}`} className="rounded-xl border border-stone-200 bg-white p-3"><h2 id={`mobile-${group.id}`} className="px-3 pb-2 pt-1 text-xs font-bold uppercase tracking-wide text-stone-500">{group.label}</h2>{group.links.map((link) => renderLink(link, true))}{group.id === 'account' && <div className="mt-2 border-t border-stone-100 px-3 pt-3">{user ? <><p className="mb-2 truncate text-xs text-stone-500">{user.displayName || user.email}</p><button type="button" onClick={signOutUser} className="text-sm font-semibold text-stone-700">Sign Out</button></> : <button type="button" onClick={signIn} className="text-sm font-semibold text-amber-800">Sign In with Google</button>}</div>}</section>)}
           </div>
+          {onStartAgreement ? <button type="button" onClick={start} className={`${actionClass} w-full`}>Start Your Agreement</button> : <Link href="/order" onClick={closeMenus} className={`${actionClass} w-full`}>Start Your Agreement</Link>}
         </div>
-      )}
+      </nav>}
     </header>
   );
 };

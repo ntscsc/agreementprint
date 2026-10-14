@@ -1,240 +1,90 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { 
-  CheckCircle2, 
-  ArrowRight, 
-  FileText, 
-  ShieldCheck, 
-  Clock, 
-  Truck, 
-  ChevronRight, 
-  Lock 
-} from 'lucide-react';
+import { ArrowRight, CheckCircle2, FileText, Gift, Printer, ReceiptText, Truck, CreditCard } from 'lucide-react';
 import { PriceBreakdownCard } from '@/components/PriceBreakdownCard';
-import { VENDOR_CONFIG } from '@/src/config/vendor';
+import { VENDOR_SERVICE_TITLE } from '@/src/config/vendor';
 
 export const metadata: Metadata = {
-  title: 'StampSure | Rental Agreements on Tamil Nadu Stamp Paper',
-  description: 'Online rental agreement drafting on non-judicial stamp paper in Tamil Nadu. Clear fees: stamp duty, service fee, and courier charges shown separately.',
+  title: 'AgreementPrint | Agreement Drafting & Printing',
+  description: 'Get your rental agreement prepared, printed on Tamil Nadu stamp paper and delivered to your door. Request custom agreements, create free rent receipts and earn referral rewards.',
   openGraph: {
-    title: 'StampSure | Rental Agreements on Tamil Nadu Stamp Paper',
-    description: 'Online rental agreement drafting on non-judicial stamp paper in Tamil Nadu. Clear fees: stamp duty, service fee, and courier charges shown separately.',
+    title: 'AgreementPrint | Agreement Drafting & Printing',
+    description: 'Share your details. We prepare, print and deliver your rental agreement. Simple ordering, clear prices and custom agreements to suit your needs.',
   },
 };
 
+const services = [
+  { icon: FileText, title: 'Rental Agreements', text: 'Share the rental details. We prepare your agreement, print it on stamp paper and send it by courier.', label: 'Start your agreement', href: '/order' },
+  { icon: Printer, title: 'Custom Agreements', text: 'Need a different agreement? Share a sample and tell us what you need. Our team will contact you with a price.', label: 'Tell us what you need', href: '/custom-agreement' },
+  { icon: ReceiptText, title: 'Free Rent Receipts', text: 'Create a rent receipt in a few simple steps. Print a copy or save it as a PDF, free of charge.', label: 'Create a rent receipt', href: '/rent-receipt' },
+  { icon: Gift, title: 'Refer & Earn', text: 'Help a friend get their agreement. Earn credits when they use your referral link for their first paid order.', label: 'See your rewards', href: '/referrals' },
+];
+const steps = [
+  { icon: FileText, title: 'Share your details', text: 'Tell us about the owner, tenant, property and rent.' },
+  { icon: CreditCard, title: 'Check and pay', text: 'Choose your options, check the full price and pay online.' },
+  { icon: Printer, title: 'We prepare and print', text: 'Our team checks your details and prepares your agreement on stamp paper.' },
+  { icon: Truck, title: 'Delivered to your door', text: 'Receive the printed agreement at the address you choose.' },
+];
+
 export default function HomePage() {
   return (
-    <div className="space-y-16 bg-stone-50 pb-16">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-white text-stone-900 pt-10 sm:pt-16 pb-16 px-4 sm:px-6 lg:px-8 border-b border-stone-200">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            {/* Left Column: Heading and Value Props */}
-            <div className="lg:col-span-7 space-y-6">
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-stone-900 leading-tight">
-                Rental Agreements on Tamil Nadu Stamp Paper
-              </h1>
-
-              <p className="text-stone-700 text-base sm:text-lg leading-relaxed max-w-2xl font-normal">
-                Submit your tenancy details online and get your agreement drafted on Tamil Nadu stamp paper, delivered directly to your doorstep.
-              </p>
-
-              {/* Core Features */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <div className="flex items-center gap-2 text-stone-800 text-xs sm:text-sm font-medium">
-                  <CheckCircle2 className="w-4 h-4 text-brand-600 shrink-0" />
-                  <span>Non-Judicial Stamp Paper</span>
-                </div>
-                <div className="flex items-center gap-2 text-stone-800 text-xs sm:text-sm font-medium">
-                  <CheckCircle2 className="w-4 h-4 text-brand-600 shrink-0" />
-                  <span>Courier Dispatch</span>
-                </div>
-                <div className="flex items-center gap-2 text-stone-800 text-xs sm:text-sm font-medium">
-                  <CheckCircle2 className="w-4 h-4 text-brand-600 shrink-0" />
-                  <span>1 Physical Original Copy</span>
-                </div>
-                <div className="flex items-center gap-2 text-stone-800 text-xs sm:text-sm font-medium">
-                  <CheckCircle2 className="w-4 h-4 text-brand-600 shrink-0" />
-                  <span>Itemized Fee Transparency</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <Link
-                  href="/order"
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-7 py-3.5 rounded-xl shadow-lg shadow-amber-800/20 text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-transform active:scale-95"
-                >
-                  <FileText className="w-5 h-5 text-white" />
-                  <span>Start Your Agreement</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
+    <div className="space-y-14 bg-stone-50 pb-16 sm:space-y-20">
+      <section className="border-b border-stone-200 bg-white px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-12">
+          <div className="space-y-6 lg:col-span-7 lg:pt-8">
+            <span className="inline-block rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold tracking-wide text-amber-800">{VENDOR_SERVICE_TITLE}</span>
+            <h1 className="max-w-2xl text-3xl font-black leading-tight tracking-tight text-stone-900 sm:text-4xl lg:text-5xl">Your rental agreement,<br className="hidden sm:block" /> delivered to your door.</h1>
+            <p className="max-w-xl text-base leading-relaxed text-stone-600 sm:text-lg">Leave the paperwork to us. Share your details online and get your agreement prepared and printed on Tamil Nadu stamp paper, with courier delivery to your chosen address.</p>
+            <div className="grid grid-cols-1 gap-3 text-sm font-medium text-stone-700 sm:grid-cols-2">
+              {['Tamil Nadu stamp paper', 'Clear price before you pay', 'Optional notary service', 'Courier delivery with tracking'].map((benefit) => <div key={benefit} className="flex items-start gap-2"><CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><span>{benefit}</span></div>)}
             </div>
-
-            {/* Right Column: Pricing Breakdown Card (reads from config) */}
-            <div className="lg:col-span-5">
-              <PriceBreakdownCard showCta={true} />
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap">
+              <Link href="/order" className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-amber-700">Start My Rental Agreement <ArrowRight className="h-4 w-4" /></Link>
+              <Link href="/custom-agreement" className="inline-flex items-center justify-center rounded-xl border border-stone-300 px-6 py-3.5 text-sm font-semibold text-stone-800 transition hover:bg-stone-50">Need a Custom Agreement?</Link>
             </div>
+            <p className="text-sm text-stone-500">Already placed an order? <Link href="/my-orders" className="font-semibold text-amber-800 hover:underline">View My Orders</Link> or <Link href="/track" className="font-semibold text-amber-800 hover:underline">track your delivery</Link>.</p>
           </div>
+          <div className="min-w-0 lg:col-span-5"><PriceBreakdownCard showCta={false} /></div>
         </div>
       </section>
 
-      {/* What We Do Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto space-y-3 mb-12">
-          <span className="text-xs uppercase tracking-wider font-bold text-brand-800 bg-brand-100 px-3 py-1 rounded-full">
-            Online Stamping Service
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">
-            What We Do For Landlords & Tenants in Tamil Nadu
-          </h2>
-          <p className="text-stone-600 text-sm sm:text-base leading-relaxed">
-            Convenient, transparent agreement drafting on non-judicial stamp paper without waiting at counter queues.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-800 flex items-center justify-center font-bold text-base">
-              01
-            </div>
-            <h3 className="font-bold text-stone-900 text-base">Non-Judicial Stamp Paper</h3>
-            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-              Printed on non-judicial stamp paper in accordance with Tamil Nadu tenancy standards.
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-800 flex items-center justify-center font-bold text-base">
-              02
-            </div>
-            <h3 className="font-bold text-stone-900 text-base">Standard Tenancy Clauses</h3>
-            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-              Customized 11-month agreement format with rent, maintenance, deposit, notice period, and escalation terms.
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-800 flex items-center justify-center font-bold text-base">
-              03
-            </div>
-            <h3 className="font-bold text-stone-900 text-base">Privacy</h3>
-            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-              Aadhaar is optional. Only the details needed for your order are used.
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-800 flex items-center justify-center font-bold text-base">
-              04
-            </div>
-            <h3 className="font-bold text-stone-900 text-base">Courier Dispatch</h3>
-            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-              1 physical original agreement dispatched to your delivery address with courier tracking details.
-            </p>
-          </div>
+      <section aria-labelledby="our-services" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-2xl border border-stone-200 bg-white p-6 sm:p-8">
+          <h2 id="our-services" className="text-2xl font-bold text-stone-900">Our Services</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-stone-600">Get help with stamp paper, e-Stamps, agreements, notary services, card printing and applications. Explore our services and find what you need.</p>
+          <div className="mt-5 flex flex-wrap gap-5 text-sm font-semibold text-amber-800"><Link href="/contact" className="hover:underline">Ask About a Service</Link><Link href="/services" className="hover:underline">View All Services</Link></div>
         </div>
       </section>
 
-      {/* 4-Step "How It Works" Section */}
-      <section className="bg-stone-100 py-16 px-4 sm:px-6 lg:px-8 border-y border-stone-200">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center max-w-3xl mx-auto space-y-3 mb-14">
-            <span className="text-xs uppercase tracking-wider font-bold text-brand-800 bg-brand-100 px-3 py-1 rounded-full">
-              Simple Process
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">
-              How It Works
-            </h2>
-            <p className="text-stone-600 text-sm sm:text-base">
-              From form submission to courier delivery.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white p-6 rounded-2xl border border-stone-200/90 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-3xl font-black text-brand-600">01</span>
-                <div className="p-2 bg-brand-50 rounded-lg text-brand-800">
-                  <FileText className="w-5 h-5" />
-                </div>
-              </div>
-              <h3 className="font-bold text-stone-900 text-base">Enter Agreement Details</h3>
-              <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                Submit owner, tenant, property details, rent amount, security deposit, and duration online.
-              </p>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-stone-200/90 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-3xl font-black text-brand-600">02</span>
-                <div className="p-2 bg-brand-50 rounded-lg text-brand-800">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-              </div>
-              <h3 className="font-bold text-stone-900 text-base">Review and Pay Online</h3>
-              <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                Check the agreement details and pay online. Stamp duty, service fee, and courier charges are shown separately.
-              </p>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-stone-200/90 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-3xl font-black text-brand-600">03</span>
-                <div className="p-2 bg-brand-50 rounded-lg text-brand-800">
-                  <Clock className="w-5 h-5" />
-                </div>
-              </div>
-              <h3 className="font-bold text-stone-900 text-base">Drafting & Stamping</h3>
-              <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                The details are reviewed, the agreement is drafted, and it is printed on non-judicial stamp paper.
-              </p>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-stone-200/90 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-3xl font-black text-brand-600">04</span>
-                <div className="p-2 bg-brand-50 rounded-lg text-brand-800">
-                  <Truck className="w-5 h-5" />
-                </div>
-              </div>
-              <h3 className="font-bold text-stone-900 text-base">Courier Delivery</h3>
-              <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                The physical stamped document is couriered to your address with a consignment tracking number.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-10 text-center">
-            <Link
-              href="/how-it-works"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-800 hover:text-brand-800 transition-colors"
-            >
-              <span>View full process</span>
-              <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
+      <section aria-labelledby="home-services" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-7 max-w-2xl space-y-3">
+          <h2 id="home-services" className="text-2xl font-extrabold tracking-tight text-stone-900 sm:text-3xl">What can we help you with?</h2>
+          <p className="text-sm leading-relaxed text-stone-600 sm:text-base">From rental paperwork to an agreement made around your needs, start here.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {services.map((service) => <article key={service.href} className="flex flex-col rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50"><service.icon aria-hidden="true" className="h-5 w-5 text-amber-800" /></div><h3 className="mt-4 text-lg font-bold text-stone-900">{service.title}</h3><p className="mt-3 flex-1 text-sm leading-relaxed text-stone-600">{service.text}</p><Link href={service.href} className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-amber-800 hover:underline">{service.label}<ArrowRight className="h-4 w-4 shrink-0" /></Link></article>)}
         </div>
       </section>
 
-      {/* Pricing Summary Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto space-y-3 mb-12">
-          <span className="text-xs uppercase tracking-wider font-bold text-stone-800 bg-stone-200 px-3 py-1 rounded-full">
-            Transparent Pricing
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">
-            Pricing Summary
-          </h2>
-          <p className="text-stone-600 text-sm sm:text-base">
-            Stamp duty, vendor service fee, and courier charges are shown separately.
-          </p>
+      <section aria-labelledby="home-process" className="border-y border-stone-200 bg-stone-100 px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-7 max-w-2xl space-y-3"><h2 id="home-process" className="text-2xl font-extrabold tracking-tight text-stone-900 sm:text-3xl">A few simple steps. We handle the rest.</h2><p className="text-sm leading-relaxed text-stone-600 sm:text-base">Getting your rental agreement is easy with AgreementPrint.</p></div>
+          <ol className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {steps.map((step, index) => <li key={step.title} className="rounded-2xl border border-stone-200 bg-white p-6"><div className="flex items-center justify-between"><span className="text-2xl font-black text-amber-700">{String(index + 1).padStart(2, '0')}</span><step.icon aria-hidden="true" className="h-5 w-5 text-amber-800" /></div><h3 className="mt-4 text-base font-bold text-stone-900">{step.title}</h3><p className="mt-3 text-sm leading-relaxed text-stone-600">{step.text}</p></li>)}
+          </ol>
+          <Link href="/how-it-works" className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-amber-800 hover:underline">See how it works <ArrowRight className="h-4 w-4" /></Link>
         </div>
+      </section>
 
-        <div className="max-w-3xl mx-auto">
-          <PriceBreakdownCard showCta={true} />
+      <section aria-labelledby="home-custom" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-8 rounded-3xl border border-amber-200 bg-amber-50 p-6 sm:p-9 lg:grid-cols-2 lg:items-center">
+          <div className="space-y-4"><h2 id="home-custom" className="text-2xl font-extrabold tracking-tight text-stone-900 sm:text-3xl">Your needs are different.<br />Your agreement can be too.</h2><p className="max-w-xl text-sm leading-relaxed text-stone-700 sm:text-base">Share a sample document or photo and tell us what you want changed. We will discuss your needs and give you a price before starting work.</p><Link href="/custom-agreement" className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-5 py-3 text-sm font-bold text-white hover:bg-amber-700">Request a Custom Agreement <ArrowRight className="h-4 w-4" /></Link></div>
+          <div className="space-y-4 rounded-2xl border border-amber-200 bg-white p-5 sm:p-6">{['Tell us what you need and share a sample.', 'Our team contacts you with a price and expected completion date.', 'Sending a request is free. Agree on the work before going ahead.'].map((detail) => <div key={detail} className="flex items-start gap-3 text-sm leading-relaxed text-stone-700"><CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><span>{detail}</span></div>)}<Link href="/my-requests" className="inline-block pt-2 text-sm font-semibold text-amber-800 hover:underline">Already sent a request? View My Requests</Link></div>
         </div>
+      </section>
+
+      <section aria-labelledby="home-help" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-6 rounded-2xl border border-stone-200 bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between"><div><h2 id="home-help" className="text-xl font-bold text-stone-900">Have a question before you begin?</h2><p className="mt-2 text-sm text-stone-600">Check our prices, find a quick answer or speak to our team.</p></div><div className="flex flex-wrap gap-3">{[{ label: 'See Prices', href: '/pricing' }, { label: 'Common Questions', href: '/faq' }, { label: 'Contact Us', href: '/contact' }].map((link) => <Link key={link.href} href={link.href} className="rounded-xl border border-stone-300 px-4 py-2.5 text-sm font-semibold text-stone-800 hover:bg-stone-50">{link.label}</Link>)}</div></div>
       </section>
     </div>
   );

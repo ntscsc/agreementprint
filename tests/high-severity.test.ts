@@ -323,3 +323,32 @@ test('Shared global enquiry limits cannot be bypassed by rotating phone and mess
   const route = loader(db, { 'next/server': { NextResponse: { json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200 }) } } })('@/app/api/contact/route');
   assert.equal((await route.POST(checkoutRequest({ name: 'Customer', phone: '9876543299', district: 'Chennai', message: 'Rotated enquiry' }))).status, 429);
 });
+
+
+test('Checkout uses the selected recipient separate PIN for delivery pricing instead of embedded address text', async () => {
+  for (const [recipient, pin, region, total] of [
+    ['Owner', '600028', 'Within Chennai', 350],
+    ['Owner', '625001', 'Within Tamil Nadu', 400],
+    ['Tenant', '600028', 'Within Chennai', 350],
+    ['Tenant', '641018', 'Within Tamil Nadu', 400],
+  ] as const) {
+    const db = database(seed);
+    const details = { ...agreement,
+      ownerDetails: { ...agreement.ownerDetails, pincode: recipient === 'Owner' ? pin : '625001' },
+      tenantDetails: { ...agreement.tenantDetails, pincode: recipient === 'Tenant' ? pin : '600028' },
+      agreementTerms: { ...agreement.agreementTerms, deliveryRecipient: recipient, deliveryLocation: region },
+    };
+    const response = await checkoutLoader(db).POST(checkoutRequest({ orderId: 'O1', creditAmount: 0, reviewedTotal: total, orderDetails: details }));
+    assert.equal(response.status, 200);
+    assert.equal(response.body.amountDue, total);
+  }
+});
+test('Checkout rejects malformed separate PINs and mismatched delivery regions before payment', async () => {
+  for (const pincode of ['60001', 'abcdef', '', '000000', '625001']) {
+    const db = database(seed); let outbound = 0;
+    const details = { ...agreement, ownerDetails: { ...agreement.ownerDetails, pincode } };
+    const response = await checkoutLoader(db, 'PENDING', async () => { outbound++; }).POST(checkoutRequest({ orderId: 'O1', orderDetails: details }));
+    assert.equal(response.status, 400);
+    assert.equal(outbound, 0);
+  }
+});

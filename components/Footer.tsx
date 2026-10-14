@@ -2,130 +2,61 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { Mail, Truck } from 'lucide-react';
 import { BrandMark } from '@/components/BrandMark';
-import { 
-  Mail, 
-  Truck
-} from 'lucide-react';
 import { SupportEmailLink } from '@/components/SupportEmailLink';
+import { VENDOR_SERVICE_TITLE } from '@/src/config/vendor';
+import { useAuth } from '@/lib/auth-context';
+
+const services = [
+  { label: 'Rental Agreements', href: '/order' },
+  { label: 'Custom Agreements', href: '/custom-agreement' },
+  { label: 'Free Rent Receipts', href: '/rent-receipt' },
+  { label: 'All Services', href: '/services' },
+];
+const help = [
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'How It Works', href: '/how-it-works' },
+  { label: 'Common Questions', href: '/faq' },
+  { label: 'Contact Us', href: '/contact' },
+];
+const policies = [
+  { label: 'Privacy Policy', href: '/privacy-policy' },
+  { label: 'Terms of Service', href: '/terms' },
+  { label: 'Refunds & Cancellations', href: '/refund-policy' },
+  { label: 'Disclaimer', href: '/disclaimer' },
+];
 
 export const Footer: React.FC = () => {
+  const { isAdmin } = useAuth();
+  const account = [
+    { label: 'My Orders', href: '/my-orders' },
+    { label: 'My Requests', href: '/my-requests' },
+    { label: 'Track My Order', href: '/track' },
+    { label: 'Referral Credits', href: '/referrals' },
+    ...(isAdmin ? [{ label: 'Admin Portal', href: '/admin' }] : []),
+  ];
+  const focus = 'rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-700';
+
   return (
-    <footer className="bg-stone-100 text-stone-700 border-t border-stone-200 text-sm">
-      {/* Main Footer Links */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {/* Col 1: Brand & Service Info */}
+    <footer className="border-t border-stone-200 bg-stone-100 text-stone-700">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-9 py-9 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] lg:gap-12">
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <BrandMark className="h-9 w-9 shrink-0" />
-              <h4 className="font-extrabold text-[#b84d12] text-base sm:text-lg">StampSure</h4>
-            </div>
-
-            <p className="text-xs text-stone-400 leading-relaxed">
-              Online rental agreement drafting on non-judicial stamp paper with doorstep delivery and courier tracking across Tamil Nadu.
-            </p>
-
-            <div className="space-y-2 pt-2 text-xs text-stone-400">
-              <div className="flex items-center gap-2.5">
-                <Truck className="w-4 h-4 text-brand-600 shrink-0" />
-                <span>Courier dispatch with tracking</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <Mail className="w-4 h-4 text-brand-600 shrink-0" />
-                <SupportEmailLink className="hover:text-brand-600 transition-colors" />
-              </div>
-            </div>
+            <Link href="/" className={`${focus} inline-flex items-center gap-2.5`}><BrandMark className="h-10 w-10 shrink-0" /><span className="text-lg font-extrabold tracking-tight text-[#b84d12]">AgreementPrint</span></Link>
+            <p className="max-w-md text-sm font-semibold leading-relaxed text-stone-800">{VENDOR_SERVICE_TITLE}</p>
+            <p className="max-w-md text-sm leading-relaxed text-stone-600">Stamp paper, e-Stamps and agreements made simple. Get your rental agreement prepared, printed and delivered across Tamil Nadu.</p>
+            <div className="flex items-start gap-2 text-sm text-stone-600"><Truck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" /><span>Courier delivery with tracking</span></div>
+            <div className="flex items-start gap-2 text-sm text-stone-700"><Mail aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" /><SupportEmailLink className={`${focus} min-w-0 break-all hover:text-amber-800 hover:underline`} /></div>
           </div>
-
-          {/* Col 2: Services */}
-          <div className="space-y-3">
-            <h5 className="font-bold text-brand-800 text-xs uppercase tracking-wider">Services</h5>
-            <ul className="space-y-2 text-xs">
-              <li>
-                <Link href="/order" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  11-Month Rental Agreement
-                </Link>
-              </li>
-              <li>
-                <Link href="/rent-receipt" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  Generate Rent Receipt
-                </Link>
-              </li>
-              <li>
-                <Link href="/referrals" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  Referral Credits
-                </Link>
-              </li>
-              <li>
-                <Link href="/pricing" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  Pricing & Stamp Duty
-                </Link>
-              </li>
-              <li>
-                <Link href="/how-it-works" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  How Stamping Works
-                </Link>
-              </li>
-              <li>
-                <Link href="/track" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  Track Courier Dispatch
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Col 3: Support */}
-          <div className="space-y-3">
-            <h5 className="font-bold text-brand-800 text-xs uppercase tracking-wider">Support</h5>
-            <ul className="space-y-2 text-xs">
-              <li>
-                <Link href="/faq" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  Frequently Asked Questions
-                </Link>
-              </li>
-              <li>
-                <Link href="/contact" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  Contact Us
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Col 4: Legal & Policies */}
-          <div className="space-y-3">
-            <h5 className="font-bold text-brand-800 text-xs uppercase tracking-wider">Policies & Terms</h5>
-            <ul className="space-y-2 text-xs">
-              <li>
-                <Link href="/privacy-policy" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  Privacy Policy
-                </Link>
-              </li>
-              <li>
-                <Link href="/terms" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  Terms of Service
-                </Link>
-              </li>
-              <li>
-                <Link href="/refund-policy" className="text-stone-700 hover:text-stone-900 transition-colors">
-                  Refund & Cancellation Policy
-                </Link>
-              </li>
-            </ul>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3">
+            {[{ title: 'Services', links: services }, { title: 'My Account', links: account }, { title: 'Help', links: help }].map((group) => <nav key={group.title} aria-label={`Footer ${group.title}`}><h2 className="text-sm font-bold text-stone-900">{group.title}</h2><ul className="mt-3 space-y-1">{group.links.map((link) => <li key={link.href}><Link href={link.href} className={`${focus} inline-block py-2 text-sm leading-relaxed text-stone-600 transition hover:text-amber-800 hover:underline`}>{link.label}</Link></li>)}</ul></nav>)}
           </div>
         </div>
 
-        {/* Copyright */}
-        <div className="mt-12 pt-6 border-t border-stone-300 flex flex-col sm:flex-row items-center justify-between text-xs text-stone-600 gap-4">
-          <p>© {new Date().getFullYear()} StampSure. All rights reserved.</p>
-          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
-            <p>
-                            <a href="mailto:pradhiip1992official@gmail.com" className="hover:text-brand-600 transition-colors">
-                Contact Developer [pradhiip1992official@gmail.com]
-              </a>
-            </p>
-            {/* <span>Tamil Nadu, India</span> */}
-          </div>
+        <div className="space-y-4 border-t border-stone-300 py-6">
+          <nav aria-label="Policies" className="flex flex-wrap gap-x-5 gap-y-2">{policies.map((link) => <Link key={link.href} href={link.href} className={`${focus} py-1 text-xs font-medium text-stone-600 hover:text-amber-800 hover:underline`}>{link.label}</Link>)}</nav>
+          <div className="flex flex-col gap-3 text-xs leading-relaxed text-stone-600 sm:flex-row sm:items-center sm:justify-between"><p>© {new Date().getFullYear()} AgreementPrint. All rights reserved.</p><a href="mailto:pradhiip1992official@gmail.com" className={`${focus} hover:text-amber-800 hover:underline`}>Contact Developer</a></div>
         </div>
       </div>
     </footer>

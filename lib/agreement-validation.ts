@@ -21,6 +21,7 @@ export function validatePerson(value: unknown, label: string) {
   const age = typeof data.age === 'string' && /^\d{1,3}$/.test(data.age) ? Number(data.age) : data.age;
   number(age, `${label} age`, 18, 120, true);
   text(data.address, `${label} address`, 10, 2000);
+  if (data.pincode !== undefined && (typeof data.pincode !== 'string' || !/^[1-9]\d{5}$/.test(data.pincode))) throw new ApiInputError(`Enter a valid ${label} permanent address PIN code.`);
   if (typeof data.phone !== 'string' || !/^[6-9]\d{9}$/.test(data.phone)) throw new ApiInputError(`Enter a valid ${label} phone.`);
   if (data.email !== undefined && data.email !== '' && (typeof data.email !== 'string' || data.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))) throw new ApiInputError(`Enter a valid ${label} email.`);
   if (data.aadhaarLast4 !== undefined && data.aadhaarLast4 !== '' && (typeof data.aadhaarLast4 !== 'string' || !/^\d{4,12}$/.test(data.aadhaarLast4.replace(/[\s-]/g, '')))) throw new ApiInputError(`Enter a valid ${label} identification number.`);
@@ -59,8 +60,8 @@ export function validateAgreement(value: unknown) {
   validateProperty(data.propertyDetails);
   validateTerms(data.agreementTerms);
   const recipient = data.agreementTerms.deliveryRecipient === 'Owner' ? data.ownerDetails : data.tenantDetails;
-  const pin = recipient.address.match(/\b6\d{5}\b/)?.[0];
-  if (!pin) throw new ApiInputError('The delivery address needs a Tamil Nadu PIN code.');
+  const pin = recipient.pincode ?? recipient.address.match(/\b6\d{5}\b/)?.[0];
+  if (!pin || !/^6\d{5}$/.test(pin)) throw new ApiInputError('The delivery address needs a Tamil Nadu PIN code.');
   const region = /^600\d{3}$/.test(pin) ? 'Within Chennai' : 'Within Tamil Nadu';
   if (data.agreementTerms.deliveryLocation !== region) throw new ApiInputError('The delivery region must match the selected address PIN code.');
   if (data.customerEmail !== undefined && (typeof data.customerEmail !== 'string' || data.customerEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.customerEmail))) throw new ApiInputError('Enter a valid customer email.');

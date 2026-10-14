@@ -37,7 +37,7 @@ export function FaqClient() {
             </span>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
-              Frequently Asked Questions (FAQ)
+              Questions? We can help.
             </h1>
 
             <p className="text-stone-300 text-base sm:text-lg leading-relaxed">
@@ -80,7 +80,7 @@ export function FaqClient() {
                 : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
             }`}
           >
-            Legality & Tenancy
+            Agreements & Stamp Paper
           </button>
           <button
             onClick={() => setActiveCategory('privacy')}
@@ -90,7 +90,7 @@ export function FaqClient() {
                 : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
             }`}
           >
-            Aadhaar & Privacy
+            Your Details
           </button>
           <button
             onClick={() => setActiveCategory('pricing')}
@@ -122,13 +122,15 @@ export function FaqClient() {
           >
             Courier & Tracking
           </button>
+          <button onClick={() => { setActiveCategory('custom'); setOpenIndex(0); }} className={`rounded-full px-3.5 py-1.5 transition-colors ${activeCategory === 'custom' ? 'bg-amber-600 text-white shadow-sm' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}>Custom Agreements</button>
+          <button onClick={() => { setActiveCategory('rewards'); setOpenIndex(0); }} className={`rounded-full px-3.5 py-1.5 transition-colors ${activeCategory === 'rewards' ? 'bg-amber-600 text-white shadow-sm' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}>Rewards & Rent Receipts</button>
         </div>
 
         {/* Accordions */}
         <div className="space-y-3 pt-2">
           {filteredFaqs.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border border-stone-200 p-8 space-y-2">
-              <p className="text-sm font-semibold text-stone-700">No questions matched your search query.</p>
+              <p className="text-sm font-semibold text-stone-700">No matching questions. Try another word or contact us.</p>
               <div className="pt-2">
                 <WhatsAppButton variant="outline" />
               </div>
@@ -142,6 +144,7 @@ export function FaqClient() {
                   className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm transition-shadow hover:shadow-md"
                 >
                   <button
+                    aria-expanded={isOpen}
                     onClick={() => setOpenIndex(isOpen ? null : idx)}
                     className="w-full p-5 text-left flex items-start justify-between gap-4 focus:outline-none"
                   >
@@ -155,7 +158,7 @@ export function FaqClient() {
 
                   {isOpen && (
                     <div className="px-5 pb-5 pt-1 text-xs sm:text-sm text-stone-600 leading-relaxed border-t border-stone-100">
-                      {faq.a}
+                      <p>{faq.a}</p>
                     </div>
                   )}
                 </div>

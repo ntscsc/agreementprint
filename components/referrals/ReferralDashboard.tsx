@@ -100,7 +100,7 @@ export function ReferralDashboard() {
         <h1 className="mt-4 text-3xl font-black tracking-tight text-stone-900">Refer a friend, earn credits</h1>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-stone-600">
           Share your code. When a new customer uses it on their first paid order, you earn ₹
-          {data?.rewardAmount.toLocaleString('en-IN') ?? '—'} in StampSure credit.
+          {data?.rewardAmount.toLocaleString('en-IN') ?? '—'} in AgreementPrint credit.
         </p>
       </header>
 

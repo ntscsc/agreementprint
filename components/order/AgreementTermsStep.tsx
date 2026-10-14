@@ -12,8 +12,10 @@ interface AgreementTermsStepProps {
   onChange: (fields: Partial<AgreementTerms>) => void;
   errors: Record<string, string>;
   ownerAddress?: string;
+  ownerPincode?: string;
   ownerName?: string;
   tenantAddress?: string;
+  tenantPincode?: string;
   tenantName?: string;
 }
 
@@ -22,8 +24,10 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
   onChange,
   errors,
   ownerAddress,
+  ownerPincode,
   ownerName,
   tenantAddress,
+  tenantPincode,
   tenantName,
 }) => {
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
@@ -48,7 +52,8 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
     : data.deliveryRecipient === 'Tenant'
       ? tenantAddress
       : undefined;
-  const detectedDeliveryLocation = detectCourierRegion({ address: selectedDeliveryAddress });
+  const selectedPincode = data.deliveryRecipient === 'Owner' ? ownerPincode : data.deliveryRecipient === 'Tenant' ? tenantPincode : undefined;
+  const detectedDeliveryLocation = selectedPincode && /^6\d{5}$/.test(selectedPincode) ? detectCourierRegion({ pincode: selectedPincode }) : null;
   const location = detectedDeliveryLocation ?? data.deliveryLocation ?? 'Within Chennai';
   const hasNotary = Boolean(data.includeNotary);
 
@@ -79,7 +84,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-x-5 gap-y-5">
         {/* Monthly Rent */}
         <div>
           <label htmlFor="terms-monthlyRent" className="block text-xs font-bold text-stone-700 mb-1">
@@ -271,7 +276,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-x-5 gap-y-5">
               {/* Dropdown 1: Delivery Recipient */}
               <div>
                 <label htmlFor="terms-deliveryRecipient" className="block text-xs font-bold text-stone-800 mb-1">
@@ -282,8 +287,8 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
                   value={data.deliveryRecipient || ''}
                   onChange={(e) => {
                     const deliveryRecipient = e.target.value as 'Owner' | 'Tenant';
-                    const address = deliveryRecipient === 'Owner' ? ownerAddress : tenantAddress;
-                    const deliveryLocation = detectCourierRegion({ address });
+                    const pincode = deliveryRecipient === 'Owner' ? ownerPincode : tenantPincode;
+                    const deliveryLocation = pincode && /^6\d{5}$/.test(pincode) ? detectCourierRegion({ pincode }) : null;
                     onChange({
                       deliveryRecipient,
                       ...(deliveryLocation ? { deliveryLocation } : {}),
@@ -291,7 +296,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
                   }}
                   aria-invalid={!!errors.deliveryRecipient}
                   aria-describedby={errors.deliveryRecipient ? 'terms-deliveryRecipient-error' : undefined}
-                  className={`w-full px-3 py-2.5 rounded-xl border bg-white text-xs font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer ${
+                  className={`w-full min-h-11 px-3 py-2.5 rounded-xl border bg-white text-xs font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer ${
                     errors.deliveryRecipient ? 'border-rose-400' : 'border-stone-300'
                   }`}
                 >
@@ -301,7 +306,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
                 </select>
                 {selectedDeliveryAddress && (
                   <p className="text-[11px] text-stone-600 mt-1 truncate" title={selectedDeliveryAddress}>
-                    {selectedDeliveryAddress}
+                    {selectedDeliveryAddress}{selectedPincode ? ` - ${selectedPincode}` : ''}
                   </p>
                 )}
                 {errors.deliveryRecipient && (
@@ -322,7 +327,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
                   onChange={(e) =>
                     onChange({ stampPaperDenomination: Number(e.target.value) as 100 | 200 })
                   }
-                  className="w-full px-3 py-2.5 rounded-xl border border-stone-300 bg-white text-xs font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                  className="w-full min-h-11 px-3 py-2.5 rounded-xl border border-stone-300 bg-white text-xs font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
                 >
                   <option value={100}>In Rs.100 Stamp Paper</option>
                   <option value={200}>In Rs.200 Stamp Paper</option>
@@ -337,7 +342,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
                 <div
                   id="terms-deliveryLocation"
                   aria-live="polite"
-                  className="w-full min-h-10 px-3 py-2.5 rounded-xl border border-stone-300 bg-stone-100 text-xs font-semibold text-stone-700"
+                  className="w-full min-h-11 px-3 py-2.5 rounded-xl border border-stone-300 bg-stone-100 text-xs font-semibold text-stone-700"
                 >
                   {selectedDeliveryAddress && !detectedDeliveryLocation
                     ? 'PIN required'
@@ -347,7 +352,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
 
               {/* Dropdown 4: Notary Signature */}
               <div>
-                <label htmlFor="terms-notary" className="flex min-h-10 items-center gap-2.5 cursor-pointer text-xs font-semibold text-stone-800">
+                <label htmlFor="terms-notary" className="flex min-h-11 items-center gap-2.5 cursor-pointer text-xs font-semibold text-stone-800">
                   <input
                     id="terms-notary"
                     type="checkbox"

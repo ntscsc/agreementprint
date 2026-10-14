@@ -4,10 +4,10 @@ import { DisclaimerBanner } from '@/components/DisclaimerBanner';
 import { SupportEmailLink } from '@/components/SupportEmailLink';
 
 export const metadata: Metadata = {
-  title: 'Refund and Cancellation Policy | Certified Stamp Paper Services',
+  title: 'Refund & Cancellation Policy | AgreementPrint',
   description: 'Our transparent refund and cancellation policy for rental agreement drafting and stamp paper procurement.',
   openGraph: {
-    title: 'Refund and Cancellation Policy | Certified Stamp Paper Services',
+    title: 'Refund & Cancellation Policy | AgreementPrint',
     description: 'Our transparent refund and cancellation policy for rental agreement drafting and stamp paper procurement.',
   },
 };

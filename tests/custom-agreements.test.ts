@@ -90,7 +90,9 @@ test('server sample uploads enforce ownership, exact reservation and immutable r
 });
 test('custom request validation enforces contact consent, contact bounds, dates and sample limits', () => {
   assert.equal(validateCustomInput(details).contactConsent, true);
-  for (const changes of [{ contactConsent: false }, { phone: '1234567890' }, { contactMethod: 'Email' }, { preferredDate: '2026-02-30' }, { instructions: 'short' }, { purpose: 'x'.repeat(1001) }]) assert.throws(() => validateCustomInput({ ...details, ...changes }));
+  assert.equal(validateCustomInput(details).includeNotary, false);
+  assert.equal(validateCustomInput({ ...details, includeNotary: true }).includeNotary, true);
+  for (const changes of [{ contactConsent: false }, { includeNotary: 'yes' }, { phone: '1234567890' }, { contactMethod: 'Email' }, { preferredDate: '2026-02-30' }, { instructions: 'short' }, { purpose: 'x'.repeat(1001) }]) assert.throws(() => validateCustomInput({ ...details, ...changes }));
   assert.equal(validateSample({ name: 'photo.JPG', size: MAX_SAMPLE_SIZE, contentType: 'image/jpeg' }).size, MAX_SAMPLE_SIZE);
   for (const sample of [{ name: 'sample.exe', size: 1, contentType: 'application/pdf' }, { name: '../sample.pdf', size: 1, contentType: 'application/pdf' }, { name: 'sample.pdf', size: MAX_SAMPLE_SIZE + 1, contentType: 'application/pdf' }, { name: 'sample.pdf', size: 2, contentType: 'image/png' }]) assert.throws(() => validateSample(sample));
   assert.equal(canTransition('Submitted', 'Completed'), false);
@@ -99,9 +101,10 @@ test('custom request validation enforces contact consent, contact bounds, dates 
 });
 test('request creation is idempotent, server-controlled, and rate-limited across concurrent submissions', async () => {
   const h = harness(), route = h.load('@/app/api/custom-agreements/route');
-  const body = { action: 'create', requestId: id, details, files: [{ name: 'sample.pdf', size: 12, contentType: 'application/pdf' }], status: 'Completed', quoteAmount: 1 };
+  const body = { action: 'create', requestId: id, details: { ...details, includeNotary: true }, files: [{ name: 'sample.pdf', size: 12, contentType: 'application/pdf' }], status: 'Completed', quoteAmount: 1 };
   assert.equal((await route.POST(request('POST', body))).status, 200);
   assert.equal(h.read(`customAgreementRequests/${id}`).status, 'Uploading');
+  assert.equal(h.read(`customAgreementRequests/${id}`).includeNotary, true);
   assert.equal(h.read(`customAgreementRequests/${id}`).quoteAmount, undefined);
   assert.equal((await route.POST(request('POST', body))).status, 200);
   assert.equal((await route.POST(request('POST', body, 'other'))).status, 409);

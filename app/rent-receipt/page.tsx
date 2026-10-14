@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { RentReceiptGenerator } from '@/components/rent-receipt/RentReceiptGenerator';
 
 export const metadata: Metadata = {
-  title: 'Free Rent Receipt Generator | StampSure',
+  title: 'Free Rent Receipt Generator | AgreementPrint',
   description:
     'Create and print monthly rent receipts for your tenants. Generate receipts locally and save them as a PDF.',
 };
@@ -20,7 +20,7 @@ export default function RentReceiptPage() {
           </h1>
           <p className="mt-3 text-sm sm:text-base leading-relaxed text-stone-600">
             Create monthly rent receipts for your records and print them or save them as a PDF.
-            Your details stay in this browser and are not submitted to StampSure.
+            Your details stay in this browser and are not submitted to AgreementPrint.
           </p>
         </div>
         <RentReceiptGenerator />

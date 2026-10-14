@@ -8,16 +8,16 @@ import { DisclaimerBanner } from '@/components/DisclaimerBanner';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
 
 export const metadata: Metadata = {
-  title: 'StampSure | Rental Agreements on Tamil Nadu Stamp Paper',
+  title: 'AgreementPrint | Agreement Drafting & Printing',
   description: 'Create your rental agreement online on Tamil Nadu non-judicial stamp paper, with clear fees and doorstep courier delivery.',
   openGraph: {
-    title: 'StampSure | Rental Agreements on Tamil Nadu Stamp Paper',
+    title: 'AgreementPrint | Agreement Drafting & Printing',
     description: 'Create your rental agreement online on Tamil Nadu non-judicial stamp paper, with clear fees and doorstep courier delivery.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'StampSure | Rental Agreements on Tamil Nadu Stamp Paper',
+    title: 'AgreementPrint | Agreement Drafting & Printing',
     description: 'Create your rental agreement online on Tamil Nadu non-judicial stamp paper, with clear fees and doorstep courier delivery.',
   },
 };

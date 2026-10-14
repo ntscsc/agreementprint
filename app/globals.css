@@ -277,3 +277,16 @@
     margin: 0;
   }
 }
+
+/* Readable controls and visible keyboard focus inside the admin portal. */
+.admin-portal :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid #b45309;
+  outline-offset: 3px;
+}
+.admin-portal :is(button, select, input:not([type="checkbox"]):not([type="radio"])) {
+  min-height: 44px;
+}
+.admin-portal .text-xs { font-size: 0.875rem; line-height: 1.4rem; }
+.admin-portal .text-stone-400 { color: #57534e; }
+.admin-portal table th { white-space: nowrap; }
+.admin-portal table tbody tr:hover { background-color: #fffbeb; }

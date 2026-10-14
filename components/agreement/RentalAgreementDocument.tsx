@@ -66,12 +66,12 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
   const ownerName = owner.fullName || '';
   const ownerFather = owner.relativeName || '';
   const ownerAge = owner.age ? `${owner.age}` : '';
-  const ownerAddress = cleanAddress(owner.address);
+  const ownerAddress = cleanAddress(owner.address) + (owner.pincode && !owner.address?.includes(owner.pincode) ? ` - ${owner.pincode}` : '');
 
   const tenantName = tenant.fullName || '';
   const tenantFather = tenant.relativeName || '';
   const tenantAge = tenant.age ? `${tenant.age}` : '';
-  const tenantAddress = cleanAddress(tenant.address);
+  const tenantAddress = cleanAddress(tenant.address) + (tenant.pincode && !tenant.address?.includes(tenant.pincode) ? ` - ${tenant.pincode}` : '');
 
   const propertyDesc = formatPropertyDescription(prop.propertyType, prop.furnishing, prop.businessName);
   const propertyFullAddress = prop.fullAddress 

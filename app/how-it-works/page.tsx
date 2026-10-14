@@ -1,140 +1,107 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { 
-  FileText, 
-  CreditCard, 
-  Printer, 
-  Truck, 
-  ArrowRight
-} from 'lucide-react';
+import { FileText, CreditCard, Printer, Truck, ArrowRight, Gift, ReceiptText } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'How It Works | Rental Agreement Process in Tamil Nadu',
-  description: 'Learn the steps to submit rental agreement details, review charges, and receive the document by courier in Tamil Nadu.',
+  title: 'How It Works | AgreementPrint',
+  description: 'Get your agreement prepared, printed and delivered with AgreementPrint. See how to order, request a custom agreement and earn rewards.',
   openGraph: {
-    title: 'How It Works | Rental Agreement Process in Tamil Nadu',
-    description: 'Learn the steps to submit rental agreement details, review charges, and receive the document by courier in Tamil Nadu.',
+    title: 'How It Works | AgreementPrint',
+    description: 'Share your details, check the price and let AgreementPrint prepare and deliver your agreement.',
   },
 };
 
+const rentalSteps = [
+  {
+    icon: FileText,
+    title: 'Tell us about your rental',
+    desc: 'Share the owner and tenant details, the property address, and the rent agreed between you.',
+    details: [
+      'Keep the names, addresses and rental details handy.',
+      'You can save your details and finish later.',
+    ],
+  },
+  {
+    icon: CreditCard,
+    title: 'Choose, check and pay',
+    desc: 'Choose your stamp paper and where you want the agreement delivered. Check everything before you pay.',
+    details: [
+      'Add notary service if you need it.',
+      'See your agreement price, delivery charge and full total before paying.',
+    ],
+  },
+  {
+    icon: Printer,
+    title: 'We prepare your agreement',
+    desc: 'Our team checks your details and prints your agreement on Tamil Nadu stamp paper.',
+    details: [
+      'We take care of preparing and printing your agreement.',
+      'If any details need changing, you can update them in My Orders.',
+    ],
+  },
+  {
+    icon: Truck,
+    title: 'Delivered to your door',
+    desc: 'Your printed agreement is sent by courier to the owner or tenant address you choose.',
+    details: [
+      'Check My Orders to see how your order is progressing.',
+      'Follow your parcel with the courier tracking details once it is sent.',
+    ],
+  },
+];
+
+const customSteps = [
+  { title: 'Tell us what you need', text: 'Need something different from a rental agreement? Tell us the kind of agreement you want and any changes you need.' },
+  { title: 'Share a sample', text: 'Send a sample document or a clear photo to help us understand your needs. Sending a request is free.' },
+  { title: 'Get a price from our team', text: 'We will contact you with the price and expected completion date. You can discuss the details with us before agreeing to go ahead.' },
+];
+
 export default function HowItWorksPage() {
-  const steps = [
-    {
-      num: '01',
-      icon: <FileText className="w-6 h-6 text-amber-700" />,
-      title: 'Submit Agreement Details Online',
-      desc: 'Fill in the owner, tenant, and property details in the form. Aadhaar is optional.',
-      details: [
-        'Owner and tenant name, age, and contact details',
-        'Identification details such as Aadhaar, Voter ID, PAN, or Passport',
-        'Rent amount, security deposit, notice period, and tenancy duration',
-        'Simple form with clear fields and a review step before payment',
-      ],
-    },
-    {
-      num: '02',
-      icon: <CreditCard className="w-6 h-6 text-sky-700" />,
-      title: 'Review & Pay Online',
-      desc: 'Check the details on the summary page and complete the payment online. The price and optional services are shown before checkout.',
-      details: [
-        'Digital order confirmation with your Order ID',
-        'Secure payment process with confirmation by email or SMS',
-        'Status updates available through the order tracking link',
-      ],
-    },
-    {
-      num: '03',
-      icon: <Printer className="w-6 h-6 text-purple-700" />,
-      title: 'Drafting & Stamp Paper',
-      desc: 'The agreement is prepared using standard tenancy terms and printed on non-judicial stamp paper with the required serial number.',
-      details: [
-        'Tamil Nadu non-judicial stamp paper with serial number',
-        'Standard tenancy clauses based on local requirements',
-        'Review for names, dates, and property details before dispatch',
-      ],
-    },
-    {
-      num: '04',
-      icon: <Truck className="w-6 h-6 text-emerald-700" />,
-      title: 'Courier Delivery',
-      desc: 'Once the document is ready, it is packed and sent by courier with tracking information.',
-      details: [
-        'Dispatch after document verification',
-        'Courier tracking details shared with your order',
-        'Sign the agreement with the tenant and two witnesses on delivery',
-      ],
-    },
-  ];
-
   return (
-    <div className="space-y-14 py-8 pb-16">
-      {/* Hero Header */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-stone-900 text-white rounded-3xl p-8 sm:p-12 border border-stone-800 shadow-sm relative overflow-hidden">
+    <div className="space-y-12 py-8 pb-16">
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-3xl border border-stone-800 bg-stone-900 p-6 text-white sm:p-10 lg:p-12">
           <div className="max-w-3xl space-y-4">
-            <span className="text-xs uppercase tracking-wider font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/30">
-              Simple Process
-            </span>
-
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
-              How the Rental Agreement Process Works
-            </h1>
-
-            <p className="text-stone-300 text-base sm:text-lg leading-relaxed">
-              A straightforward 4-step process for submitting details, reviewing the charges, preparing the document, and receiving it by courier in Tamil Nadu.
-            </p>
-
-            <div className="pt-2">
-              <Link
-                href="/order"
-                className="bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:translate-y-0.5 inline-flex items-center gap-2"
-              >
-                <span>Start Rental Agreement</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
+            <span className="inline-block rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-400">Simple steps. Less hassle.</span>
+            <h1 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">Your agreement, made easy.</h1>
+            <p className="text-base leading-relaxed text-stone-300 sm:text-lg">From preparing your agreement to delivering the printed copy, we make the process easy. Tell us what you need and we will help you take the next step.</p>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <Link href="/order" className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-bold text-stone-950 transition hover:bg-amber-400">Start Rental Agreement <ArrowRight className="h-4 w-4" /></Link>
+              <Link href="/custom-agreement" className="inline-flex items-center gap-2 rounded-xl border border-stone-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800">Request a Custom Agreement</Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Step by step cards */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="space-y-8">
-          {steps.map((st, idx) => (
-            <div
-              key={idx}
-              className="bg-white border border-stone-200/90 rounded-2xl p-6 sm:p-8 shadow-sm hover:shadow-md transition-shadow grid grid-cols-1 lg:grid-cols-12 gap-6 items-center"
-            >
-              <div className="lg:col-span-1 flex items-center justify-start lg:justify-center">
-                <div className="w-14 h-14 rounded-2xl bg-stone-100 border border-stone-200 flex items-center justify-center font-black text-2xl text-stone-800">
-                  {st.num}
-                </div>
+      <section aria-labelledby="rental-process" className="mx-auto max-w-5xl space-y-6 px-4 sm:px-6">
+        <div><h2 id="rental-process" className="text-2xl font-bold text-stone-900">Rental agreements</h2><p className="mt-2 text-sm text-stone-600">Share your details online. We will prepare, print and send your agreement to your door.</p></div>
+        <ol className="space-y-4">
+          {rentalSteps.map((step, index) => (
+            <li key={step.title} className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:flex-row sm:gap-5 sm:p-7">
+              <div aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-lg font-black text-amber-800">{String(index + 1).padStart(2, '0')}</div>
+              <div className="min-w-0 space-y-3">
+                <h3 className="flex items-start gap-2 text-lg font-bold text-stone-900"><step.icon aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />{step.title}</h3>
+                <p className="text-sm leading-relaxed text-stone-600">{step.desc}</p>
+                <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed text-stone-700">{step.details.map((detail) => <li key={detail}>{detail}</li>)}</ul>
               </div>
-
-              <div className="lg:col-span-11 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-stone-50 rounded-lg border border-stone-200/60">
-                    {st.icon}
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-stone-900">{st.title}</h2>
-                </div>
-
-                <p className="text-stone-600 text-sm leading-relaxed">{st.desc}</p>
-
-                <div className="space-y-1.5 pt-2">
-                  {st.details.map((item, dIdx) => (
-                    <div key={dIdx} className="flex items-start gap-2 text-xs text-stone-700">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1.5"></span>
-                      <span>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
+        <Link href="/pricing" className="inline-flex items-center gap-2 text-sm font-semibold text-amber-800 hover:underline">See our prices <ArrowRight className="h-4 w-4" /></Link>
       </section>
 
+      <section aria-labelledby="custom-process" className="mx-auto max-w-5xl space-y-6 px-4 sm:px-6">
+        <div><h2 id="custom-process" className="text-2xl font-bold text-stone-900">Need a custom agreement?</h2><p className="mt-2 text-sm text-stone-600">An agreement made around your needs, with a price agreed before we begin.</p></div>
+        <ol className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {customSteps.map((step, index) => <li key={step.title} className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6"><span className="text-xs font-bold uppercase tracking-wide text-amber-800">Step {index + 1}</span><h3 className="mt-3 text-lg font-bold text-stone-900">{step.title}</h3><p className="mt-3 text-sm leading-relaxed text-stone-600">{step.text}</p></li>)}
+        </ol>
+        <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-amber-800"><Link href="/custom-agreement" className="hover:underline">Start a custom request</Link><Link href="/my-requests" className="hover:underline">View My Requests</Link></div>
+      </section>
+
+      <section aria-label="More ways we can help" className="mx-auto grid max-w-5xl grid-cols-1 gap-5 px-4 sm:px-6 md:grid-cols-2">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6"><Gift aria-hidden="true" className="h-6 w-6 text-amber-800" /><h2 className="mt-4 text-xl font-bold text-stone-900">Refer a friend, earn credits</h2><p className="mt-3 text-sm leading-relaxed text-stone-700">Share your referral link with a friend. When they use it for their first paid order, you earn credits to save on your next agreement. Visit Referral Credits to see your rewards.</p><Link href="/referrals" className="mt-4 inline-block text-sm font-semibold text-amber-800 hover:underline">View Referral Credits</Link></div>
+        <div className="rounded-2xl border border-stone-200 bg-stone-50 p-6"><ReceiptText aria-hidden="true" className="h-6 w-6 text-amber-800" /><h2 className="mt-4 text-xl font-bold text-stone-900">Need a rent receipt? It is free.</h2><p className="mt-3 text-sm leading-relaxed text-stone-700">Fill in a few details to create your rent receipt. Print a copy or save it as a PDF. Your receipt details stay on your device.</p><Link href="/rent-receipt" className="mt-4 inline-block text-sm font-semibold text-amber-800 hover:underline">Create a Rent Receipt</Link></div>
+      </section>
     </div>
   );
 }

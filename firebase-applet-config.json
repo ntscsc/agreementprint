@@ -1,10 +1,11 @@
 {
-  "apiKey": "AIzaSyBZuN8_UIkhCIwIl_xwv5viFazVKlznrPc",
-  "authDomain": "stampvendor10102026.firebaseapp.com",
-  "projectId": "stampvendor10102026",
-  "storageBucket": "stampvendor10102026.firebasestorage.app",
-  "messagingSenderId": "120645835693",
-  "appId": "1:120645835693:web:1849ac40a7a4312605df24",
-  "measurementId": "G-NBJ9RW8HRT",
+  "apiKey": "AIzaSyBnPovzvYWVrMEi-bnnE7VF-L1y3_ajIQY",
+  "authDomain": "agreementprint.firebaseapp.com",
+  "projectId": "agreementprint",
+  "storageBucket": "agreementprint.firebasestorage.app",
+  "messagingSenderId": "969258938970",
+  "appId": "1:969258938970:web:acb27720b7c40e465dde63",
+  "measurementId": "G-NRHWDLSDLP",
   "firestoreDatabaseId": "(default)"
 }
+  

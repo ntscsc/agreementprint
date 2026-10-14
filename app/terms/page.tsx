@@ -4,10 +4,10 @@ import { DisclaimerBanner } from '@/components/DisclaimerBanner';
 import { VENDOR_CONFIG } from '@/src/config/vendor';
 
 export const metadata: Metadata = {
-  title: 'Terms and Conditions | Certified Stamp Paper Services Tamil Nadu',
+  title: 'Terms & Conditions | AgreementPrint',
   description: 'Terms of service for ordering rental agreements and non-judicial stamp paper drafting in Tamil Nadu.',
   openGraph: {
-    title: 'Terms and Conditions | Certified Stamp Paper Services Tamil Nadu',
+    title: 'Terms & Conditions | AgreementPrint',
     description: 'Terms of service for ordering rental agreements and non-judicial stamp paper drafting in Tamil Nadu.',
   },
 };
