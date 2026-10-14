@@ -5,6 +5,8 @@
 [build.environment]
   NODE_VERSION = "22"
   NPM_FLAGS = "--include=optional"
+  # These are configuration labels, not credentials. Keep actual secrets scanned.
+  SECRETS_SCAN_OMIT_KEYS = "PHONEPE_ENV,SUPABASE_STORAGE_BUCKET,PHONEPE_WEBHOOK_USERNAME"
 
 # Netlify automatically installs its Next.js adapter.
 # Configure private runtime credentials in the Netlify dashboard.
