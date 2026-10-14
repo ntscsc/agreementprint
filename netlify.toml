@@ -4,6 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  NPM_FLAGS = "--include=optional"
 
 # Netlify automatically installs its Next.js adapter.
 # Configure private runtime credentials in the Netlify dashboard.
