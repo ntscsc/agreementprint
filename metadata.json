@@ -1,0 +1,6 @@
+{
+  "name": "TN Certified Stamp Vendor - Rental Agreement Service",
+  "description": "Licensed Tamil Nadu stamp paper vendor service for online rental agreement drafting, stamping, and doorstep courier delivery.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

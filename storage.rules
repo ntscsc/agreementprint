@@ -1,0 +1,67 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Admin access strictly via verified administrator email
+    function isAdmin() {
+      return isSignedIn()
+        && (
+          request.auth.token.email == "pradeep1992official@gmail.com"
+          || request.auth.token.email == "ntscsc@gmail.com"
+        )
+        && request.auth.token.email_verified == true;
+    }
+
+    // Immutable staging uploads: the server verifies every sample before allowing download.
+    match /custom-agreements/{uid}/{requestId}/{sampleId} {
+      function requestData() {
+        return firestore.get(/databases/(default)/documents/customAgreementRequests/$(requestId)).data;
+      }
+      allow create: if resource == null && isSignedIn() && request.auth.uid == uid
+        && requestData().ownerUid == uid
+        && requestData().status == 'Uploading'
+        && sampleId in requestData().files
+        && request.resource.size == requestData().files[sampleId].size
+        && request.resource.size > 0 && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType == requestData().files[sampleId].contentType
+        && request.resource.contentType.matches('application/pdf|application/vnd.openxmlformats-officedocument.wordprocessingml.document|image/jpeg|image/png')
+        && request.resource.metadata.keys().hasOnly([]);
+      allow read, update, delete: if false;
+    }
+
+    // Private customer proof documents
+    // Structure: /orders/{uid}/{orderId}/{file} or /drafts/{uid}/{file}
+    match /orders/{uid}/{orderId}/{file} {
+      // Readable only by the order owner or authenticated vendor admins
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Explicitly allow only JPEG, PNG, and PDF up to 5 MB
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/jpeg|image/png|application/pdf');
+
+      // Update allowed only by admin or by owner if corrections are being submitted
+      allow update: if isSignedIn()
+        && (request.auth.uid == uid || isAdmin())
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/jpeg|image/png|application/pdf');
+
+      // Deletions: admin only
+      allow delete: if isAdmin();
+    }
+
+    // In-progress customer draft uploads
+    match /drafts/{uid}/{file} {
+      allow read, delete: if isSignedIn() && request.auth.uid == uid;
+      allow create, update: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/jpeg|image/png|application/pdf');
+    }
+  }
+}
+

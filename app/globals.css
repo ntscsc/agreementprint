@@ -1,0 +1,279 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Noto+Sans+Tamil:wght@400;600;700&display=swap');
+
+@theme {
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-600: #0b5e9e;
+  --color-brand-700: #0b4f86;
+  --color-brand-800: #16436a;
+  --color-stone-50: #f8fafc;
+  --color-stone-100: #eff6ff;
+  --color-stone-200: #dbe7f0;
+  --color-stone-300: #bfddf0;
+  --color-stone-400: #8cc0eb;
+  --color-stone-500: #628eae;
+  --color-stone-600: #4c7188;
+  --color-stone-700: #36586f;
+  --color-stone-800: #2b4558;
+  --color-stone-900: #1e3445;
+  --color-stone-950: #172a39;
+
+  --color-amber-50: #f0fdf4;
+  --color-amber-100: #dcfce7;
+  --color-amber-200: #c9e8d0;
+  --color-amber-300: #9fd4ad;
+  --color-amber-400: #65b47d;
+  --color-amber-500: #328c51;
+  --color-amber-600: #247542;
+  --color-amber-700: #1b6137;
+  --color-amber-800: #164f2f;
+  --color-amber-900: #103e26;
+  --color-amber-950: #0a2d1b;
+}
+
+.bg-stone-700 {
+  background-color: var(--color-stone-300);
+}
+
+.bg-stone-800 {
+  background-color: var(--color-stone-200);
+}
+
+.bg-stone-900 {
+  background-color: var(--color-stone-100);
+}
+
+.bg-stone-950 {
+  background-color: var(--color-stone-50);
+}
+
+:is(.bg-stone-700, .bg-stone-800, .bg-stone-900, .bg-stone-950):is(
+    .text-white
+  ),
+:is(.bg-stone-700, .bg-stone-800, .bg-stone-900, .bg-stone-950)
+  .text-white {
+  color: var(--color-stone-900);
+}
+
+.text-stone-100,
+.text-stone-200,
+.text-stone-300 {
+  color: var(--color-stone-700);
+}
+
+.text-stone-400,
+.text-stone-500 {
+  color: var(--color-stone-600);
+}
+
+.text-amber-300,
+.text-amber-400,
+.text-amber-500,
+.text-amber-600 {
+  color: var(--color-amber-800);
+}
+
+.bg-amber-500,
+.bg-amber-600 {
+  color: #fff;
+}
+
+.bg-amber-500 svg,
+.bg-amber-600 svg {
+  color: #fff;
+}
+
+.hover\:bg-amber-400:hover {
+  background-color: var(--color-amber-600);
+}
+
+.hover\:bg-amber-500:hover {
+  background-color: var(--color-amber-700);
+}
+
+.hover\:bg-amber-600:hover {
+  background-color: var(--color-amber-700);
+}
+
+.bg-amber-500.text-stone-950,
+.bg-amber-600.text-stone-950 {
+  background-color: var(--color-amber-600);
+  color: #fff;
+}
+
+.bg-amber-500.text-stone-950:hover,
+.bg-amber-600.text-stone-950:hover {
+  background-color: var(--color-amber-700);
+  color: #fff;
+}
+
+.bg-amber-500.text-stone-950 svg,
+.bg-amber-600.text-stone-950 svg {
+  color: #fff;
+}
+
+.rent-receipt-top-rule {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+  margin: 0 0 12px;
+}
+
+.rent-receipt-top-rule span {
+  flex: 1;
+  background: #16a765;
+}
+
+.rent-receipt-bottom-rule {
+  border-top: 3px dotted #a8a29e;
+}
+
+@media print {
+  /* Hide all app shells, navigation bars, footers, and preview action toolbars */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .agreement-print-modal {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    bottom: auto !important;
+    display: block !important;
+    width: 210mm !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    visibility: visible !important;
+  }
+
+  .agreement-print-modal > div {
+    width: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    visibility: visible !important;
+  }
+
+  #printable-agreement-doc,
+  #printable-agreement-doc * {
+    visibility: visible;
+  }
+
+  #printable-agreement-doc {
+    position: static !important;
+    width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .rent-receipt-print-area,
+  .rent-receipt-print-area * {
+    visibility: visible !important;
+  }
+
+  .rent-receipt-print-area {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    display: block !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .rent-receipt-page {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 240mm !important;
+    margin: 0 !important;
+    padding: 20mm !important;
+    border: 1px solid #d6d3d1 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    background: white !important;
+    color: #000 !important;
+  }
+
+  .rent-receipt-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .customer-agreement-preview #printable-agreement-doc {
+    display: none !important;
+  }
+
+  .no-print,
+  nav,
+  header,
+  footer {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .agreement-document-wrapper {
+    display: block !important;
+    width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  .agreement-page {
+    box-sizing: border-box !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 20mm 15mm !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    background: white !important;
+    color: #000000 !important;
+  }
+
+  .agreement-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .agreement-field-highlight {
+    background-color: transparent !important;
+    border-color: transparent !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+}

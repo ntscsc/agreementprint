@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Admin access strictly via verified administrator email
+    function isAdmin() {
+      return isSignedIn()
+        && (
+          request.auth.token.email == "pradeep1992official@gmail.com"
+          || request.auth.token.email == "ntscsc@gmail.com"
+        )
+        && request.auth.token.email_verified == true;
+    }
+
+    function isOwner() {
+      return isSignedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Owner correction logic:
+    // Can only be updated if existing status is 'Documents needed'
+    // Can only transition status to 'Under verification'
+    // Can only affect detail and proof fields (never payment, courier, etc.)
+    function isOwnerCorrectionUpdate() {
+      return isOwner()
+        && resource.data.status == 'Documents needed'
+        && request.resource.data.status == 'Under verification'
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.orderId == resource.data.orderId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.payment == resource.data.payment
+        && (!('courier' in resource.data) || request.resource.data.courier == resource.data.courier)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'ownerDetails',
+          'tenantDetails',
+          'propertyDetails',
+          'agreementTerms',
+          'proofUploads',
+          'status',
+          'updatedAt'
+        ]);
+    }
+
+    // Default deny for all unmatched documents
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Contact enquiries
+    // Custom requests (including internal notes) are served by authorized API routes only.
+    match /customAgreementRequests/{requestId} {
+      allow read, write: if false;
+    }
+    match /customAgreementLimits/{limitId} {
+      allow read, write: if false;
+    }
+    match /customAgreementAudit/{logId} {
+      allow read, write: if false;
+    }
+
+    match /enquiries/{enquiryId} {
+      // Enquiries are created only by the rate-limited server Admin SDK route.
+      allow create: if false;
+
+      // Read, update, and delete reserved exclusively for vendor admin
+      allow read, update, delete: if isAdmin();
+    }
+
+    // In-progress customer draft forms: owner-only access
+    match /drafts/{uid} {
+      allow read, delete: if isSignedIn() && request.auth.uid == uid;
+      allow write: if isSignedIn() 
+        && request.auth.uid == uid
+        && request.resource.data.ownerUid == uid
+        && request.resource.data.keys().hasOnly([
+          'ownerUid',
+          'currentStep',
+          'formData',
+          'updatedAt'
+        ]);
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      // Create conditions:
+      // 1. Authenticated user matching ownerUid
+      // 2. Initial status must be 'Submitted'
+      // 3. Customers may supply only Pending; all gateway metadata is server-managed.
+      // 4. Disallow courier and correctionMessage on initial creation
+      // 5. Restrict allowed payload keys using hasOnly()
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.orderId == orderId
+        && request.resource.data.status == 'Submitted'
+        && request.resource.data.payment is map
+        && request.resource.data.payment.keys().hasOnly(['status'])
+        && request.resource.data.payment.status == 'Pending'
+        && !('courier' in request.resource.data)
+        && !('correctionMessage' in request.resource.data)
+        && request.resource.data.keys().hasOnly([
+          'orderId',
+          'ownerUid',
+          'referralCode',
+          'customerEmail',
+          'customerPhone',
+          'ownerDetails',
+          'tenantDetails',
+          'propertyDetails',
+          'agreementTerms',
+          'proofUploads',
+          'status',
+          'payment',
+          'notes',
+          'createdAt',
+          'updatedAt'
+        ]);
+
+      // Read access: owner or admin only
+      allow read: if isAdmin() || isOwner();
+
+      // Update access:
+      // - Admins can update orders (status, courier details, notes, correctionMessage, payment)
+      // - Owners can ONLY update when status is 'Documents needed', to set 'Under verification', affecting only detail/proof fields
+      allow update: if isAdmin() || isOwnerCorrectionUpdate();
+
+      // Deletions: completely forbidden
+      allow delete: if false;
+    }
+
+    // Gateway associations are created and read only by the server Admin SDK.
+    match /phonepePaymentAttempts/{attemptId} {
+      allow read, write: if false;
+    }
+
+    // Administrative activity audit logs: admin only
+    match /adminLogs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // System & Pricing Settings (accessible to all for checkout, updatable by admin only)
+    function isValidPrice(amount, minimum) {
+      return amount is int && amount >= minimum && amount <= 45035996273704;
+    }
+
+    function isValidPricing(data) {
+      return isValidPrice(data.stamp100Chennai, 150)
+        && isValidPrice(data.stamp100TamilNadu, 200)
+        && isValidPrice(data.stamp200Chennai, 250)
+        && isValidPrice(data.stamp200TamilNadu, 300)
+        && isValidPrice(data.notaryExtraFee, 0);
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin()
+        && (settingId != 'pricing' || isValidPricing(request.resource.data));
+    }
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "Customer rental agreement drafting order",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "description": "Unique Order ID" },
+        "ownerUid": { "type": "string", "description": "Customer Firebase Auth UID" },
+        "customerEmail": { "type": "string", "description": "Customer Google account email" },
+        "customerPhone": { "type": "string", "description": "Customer primary phone number" },
+        "ownerDetails": {
+          "type": "object",
+          "description": "Property owner details with last 4 digits of Aadhaar"
+        },
+        "tenantDetails": {
+          "type": "object",
+          "description": "Tenant details with last 4 digits of Aadhaar"
+        },
+        "propertyDetails": {
+          "type": "object",
+          "description": "Rental property location and specification"
+        },
+        "agreementTerms": {
+          "type": "object",
+          "description": "Tenancy financial and duration terms"
+        },
+        "proofUploads": {
+          "type": "object",
+          "description": "Secure private document storage references"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Submitted",
+            "Under verification",
+            "Documents needed",
+            "Drafting",
+            "Dispatched",
+            "Delivered",
+            "Cancelled"
+          ]
+        },
+        "payment": {
+          "type": "object",
+          "description": "Payment records verified server-side only",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["Pending", "Paid", "Failed", "Refunded"]
+            },
+            "amount": { "type": "number" },
+            "razorpayOrderId": { "type": "string" },
+            "razorpayPaymentId": { "type": "string" }
+          }
+        },
+        "courier": {
+          "type": "object",
+          "description": "Speed Post or Blue Dart consignment tracking details (admin-set only)"
+        },
+        "notes": { "type": "string", "description": "Internal administrative notes" },
+        "correctionMessage": { "type": "string", "description": "Vendor message to customer if documents need correction (admin-set only)" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["orderId", "ownerUid", "status", "payment"]
+    },
+    "Draft": {
+      "title": "Draft",
+      "description": "In-progress customer form draft stored separately from orders",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string", "description": "Customer Auth UID" },
+        "currentStep": { "type": "number", "description": "Current step in the multi-step intake flow" },
+        "formData": { "type": "object", "description": "Incomplete form fields saved for convenience" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["ownerUid"]
+    },
+    "Enquiry": {
+      "title": "Enquiry",
+      "description": "Customer contact form query recorded in backend",
+      "type": "object",
+      "properties": {
+        "enquiryId": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "district": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["New", "In Progress", "Resolved"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["enquiryId", "name", "phone", "message", "status"]
+    },
+    "AdminLog": {
+      "title": "AdminLog",
+      "description": "Audit trail log of administrative actions and status transitions",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "adminUid": { "type": "string" },
+        "adminEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "previousStatus": { "type": "string" },
+        "newStatus": { "type": "string" },
+        "notes": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["orderId", "adminUid", "action"]
+    },
+    "PricingSetting": {
+      "title": "PricingSetting",
+      "description": "Dynamic stamp duty, courier, and notary pricing configuration editable by administrator",
+      "type": "object",
+      "properties": {
+        "stamp100Chennai": { "type": "number" },
+        "stamp100TamilNadu": { "type": "number" },
+        "stamp200Chennai": { "type": "number" },
+        "stamp200TamilNadu": { "type": "number" },
+        "notaryExtraFee": { "type": "number" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Rental agreement orders readable only by order owner and admins"
+    },
+    "/drafts/{uid}": {
+      "schema": "Draft",
+      "description": "Customer in-progress drafts accessible only to the authenticated owner"
+    },
+    "/enquiries/{enquiryId}": {
+      "schema": "Enquiry",
+      "description": "Contact enquiries submitted by customers and reviewed by vendor desk"
+    },
+    "/adminLogs/{logId}": {
+      "schema": "AdminLog",
+      "description": "Administrative audit trail accessible only to admins"
+    },
+    "/settings/{settingId}": {
+      "schema": "PricingSetting",
+      "description": "Dynamic pricing settings readable publicly and updatable by admin"
+    }
+  }
+}
