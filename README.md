@@ -11,7 +11,7 @@ Repository: https://github.com/pradeep1992official/StampVendorWebsite
 - Fee calculation and pricing display.
 - Customer order history and tracking.
 - Google sign-in through Firebase Authentication.
-- Firebase Firestore and Storage integration.
+- Firebase Authentication and Firestore, with private Supabase file storage.
 - Administration interface for managing orders.
 - PhonePe Business checkout with server-side payment verification.
 - Referral codes, first-paid-order rewards, and checkout credit redemption.
@@ -27,7 +27,8 @@ Feature availability depends on configuration. A working preview does not confir
 | Framework | Next.js 15, App Router |
 | UI | React 19, TypeScript |
 | Styling | Tailwind CSS 4 |
-| Authentication and data | Firebase Authentication, Firestore, Storage |
+| Authentication and data | Firebase Authentication and Firestore |
+| File uploads | Private Supabase Storage |
 | Payments | PhonePe Business Standard Checkout API |
 | Documents | jsPDF, html2canvas |
 | Checks | ESLint and Node.js test runner |
@@ -90,9 +91,9 @@ Never commit real secrets or add secret keys to browser-visible variables. `.env
 
 Before using the application:
 
-1. Confirm the Firebase project, Storage bucket, and Firestore database ID are the intended ones.
+1. Confirm the Firebase project and Firestore database ID, plus the Supabase URL and private bucket, are the intended ones.
 2. Enable Google sign-in and authorize the domains used for local development and hosting in Firebase Authentication.
-3. Review and deploy `firestore.rules` and `storage.rules` to the intended project through your Firebase deployment setup or console.
+3. Review and deploy Firestore rules and indexes with `npx firebase-tools deploy --only firestore --project agreementprint`. File uploads use Supabase; do not deploy Firebase Storage rules or provision a Firebase Storage bucket.
 4. Test customer and administrator access and database reads/writes.
 
 AI Studio migration may provision or select an applet database. Verify its identity before using existing customer data. Environment variables alone do not replace the Firebase JSON configuration used by this repository.
@@ -131,7 +132,7 @@ Document-upload controls are disabled because this service does not collect file
 
 PhonePe is the active payment integration. The unused legacy `/api/payment/create-order` and `/api/payment/webhook` endpoints return HTTP 410 and cannot create gateway orders or modify payments. Historical payment type fields remain for compatibility with existing records.
 
-Pricing is validated before saving, when reading saved settings, during fee calculation, and at checkout. The four package prices must be whole rupees and cover stamp duty plus courier: minimums are Rs.150/Rs.200 for Rs.100 stamp paper in Chennai/Tamil Nadu and Rs.250/Rs.300 for Rs.200 stamp paper; the optional notary surcharge may be zero. Non-finite, fractional, negative and unsafe amounts are rejected. Firestore rules enforce the same constraints on direct writes to `settings/pricing`. Deploy both the Firestore and Storage rule changes with the application.
+Pricing is validated before saving, when reading saved settings, during fee calculation, and at checkout. The four package prices must be whole rupees and cover stamp duty plus courier: minimums are Rs.150/Rs.200 for Rs.100 stamp paper in Chennai/Tamil Nadu and Rs.250/Rs.300 for Rs.200 stamp paper; the optional notary surcharge may be zero. Non-finite, fractional, negative and unsafe amounts are rejected. Firestore rules enforce the same constraints on direct writes to `settings/pricing`. Deploy the Firestore rules with the application; file storage uses a private Supabase bucket.
 
 ## Project structure
 
@@ -240,21 +241,29 @@ Ask AI tools to preserve the existing Next.js architecture, routes, authenticati
 This README was prepared from the GitHub repository and the supplied AI Studio migration report. Migration changes may not yet be committed to GitHub. Application checks were not executed as part of preparing this documentation.
 
 
+## Agent referral codes
+
+Admin Console → Referral Rewards includes Agent Referral Codes. Create one or more custom codes for each agent, such as `AGRAVI2026`, with a name and optional contact. Codes start with `AG`, contain 5–20 uppercase letters/numbers, and cannot duplicate existing codes. Existing customer referral credits continue unchanged; agent codes do not generate automatic credits.
+
+Share the displayed `/?ref=CODE` link. When a visitor signs in, the server records their name, email, tracking date, and agent code. The first agent attribution is permanent; returning signed-in customers can also be tracked, so this is a referral attribution record rather than proof of a new account creation. Pending links are retained locally until recording succeeds. Browser storage restrictions can prevent attribution across navigation before sign-in.
+
+Customers can also enter an agent code in the existing order referral field; successful validation records the same first-agent attribution. The admin can search agents/customers and record a personally delivered reward with details. Rewards are recorded per attributed customer and are idempotent; this action does not send money. Deploy the updated app and Firestore rules together. Live Firebase authentication, share-link attribution, and reward persistence require staging verification. Agent tracking and rewards are private server-managed records.
+
 ## Custom agreement requests
 
 - `/custom-agreement`: Google sign-in, agreement purpose/language/customisation, contact consent and preference, one to three PDF/DOCX/JPG/PNG samples (10 MB each). No payment at submission.
 - `/my-requests`: private history, customer-visible quotes/messages, clarification replies, cancellation before acceptance and retry of sample verification.
 - Admin **Custom Requests**: review, assignment, private notes, customer messages, quote and expected completion date. Manual contact and quote acceptance; moving Quote Sent to Accepted requires confirmation that the customer accepted. Accepted prices are immutable. No automatic calls, emails or WhatsApp messages are sent.
 - Request creation reserves immutable file descriptors under `customAgreementRequests`. Shared transactions limit each account to five requests/day and the service to 30/minute. Direct Firestore request/audit/limiter access is denied, including client admins. The authorized API strips staff-only fields from customer responses.
-- The browser uploads samples through an authenticated server endpoint that enforces reserved ownership, exact size/type, and immutable private storage. Finalization checks the stored file size/type, file signatures and bounded DOCX structure before publishing the request for review. This validation does not perform antivirus scanning.
-- Deploy the app, Firestore/Storage rules and `firestore.indexes.json` together. `firebase.json` contains the production rule/index paths; always supply the intended project explicitly, e.g. `firebase deploy --only firestore,storage --project CLIENT_PROJECT_ID`. This command is documentation only; no live deployment was performed. Preserve other existing production indexes when deploying. Customer listing needs the ownerUid/createdAt composite index and will work after it finishes building.
-- Storage rules read reserved requests from the default Firestore database; ensure the client project uses `(default)` and enable the Firebase Storage service agent's Firestore access when deploying cross-service rules. Ensure the Storage bucket is provisioned and the server credential can read/write it and sign short-lived download URLs. Downloads require owner/admin authorization and completed file validation (or a legacy Clean scan), then receive a 60-second attachment URL.
-- These uploads require Firebase Storage billing/account setup for the client's project. Test valid files, invalid signatures, oversized files, owner isolation, quote acceptance and customer replies against staging. Protocol tests use a local simulated daemon; they do not verify a deployed antivirus engine.
+- The browser uploads through an authenticated server endpoint. Supabase uploads use `upsert: false`; identical retry contents are accepted, changed contents rejected. Finalization reads the private file, checks exact size/type, validates file signatures and bounded DOCX structure, and stores its SHA-256 hash before publishing the request for review.
+- Deploy the application, Firestore rules and `firestore.indexes.json` using `firebase deploy --only firestore --project CLIENT_PROJECT_ID`. Firebase Storage setup and billing are not needed for file uploads. Preserve other existing production indexes. Customer listing needs the ownerUid/createdAt composite index.
+- Configure server-only `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `SUPABASE_STORAGE_BUCKET`. Keep the bucket private, limit files to 10 MB and allow PDF, DOCX, JPEG and PNG MIME types. Do not add public upload/download policies. The server checks Firebase authentication and request ownership before accessing Supabase; only owners and verified admins can request 60-second attachment download URLs after validation.
+- Test valid files, invalid signatures, oversized files, owner isolation, retries and signed downloads against the private Supabase bucket. This application checks file signatures and DOCX structure; it does not perform antivirus scanning.
 - Operational cleanup: remove files and records for abandoned Uploading requests older than 48 hours, plus unwanted cancelled drafts, through a privileged scheduled job. Check state again transactionally before deleting; do not apply a blanket bucket lifecycle to active/completed samples. Configure TTL on `customAgreementLimits.expiresAt` for account counters. Agree a retention period for completed requests with the client before launch. Cleanup scheduling and production retention policy are not configured by this local implementation.
 
 Local validation: 68 application tests and 11 Firebase rules emulator tests pass, including request isolation, forged metadata, immutable uploads, server-controlled transitions, quote acceptance, clarification persistence, file validation and immutable server uploads. ESLint and TypeScript pass. The isolated standalone build and HTTP checks passed: both new pages returned 200 and all unauthenticated custom-request/download routes returned 401. Real Firebase login/uploads, signed download URLs  still need staging verification; no production customer data or live accounts were modified.
 
-References: [Firebase Admin Storage](https://firebase.google.com/docs/storage/admin/start), [serverless payload limits](https://vercel.com/docs/functions/limitations).
+References: [Supabase private storage](https://supabase.com/docs/guides/storage/buckets/fundamentals), [serverless payload limits](https://vercel.com/docs/functions/limitations).
 
 ## Earlier recheck fixes
 
@@ -269,3 +278,7 @@ These changes are local until deployed. Public tracking authentication was exclu
 Validation after these fixes: 60 application/regression tests and 9 Firebase rules emulator tests passed; project lint and TypeScript checks passed. The isolated build uses physical dependencies to validate standalone packaging.
 
 The final isolated production build completed without standalone-copy warnings. Standalone HTTP smoke checks returned 200 for homepage/CSS, 400 for malformed contact/tracking/fee requests, and 401 for an invalid payment-status token.
+
+## Rs.1 PhonePe test product
+
+Open `/payment-test`, sign in and use the fixed Rs.1 checkout. The page shows live or sandbox mode from the server configuration. Set `PHONEPE_ENV=production` with production credentials to test real payment. Test payments are stored separately in server-only `phonepeTestPayments` and `phonepeTestCustomers`; they do not create agreement orders or referral rewards. Returning from PhonePe does not prove payment: use Check payment status to verify it with PhonePe. The existing authenticated webhook also confirms test payments. Pending attempts are reused; ambiguous checkout errors require status verification before another attempt.

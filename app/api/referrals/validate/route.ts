@@ -2,13 +2,15 @@ import { readJsonObject, inputErrorStatus } from '@/lib/api-input';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyFirebaseIdToken } from '@/lib/firebase-admin';
 import { normalizeReferralCode, isValidReferralCode } from '@/lib/referral-utils';
+import { recordAgentReferral } from '@/lib/agent-referral';
 
 export async function POST(request: NextRequest) {
   try {
     const idToken = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
     if (!idToken) return NextResponse.json({ error: 'Sign in before applying a referral code.' }, { status: 401 });
 
-    const { uid } = await verifyFirebaseIdToken(idToken);
+    const user = await verifyFirebaseIdToken(idToken);
+    const { uid } = user;
     const body = await readJsonObject(request);
     const code = normalizeReferralCode(body?.code);
     if (!isValidReferralCode(code)) {
@@ -18,6 +20,10 @@ export async function POST(request: NextRequest) {
     const db = getAdminDb();
     const codeSnapshot = await db.collection('referralCodes').doc(code).get();
     const referrerUid = codeSnapshot.data()?.uid;
+    if (codeSnapshot.exists && codeSnapshot.data()?.kind === 'agent') {
+      await recordAgentReferral(db, code, user);
+      return NextResponse.json({ valid: true });
+    }
     if (!codeSnapshot.exists || typeof referrerUid !== 'string') {
       return NextResponse.json({ valid: false, error: 'That referral code was not found.' }, { status: 404 });
     }

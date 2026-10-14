@@ -135,6 +135,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Agent assignments and manual rewards are accessible only through authenticated server APIs.
+    match /agentReferralCustomers/{customerId} {
+      allow read, write: if false;
+    }
+
     // Administrative activity audit logs: admin only
     match /adminLogs/{logId} {
       allow read, write: if isAdmin();

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { confirmPaidOrderAndGrantReferral, releaseReferralReservation } from '@/lib/referral-admin';
+import { settleTestPayment } from '@/lib/phonepe-test-payment';
 import { isTrustedPaymentAttempt } from '@/lib/payment-attempt';
 function isAuthorizedWebhook(req: NextRequest) {
   const username = process.env.PHONEPE_WEBHOOK_USERNAME;
@@ -37,6 +38,12 @@ export async function POST(req: NextRequest) {
       ? payload.merchantOrderId
       : '';
     if (!/^[A-Za-z0-9_-]+$/.test(merchantOrderId)) return NextResponse.json({ error: 'Missing merchant order reference.' }, { status: 400 });
+
+    if (/^TEST[A-Fa-f0-9]{32}$/.test(merchantOrderId)) {
+      const completedPayment = Array.isArray(payload.paymentDetails) ? payload.paymentDetails.find((p: { state?: string }) => p.state === 'COMPLETED') : undefined;
+      await settleTestPayment(merchantOrderId, payload.amount, payload.state, completedPayment?.transactionId);
+      return NextResponse.json({ status: 'success' });
+    }
 
     const db = getAdminDb();
     const attemptSnapshot = await db.collection('phonepePaymentAttempts').doc(merchantOrderId).get();

@@ -3,7 +3,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { Mail, Truck } from 'lucide-react';
-import { BrandMark } from '@/components/BrandMark';
 import { SupportEmailLink } from '@/components/SupportEmailLink';
 import { VENDOR_SERVICE_TITLE } from '@/src/config/vendor';
 import { useAuth } from '@/lib/auth-context';
@@ -43,7 +42,7 @@ export const Footer: React.FC = () => {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-9 py-9 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] lg:gap-12">
           <div className="space-y-4">
-            <Link href="/" className={`${focus} inline-flex items-center gap-2.5`}><BrandMark className="h-10 w-10 shrink-0" /><span className="text-lg font-extrabold tracking-tight text-[#b84d12]">AgreementPrint</span></Link>
+            <Link href="/" className={`${focus} inline-flex items-center gap-2.5`}><span className="flex h-11 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-transparent"><svg aria-hidden="true" viewBox="245 106 208 179" className="h-full w-full"><image href="/agreementprint-logo.png" width="677" height="369" /></svg></span><span className="text-lg font-extrabold tracking-tight text-[#b84d12]">AgreementPrint</span></Link>
             <p className="max-w-md text-sm font-semibold leading-relaxed text-stone-800">{VENDOR_SERVICE_TITLE}</p>
             <p className="max-w-md text-sm leading-relaxed text-stone-600">Stamp paper, e-Stamps and agreements made simple. Get your rental agreement prepared, printed and delivered across Tamil Nadu.</p>
             <div className="flex items-start gap-2 text-sm text-stone-600"><Truck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" /><span>Courier delivery with tracking</span></div>

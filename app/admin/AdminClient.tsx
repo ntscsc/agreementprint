@@ -33,6 +33,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { AgentReferralAdmin } from '@/components/referrals/AgentReferralAdmin';
 import { CustomRequests } from '@/components/custom-agreements/CustomRequests';
 import { db } from '@/lib/firebase';
 import { 
@@ -907,6 +908,7 @@ export function AdminClient() {
               <span>{savingReferralSettings ? 'Saving…' : 'Save Referral Settings'}</span>
             </button>
           </div>
+          <AgentReferralAdmin />
         </div>
       ) : activeTab === 'couriers' ? (
         <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in duration-200">

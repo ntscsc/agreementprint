@@ -21,6 +21,18 @@ const db = (uid = 'customer', claims = {}) => env.authenticatedContext(uid, clai
 const admin = () => db('admin', { email: 'pradhiip92@gmail.com', email_verified: true });
 const seed = async (path, data) => env.withSecurityRulesDisabled(async (context) => setDoc(doc(context.firestore(), path), data));
 
+test('agent attribution and rewards cannot be read or forged through client SDKs', async () => {
+  await seed('agentReferralCustomers/customer', { code: 'AGRAVI', uid: 'customer', rewardStatus: 'Pending' });
+  await seed('referralCodes/AGRAVI', { kind: 'agent', name: 'Ravi' });
+  for (const client of [db(), db('other'), admin(), env.unauthenticatedContext().firestore()]) {
+    await assertFails(getDoc(doc(client, 'agentReferralCustomers/customer')));
+    await assertFails(setDoc(doc(client, 'agentReferralCustomers/forged'), { code: 'AGRAVI' }));
+    await assertFails(updateDoc(doc(client, 'agentReferralCustomers/customer'), { rewardStatus: 'Rewarded' }));
+    await assertFails(getDoc(doc(client, 'referralCodes/AGRAVI')));
+    await assertFails(setDoc(doc(client, 'referralCodes/AGFORGED'), { kind: 'agent' }));
+  }
+});
+
 test('actual rules allow valid order creation and reject forged payment, ownership, IDs and fields', async () => {
   await assertSucceeds(setDoc(doc(db(), 'orders/order-1'), order()));
   await env.clearFirestore();

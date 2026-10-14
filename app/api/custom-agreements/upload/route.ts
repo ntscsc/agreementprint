@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, getAdminBucket } from '@/lib/firebase-admin';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { ApiInputError } from '@/lib/api-input';
+import { uploadPrivateFile } from '@/lib/file-storage';
 import { MAX_SAMPLE_SIZE } from '@/lib/custom-agreement';
 import { customIdentity, customError, requestReference } from '@/lib/custom-request-server';
 
@@ -38,17 +38,7 @@ export async function POST(req: NextRequest) {
     }
     if (length !== sample.size) throw new ApiInputError('Sample upload is incomplete. Please retry.');
     const bytes = Buffer.concat(chunks);
-    const file = getAdminBucket().file(path);
-    try {
-      // Keep staging files immutable and private, without Firebase download tokens.
-      await file.save(bytes, { resumable: false, metadata: { contentType: sample.contentType }, preconditionOpts: { ifGenerationMatch: 0 } });
-    } catch (error) {
-      if (Number((error as { code?: unknown }).code) !== 412) throw error;
-      const [metadata] = await file.getMetadata();
-      if (metadata.md5Hash !== createHash('md5').update(bytes).digest('base64') || metadata.contentType !== sample.contentType) {
-        throw new ApiInputError('This sample has already been uploaded with different contents.', 409);
-      }
-    }
+    await uploadPrivateFile(path, bytes, sample.contentType);
     return NextResponse.json({ uploaded: true }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) { return customError(error); }
 }

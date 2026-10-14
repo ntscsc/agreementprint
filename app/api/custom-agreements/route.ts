@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, getAdminBucket } from '@/lib/firebase-admin';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { ApiInputError } from '@/lib/api-input';
 import { CustomRequest, CustomStatus, validateCustomInput, validateSample, canTransition, validDate } from '@/lib/custom-agreement';
 import { customIdentity, customBody, customError, requestReference } from '@/lib/custom-request-server';
+import { readPrivateFile } from '@/lib/file-storage';
 import { validateSampleBytes } from '@/lib/sample-validation';
 
 export const runtime = 'nodejs';
@@ -79,15 +80,8 @@ export async function POST(req: NextRequest) {
     try {
       const hashes: Record<string, string> = {};
       for (const sample of Object.values(record.files) as CustomRequest['files'][string][]) {
-        const file = getAdminBucket().file(sample.path);
-        let metadata;
-        try { [metadata] = await file.getMetadata(); } catch { throw new ApiInputError('A sample upload is incomplete. Retry the upload before submitting.'); }
-        if (Number(metadata.size) !== sample.size || metadata.contentType !== sample.contentType) throw new ApiInputError('Uploaded sample metadata does not match the request.');
-        // Firebase may mint a bearer download token during direct upload. Remove it;
-        // subsequent access goes through the authorized, short-lived download endpoint.
-        await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: null } });
-        // Read the exact immutable generation checked above. Client updates/deletes are denied.
-        const [bytes] = await getAdminBucket().file(sample.path, { generation: metadata.generation }).download();
+        const { bytes, contentType } = await readPrivateFile(sample.path);
+        if (bytes.length !== sample.size || contentType !== sample.contentType) throw new ApiInputError('Uploaded sample does not match the request.');
         validateSampleBytes(bytes, sample.contentType);
         hashes[sample.id] = createHash('sha256').update(bytes).digest('hex');
       }

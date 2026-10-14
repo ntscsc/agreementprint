@@ -4,6 +4,19 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { CUSTOM_STATUSES, CustomRequest, CustomStatus, canTransition } from '@/lib/custom-agreement';
 const input = 'w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm';
+const statusStyles: Record<CustomRequest['status'], string> = {
+  Uploading: 'border-slate-300 bg-slate-100 text-slate-800',
+  Submitted: 'border-blue-200 bg-blue-50 text-blue-800',
+  'Under Review': 'border-blue-200 bg-blue-50 text-blue-800',
+  'Clarification Required': 'border-yellow-300 bg-yellow-50 text-yellow-900',
+  'Quote Sent': 'border-yellow-300 bg-yellow-50 text-yellow-900',
+  Accepted: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  'In Progress': 'border-blue-200 bg-blue-50 text-blue-800',
+  Completed: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  Declined: 'border-red-300 bg-red-50 text-red-800',
+  Cancelled: 'border-slate-300 bg-slate-100 text-slate-800',
+};
+
 async function api(token: string, url: string, method = 'GET', body?: unknown) {
   const response = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const result = await response.json();
@@ -66,7 +79,7 @@ function RequestCard({ request: r, admin, token, refresh }: { request: CustomReq
     finally { setBusy(false); }
   }
   return <article className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 space-y-5">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold">{r.agreementType}</h3><p className="mt-1 break-all text-xs text-stone-500">{r.requestId}</p><p className="text-xs text-stone-500">Submitted {new Date(r.createdAt).toLocaleDateString('en-IN')}</p></div><span className="rounded-full bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900">{r.status === 'Uploading' ? 'Awaiting sample verification' : r.status}</span></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold">{r.agreementType}</h3><p className="mt-1 break-all text-xs text-stone-500">{r.requestId}</p><p className="text-xs text-stone-500">Submitted {new Date(r.createdAt).toLocaleDateString('en-IN')}</p></div><span className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${statusStyles[r.status]}`}>{r.status === 'Uploading' ? 'Awaiting sample verification' : r.status}</span></div>
     <dl className="grid gap-4 sm:grid-cols-2"><Detail label="Purpose" value={r.purpose} /><Detail label="Language" value={r.language} /><Detail label="Customisation instructions" value={r.instructions} /><Detail label="Preferred completion date" value={r.preferredDate || 'Not specified'} />
       <Detail label="Contact" value={`${r.name} · ${r.phone}${r.email ? ` · ${r.email}` : ''}`} /><Detail label="Preferred contact method" value={r.contactMethod} /><Detail label="Notary Signature" value={r.includeNotary === true ? 'Requested' : r.includeNotary === false ? 'Not requested' : 'Not specified'} /></dl>
     {admin && <div className="flex flex-wrap gap-3 text-sm font-semibold text-brand-700"><a className="rounded-lg border border-stone-300 bg-white px-3 py-2" href={`tel:${r.phone}`}>Call Customer</a><a className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-800" target="_blank" rel="noopener noreferrer" href={`https://wa.me/91${r.phone}`}>WhatsApp</a>{r.email && <a className="rounded-lg border border-stone-300 bg-white px-3 py-2" href={`mailto:${r.email}`}>Email Customer</a>}</div>}

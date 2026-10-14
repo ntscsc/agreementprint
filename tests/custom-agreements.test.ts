@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
-import { createHash } from 'node:crypto';
 import { validateCustomInput, validateSample, canTransition, MAX_SAMPLE_SIZE } from '../lib/custom-agreement.ts';
 const require = createRequire(import.meta.url), ts = require('typescript');
 const details = { agreementType: 'Service agreement', purpose: 'An agreement for consulting services', language: 'English', instructions: 'Replace the service scope and update both parties.', preferredDate: '', name: 'Example Customer', phone: '9876543210', email: '', contactMethod: 'Call', contactConsent: true };
@@ -38,20 +37,21 @@ function harness(seed: Data = {}, extras: Data = {}) {
   let scans = 0, downloads = 0;
   const bytes = Buffer.from('%PDF-example');
   const uploads = new Map<string, Buffer>();
-  const bucket = { file: (path: string) => ({
-    save: async (data: Buffer, options: Data) => {
-      assert.equal(options.preconditionOpts.ifGenerationMatch, 0);
-      assert.equal(options.metadata.contentType, 'application/pdf');
-      assert.equal(options.metadata.metadata, undefined, 'No public download token');
-      if (uploads.has(path)) throw Object.assign(new Error('Exists'), { code: 412 });
-      uploads.set(path, data);
-    },
-    getMetadata: async () => [{ size: bytes.length, contentType: 'application/pdf', generation: '1', md5Hash: createHash('md5').update(uploads.get(path) ?? bytes).digest('base64') }], setMetadata: async () => {}, download: async () => { downloads++; return [bytes]; }, getSignedUrl: async () => ['https://storage.example/private-sample'] }) };
   const cache: Data = {};
   function load(name: string): any {
     if (name in extras) return extras[name];
     if (name === 'next/server') return { NextResponse: { json: (data: unknown, options?: ResponseInit) => new Response(JSON.stringify(data), options) } };
-    if (name === '@/lib/firebase-admin') return { getAdminDb: () => db, getAdminBucket: () => bucket, verifyFirebaseIdToken: async (token: string) => { if (token === 'bad') throw Object.assign(new Error('Invalid'), { code: 'auth/invalid-id-token' }); return { uid: token, email: token === 'admin' ? 'pradeep1992official@gmail.com' : 'user@example.com', email_verified: true }; } };
+    if (name === '@/lib/firebase-admin') return { getAdminDb: () => db, verifyFirebaseIdToken: async (token: string) => { if (token === 'bad') throw Object.assign(new Error('Invalid'), { code: 'auth/invalid-id-token' }); return { uid: token, email: token === 'admin' ? 'pradeep1992official@gmail.com' : 'user@example.com', email_verified: true }; } };
+    if (name === '@/lib/file-storage') return {
+      uploadPrivateFile: async (path: string, data: Buffer, contentType: string) => {
+        if (contentType !== 'application/pdf') throw new Error('Unexpected MIME');
+        const existing = uploads.get(path);
+        if (existing && !existing.equals(data)) throw new (load('@/lib/api-input').ApiInputError)('Different contents', 409);
+        uploads.set(path, data);
+      },
+      readPrivateFile: async (path: string) => { downloads++; return { bytes: uploads.get(path) ?? bytes, contentType: 'application/pdf' }; },
+      createPrivateDownloadUrl: async () => 'https://storage.example/private-sample',
+    };
     if (name === '@/lib/sample-validation') return { validateSampleBytes: () => { scans++; } };
     if (!name.startsWith('@/')) return require(name);
     if (cache[name]) return cache[name];

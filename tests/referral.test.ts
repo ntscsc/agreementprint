@@ -5,6 +5,7 @@ import {
   isValidReferralCode,
   isValidReferralRewardAmount,
   normalizeReferralCode,
+  isValidAgentCode,
 } from '../lib/referral-utils.ts';
 
 test('Referral codes normalize for sharing and validate as generated codes', () => {
@@ -12,6 +13,17 @@ test('Referral codes normalize for sharing and validate as generated codes', () 
   assert.equal(isValidReferralCode('A1B2C3D4E5F6'), true);
   assert.equal(isValidReferralCode('A1B2C3D4E5F'), false);
   assert.equal(isValidReferralCode('A1B2C3D4E5FG'), false);
+});
+
+test('Agent codes allow names in a distinct bounded namespace', () => {
+  assert.equal(isValidAgentCode('AGRAVI2026'), true);
+  assert.equal(isValidReferralCode('AGRAVI2026'), true);
+  assert.equal(isValidAgentCode('AGABC'), true);
+  for (const code of ['AG', 'AGAB', 'RAVI2026', 'AGravi', 'AG/RAVI', 'AG' + 'A'.repeat(19)]) {
+    assert.equal(isValidAgentCode(code), false, code);
+  }
+  assert.equal(isValidAgentCode('A1B2C3D4E5F6'), false);
+  assert.equal(normalizeReferralCode(' ag-ravi 2026 '), 'AGRAVI2026');
 });
 
 test('Referral credit is limited by balance and checkout amount', () => {

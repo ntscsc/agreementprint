@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test tests/validation.test.ts tests/fee-calculation.test.ts tests/security-rules-validation.test.ts tests/agreement-document.test.ts tests/pincode-utils.test.ts tests/referral.test.ts tests/draft-sanitization.test.ts tests/payment-attempt.test.ts tests/high-severity.test.ts tests/pricing-validation.test.ts tests/clean.test.mjs tests/dependency-safety.test.mjs tests/checkout-client.test.ts tests/custom-agreements.test.ts",
+    "test": "node --experimental-strip-types --test tests/validation.test.ts tests/fee-calculation.test.ts tests/security-rules-validation.test.ts tests/agreement-document.test.ts tests/pincode-utils.test.ts tests/referral.test.ts tests/agent-referral.test.ts tests/draft-sanitization.test.ts tests/payment-attempt.test.ts tests/high-severity.test.ts tests/pricing-validation.test.ts tests/clean.test.mjs tests/dependency-safety.test.mjs tests/checkout-client.test.ts tests/custom-agreements.test.ts tests/file-storage.test.ts tests/phonepe-test-product.test.ts",
     "clean": "node scripts/clean.mjs",
     "test:rules": "firebase emulators:exec --config firebase.test.json --project demo-stampsure-tests --only firestore,storage \"node --test tests/firebase-rules.emulator.test.mjs\"",
     "postinstall": "node scripts/patch-braces.mjs"
@@ -15,6 +15,7 @@
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@hookform/resolvers": "^5.2.1",
+    "@supabase/supabase-js": "^2.117.3",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

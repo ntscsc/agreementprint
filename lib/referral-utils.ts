@@ -8,7 +8,12 @@ export function normalizeReferralCode(value: unknown): string {
 }
 
 export function isValidReferralCode(value: unknown): value is string {
-  return typeof value === 'string' && /^[A-F0-9]{12}$/.test(value);
+  return typeof value === 'string' && (/^[A-F0-9]{12}$/.test(value) || isValidAgentCode(value));
+}
+
+// A prefix separates agent codes from existing generated customer codes.
+export function isValidAgentCode(value: unknown): value is string {
+  return typeof value === 'string' && /^AG[A-Z0-9]{3,18}$/.test(value);
 }
 
 export function calculateReferralCredit(

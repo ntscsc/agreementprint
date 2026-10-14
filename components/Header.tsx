@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X, FileText, User, LogOut, ChevronDown } from 'lucide-react';
-import { BrandMark } from '@/components/BrandMark';
 import { VENDOR_SERVICE_TITLE } from '@/src/config/vendor';
 import { useI18n } from '@/lib/i18n/context';
 import { useAuth } from '@/lib/auth-context';
@@ -78,7 +77,11 @@ export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8">
         <div className="flex min-h-20 items-center justify-between gap-3 py-2 sm:gap-4">
           <Link href="/" onClick={closeMenus} className="group flex min-w-0 items-center gap-1.5 sm:gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
-            <BrandMark className="h-7 w-7 shrink-0 sm:h-10 sm:w-10" />
+            <span className="flex h-9 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white sm:h-11 sm:w-12">
+              <svg aria-hidden="true" viewBox="245 106 208 179" className="h-full w-full">
+                <image href="/agreementprint-logo.png" width="677" height="369" />
+              </svg>
+            </span>
             <span className="min-w-0">
               <span className="block text-base font-extrabold tracking-tight text-[#ffb15c] transition group-hover:text-[#ffd29c] sm:text-lg">AgreementPrint</span>
               <span className="mt-0.5 block whitespace-nowrap text-[7px] font-medium leading-3 text-blue-100 min-[400px]:text-[8px] sm:text-[10px] sm:leading-4">{VENDOR_SERVICE_TITLE}</span>

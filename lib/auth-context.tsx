@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import { isUserAdmin } from '@/src/config/admin';
+import { normalizeReferralCode, isValidAgentCode } from '@/lib/referral-utils';
 
 interface AuthContextType {
   user: User | null;
@@ -37,12 +38,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
+    const incoming = normalizeReferralCode(new URLSearchParams(window.location.search).get('ref'));
+    try {
+      if (isValidAgentCode(incoming)) localStorage.setItem('pendingAgentReferral', incoming);
+    } catch { /* Referral links still work when browser storage is disabled. */ }
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         // Vendor admin is authorized when email matches designated admin email and is verified
         setIsAdmin(isUserAdmin(currentUser.email, currentUser.emailVerified));
         setAuthError(null);
+        let agentCode = incoming;
+        try { agentCode = localStorage.getItem('pendingAgentReferral') || incoming; } catch {}
+        if (isValidAgentCode(agentCode)) {
+          try {
+            const token = await currentUser.getIdToken();
+            const response = await fetch('/api/referrals/agent', {
+              method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: agentCode }),
+            });
+            if (response.ok) { try { localStorage.removeItem('pendingAgentReferral'); } catch {} }
+          } catch (error) { console.error('Agent referral tracking failed:', error); }
+        }
       } else {
         setIsAdmin(false);
       }
