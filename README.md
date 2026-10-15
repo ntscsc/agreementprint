@@ -217,6 +217,8 @@ Ask AI tools to preserve the existing Next.js architecture, routes, authenticati
 
 ## Troubleshooting
 
+Netlify Functions can fail at startup with `ERR_REQUIRE_ESM` from `jwks-rsa` loading `jose`, before API error handlers run. The scoped npm override `jwks-rsa → jose@5.10.0` keeps Firebase Admin 14 compatible with runtimes that disable synchronous ESM loading. Other consumers retain jose 6. Commit `package.json` and `package-lock.json` together, then rebuild/redeploy Netlify with its cache cleared. Review/remove this workaround when upstream fixes the CommonJS loader (https://github.com/auth0/node-jwks-rsa/issues/507). The dependency regression test loads Firebase Auth with `--no-experimental-require-module` and verifies a locally generated JWKS signature. After deployment, an unauthenticated `/api/custom-agreements` request should return JSON with HTTP 401, rather than an HTML 500 page.
+
 | Problem | Checks |
 | --- | --- |
 | Development server does not start | Read the first terminal error, check Node.js and dependency installation, and confirm `package.json` is at the project root |

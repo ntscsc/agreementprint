@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { readApiResponse } from '@/lib/api-response';
 import { CUSTOM_STATUSES, CustomRequest, CustomStatus, canTransition } from '@/lib/custom-agreement';
 const input = 'w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm';
 const statusStyles: Record<CustomRequest['status'], string> = {
@@ -19,9 +20,7 @@ const statusStyles: Record<CustomRequest['status'], string> = {
 
 async function api(token: string, url: string, method = 'GET', body?: unknown) {
   const response = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Could not process the request.');
-  return result;
+  return readApiResponse(response);
 }
 export function CustomRequests({ admin = false }: { admin?: boolean }) {
   const { user } = useAuth();

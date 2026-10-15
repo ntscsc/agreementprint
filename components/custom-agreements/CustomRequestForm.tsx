@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { readApiResponse } from '@/lib/api-response';
 import { CustomInput, SAMPLE_TYPES, validateCustomInput, validateSample } from '@/lib/custom-agreement';
 
 const field = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600';
@@ -30,7 +31,7 @@ export function CustomRequestForm() {
       const token = await currentUser.getIdToken();
       async function send(body: unknown) {
         const response = await fetch('/api/custom-agreements', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
-        const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Could not submit request.'); return result;
+        return readApiResponse(response);
       }
       if (!pending.current || pending.current.ownerUid !== currentUser.uid) pending.current = { requestId: `CUSTOM_${crypto.randomUUID()}`, ownerUid: currentUser.uid, uploaded: new Set() };
       const current = pending.current;
@@ -47,10 +48,7 @@ export function CustomRequestForm() {
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': sample.contentType },
             body: files[i],
           });
-          if (!upload.ok) {
-            const failure = await upload.json();
-            throw new Error(failure.error || 'Could not upload your sample. Please retry.');
-          }
+          await readApiResponse(upload);
           current.uploaded.add(sample.id);
         }
         setProgress('Checking your samples before submission…');
