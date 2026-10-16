@@ -1,5 +1,7 @@
 'use client';
 
+import { readApiResponse } from '@/lib/api-response';
+
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { 
@@ -55,7 +57,7 @@ export function TrackClient() {
         }),
       });
 
-      const data = await res.json();
+      const data = await readApiResponse(res);
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Order lookup failed.');
       }
@@ -90,7 +92,7 @@ export function TrackClient() {
             phone: targetPhone,
           }),
         });
-        const data = await res.json();
+        const data = await readApiResponse(res);
         if (!isMounted) return;
         if (data.success) {
           setOrderData(data.order);
@@ -167,7 +169,7 @@ export function TrackClient() {
                 required
                 value={orderId}
                 onChange={(e) => setOrderId(e.target.value.toUpperCase())}
-                placeholder="e.g. TNR_123456_ABCD"
+                placeholder="e.g. 7264918053726084"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-mono text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 uppercase"
               />
             </div>

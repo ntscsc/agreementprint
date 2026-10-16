@@ -1,6 +1,10 @@
 node_modules/
 .next/
+.next-dev/
+.next-policy-review/
+.next-review/
 coverage/
+tmp/pdfs/
 .DS_Store
 *.log
 .env*

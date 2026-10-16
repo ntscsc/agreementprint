@@ -1,4 +1,5 @@
 import { ApiInputError } from '@/lib/api-input';
+import { isValidCouponCode } from '@/lib/coupon';
 
 function object(value: unknown, label: string): Record<string, any> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiInputError(`${label} is required.`);
@@ -32,7 +33,7 @@ export function validateProperty(value: unknown) {
   const data = object(value, 'Property');
   text(data.fullAddress, 'property address', 12, 2000);
   text(data.city, 'property city', 2, 100);
-  if (typeof data.pincode !== 'string' || !/^\d{6}$/.test(data.pincode)) throw new ApiInputError('Enter a valid property PIN code.');
+  if (typeof data.pincode !== 'string' || !/^[1-9]\d{5}$/.test(data.pincode)) throw new ApiInputError('Enter a valid property PIN code.');
   choice(data.propertyType, 'property type', ['House', 'Flat', 'Commercial Shop']);
   choice(data.furnishing, 'furnishing', ['Unfurnished', 'Semi-Furnished', 'Fully Furnished']);
   if (data.propertyType === 'Commercial Shop') text(data.businessName, 'business name', 2, 200);
@@ -66,5 +67,5 @@ export function validateAgreement(value: unknown) {
   if (data.agreementTerms.deliveryLocation !== region) throw new ApiInputError('The delivery region must match the selected address PIN code.');
   if (data.customerEmail !== undefined && (typeof data.customerEmail !== 'string' || data.customerEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.customerEmail))) throw new ApiInputError('Enter a valid customer email.');
   if (data.customerPhone !== undefined && (typeof data.customerPhone !== 'string' || !/^[6-9]\d{9}$/.test(data.customerPhone))) throw new ApiInputError('Enter a valid customer phone.');
-  if (data.referralCode !== undefined && data.referralCode !== '' && (typeof data.referralCode !== 'string' || !/^[A-Z0-9]{12}$/.test(data.referralCode))) throw new ApiInputError('Enter a valid referral code.');
+  if (data.referralCode !== undefined && data.referralCode !== '' && !isValidCouponCode(data.referralCode)) throw new ApiInputError('Enter a valid coupon code.');
 }

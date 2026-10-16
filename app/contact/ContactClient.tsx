@@ -1,5 +1,7 @@
 'use client';
 
+import { readApiResponse } from '@/lib/api-response';
+
 import React, { useState } from 'react';
 import { 
   Mail, 
@@ -8,9 +10,9 @@ import {
   AlertCircle,
   RefreshCw,
   ShieldCheck,
-  Truck,
-  Clock
+  Truck
 } from 'lucide-react';
+import { BusinessContact } from '@/components/PolicyPage';
 import { SupportEmailLink } from '@/components/SupportEmailLink';
 
 export function ContactClient() {
@@ -61,7 +63,7 @@ export function ContactClient() {
         }),
       });
 
-      const data = await res.json();
+      const data = await readApiResponse(res);
 
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to submit enquiry. Please try again.');
@@ -116,6 +118,7 @@ export function ContactClient() {
               <div className="space-y-1">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Help & Support</span>
                 <h2 className="text-xl font-bold text-stone-900">How to Reach Us</h2>
+                <BusinessContact showOperator={false} showAddress={false} />
               </div>
 
               <div className="space-y-4 text-xs sm:text-sm text-stone-700">
@@ -142,15 +145,6 @@ export function ContactClient() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-amber-50 rounded-xl text-amber-700 shrink-0 mt-0.5">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-stone-900">Working Hours</h3>
-                    <p className="text-stone-600 mt-0.5">Monday to Saturday: 9:30 AM – 6:30 PM</p>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

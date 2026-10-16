@@ -1,5 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { couponTotal, couponDiscountAmount, isValidCouponCode, isValidCouponDiscount } from '../lib/coupon.ts';
+
+test('Customer coupons share one value while agent amounts remain independent', () => {
+  const settings = { customerDiscountAmount: 80 };
+  assert.equal(couponDiscountAmount({ uid: 'customer-a', discountAmount: 10 }, settings), 80);
+  assert.equal(couponDiscountAmount({ kind: 'customer', uid: 'customer-b', discountAmount: 999 }, settings), 80);
+  assert.equal(couponDiscountAmount({ kind: 'agent', discountAmount: 150 }, settings), 150);
+  assert.equal(couponDiscountAmount({ kind: 'agent', customerDiscountAmount: 50, discountAmount: 150 }, settings), 50);
+  assert.equal(couponDiscountAmount({ kind: 'customer' }, { ...settings, refereeDiscountAmount: 60 }), 60);
+  assert.equal(couponDiscountAmount({ uid: 'new-customer' }), 0);
+  assert.throws(() => couponDiscountAmount({ uid: 'customer' }, { customerDiscountAmount: '80' }), /Invalid/);
+});
+
+test('Coupon amounts are bounded whole rupees and cannot make an order negative', () => {
+  assert.deepEqual(couponTotal(350, 100), { subtotal: 350, couponDiscount: 100, total: 250 });
+  assert.deepEqual(couponTotal(350, 500), { subtotal: 350, couponDiscount: 350, total: 0 });
+  for (const amount of [-1, 1.5, Infinity, NaN, 100001, '100', null]) assert.equal(isValidCouponDiscount(amount), false);
+  for (const code of ['WELCOME100', 'AGRAVI2026', 'A1B2C3D4E5F6']) assert.equal(isValidCouponCode(code), true);
+  for (const code of ['ABCD', 'A'.repeat(21), 'welcome100', '../CODE', null]) assert.equal(isValidCouponCode(code), false);
+});
 import {
   calculateReferralCredit,
   isValidReferralCode,

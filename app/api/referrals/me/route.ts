@@ -1,7 +1,8 @@
-import { readJsonObject, inputErrorStatus } from '@/lib/api-input';
+import { inputErrorStatus } from '@/lib/api-input';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyFirebaseIdToken } from '@/lib/firebase-admin';
 import { getOrCreateReferralAccount, getReferralRewardAmount } from '@/lib/referral-admin';
+import { couponDiscountAmount } from '@/lib/coupon';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,12 +13,14 @@ export async function GET(request: NextRequest) {
     const db = getAdminDb();
     const account = await getOrCreateReferralAccount(uid, db);
     const referralSettings = await db.collection('settings').doc('referrals').get();
-    const [ordersSnapshot, rewardsSnapshot, ledgerSnapshot, firstPaidOrder, customerOrders] = await Promise.all([
+    const [ordersSnapshot, rewardsSnapshot, ledgerSnapshot, firstPaidOrder, customerOrders, coupon, legacyDiscounts] = await Promise.all([
       db.collection('orders').where('referralCode', '==', account.code).limit(100).get(),
       db.collection('referralRewards').where('referrerUid', '==', uid).limit(100).get(),
       db.collection('referralLedger').where('ownerUid', '==', uid).limit(100).get(),
       db.collection('referralFirstPaidOrders').doc(uid).get(),
       db.collection('orders').where('ownerUid', '==', uid).get(),
+      db.collection('referralCodes').doc(account.code).get(),
+      db.collection('settings').doc('coupons').get(),
     ]);
 
     const rewardsByReferredUid = new Map(
@@ -46,6 +49,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       code: account.code,
       balance: account.balance,
+      couponDiscount: coupon.data()?.active === false ? 0 : couponDiscountAmount(coupon.data() ?? {}, { ...legacyDiscounts.data(), ...referralSettings.data() }),
       canApplyReferralCode: !firstPaidOrder.exists && !customerOrders.docs.some((order) => order.data().payment?.status === 'Paid'),
       rewardAmount: getReferralRewardAmount(referralSettings.data()),
       referrals,

@@ -74,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#0b4f86] bg-[#0b5e9e] text-white shadow-sm">
-      <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6">
         <div className="flex min-h-20 items-center justify-between gap-3 py-2 sm:gap-4">
           <Link href="/" onClick={closeMenus} className="group flex min-w-0 items-center gap-1.5 sm:gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
             <span className="flex h-9 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white sm:h-11 sm:w-12">

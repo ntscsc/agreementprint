@@ -1,79 +1,29 @@
 import type { Metadata } from 'next';
-import { FileCheck, Shield, AlertCircle } from 'lucide-react';
-import { DisclaimerBanner } from '@/components/DisclaimerBanner';
-import { VENDOR_CONFIG } from '@/src/config/vendor';
+import { PolicyPage, PolicySection } from '@/components/PolicyPage';
 
-export const metadata: Metadata = {
-  title: 'Terms & Conditions | AgreementPrint',
-  description: 'Terms of service for ordering rental agreements and non-judicial stamp paper drafting in Tamil Nadu.',
-  openGraph: {
-    title: 'Terms & Conditions | AgreementPrint',
-    description: 'Terms of service for ordering rental agreements and non-judicial stamp paper drafting in Tamil Nadu.',
-  },
-};
+export const metadata: Metadata = { title: 'Terms & Conditions | AgreementPrint', description: 'Terms & Conditions for AgreementPrint rental and custom agreement services.' };
 
-export default function TermsPage() {
+export default function Page() {
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-      {/* Header */}
-      <div className="space-y-3 border-b border-stone-200 pb-6">
-        <span className="text-xs uppercase tracking-wider font-bold text-stone-700 bg-stone-200 px-3 py-1 rounded-full">
-          Legal Agreement
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
-          Terms and Conditions of Service
-        </h1>
-        <p className="text-xs text-stone-500">Last Updated: October 2026</p>
-      </div>
-
-      <div className="space-y-8 text-xs sm:text-sm text-stone-700 leading-relaxed">
-        <section className="space-y-2">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <FileCheck className="w-4 h-4 text-amber-700" />
-            <span>1. Scope of Service</span>
-          </h2>
-          <p>
-            {VENDOR_CONFIG.tradeName} operates as an authorized non-judicial stamp paper vendor (Licence: {VENDOR_CONFIG.licenceNumber}). Our scope of service is strictly limited to:
-          </p>
-          <ul className="list-disc pl-5 space-y-1 text-stone-600">
-            <li>Procuring genuine non-judicial stamp paper from the Tamil Nadu Registration Department.</li>
-            <li>Typing and formatting standard tenancy clauses onto the procured stamp paper and accompanying bond ledger sheets based on customer-submitted data.</li>
-            <li>Packaging and dispatching the physical paper via registered courier (Speed Post or Blue Dart) to the specified delivery address.</li>
-          </ul>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <Shield className="w-4 h-4 text-amber-700" />
-            <span>2. Customer Responsibilities & Accuracy</span>
-          </h2>
-          <p>
-            The customer is solely responsible for ensuring that all data submitted (names, father/spouse names, rental figures, deposit amounts, and premises address) is accurate, truthful, and corresponds with official identity proofs. We do not independently verify title ownership of the property. Customers agree not to submit forged or fraudulent identity documents.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-700" />
-            <span>3. No Legal Advice & Independent Counsel</span>
-          </h2>
-          <p>
-            The service provided does NOT constitute legal advice, advocate representation, or title verification. Our standard rental agreement formats are based on widely accepted tenancy practices across Tamil Nadu. If either party requires custom non-standard dispute arbitration or leasehold covenants, they are advised to consult an enrolled advocate.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <FileCheck className="w-4 h-4 text-amber-700" />
-            <span>4. Delivery Timelines & Force Majeure</span>
-          </h2>
-          <p>
-            Postal transit times remain subject to courier logistics. We are not liable for transit delays caused by extreme weather events, state holidays, or incorrect consignee contact details.
-          </p>
-        </section>
-      </div>
-
-      <DisclaimerBanner />
-    </div>
+    <PolicyPage title="Terms & Conditions">
+      <PolicySection title="Our service">
+        <p>AgreementPrint provides rental agreement preparation, stamp paper procurement, printing and physical delivery within Tamil Nadu. Custom agreement requests are reviewed separately and quoted before paid work begins. We are not a government website. Our preparation service does not include legal advice, property title verification or government registration. Any optional notary service and its charge are shown separately.</p>
+      </PolicySection>
+      <PolicySection title="Ordering and customer responsibilities">
+        <p>Provide accurate party names, addresses, rental amounts, dates and delivery details, and review them before submitting. You must have authority to share information about other parties and permission to use any sample template you upload. Do not use the service for unlawful purposes or submit forged information. Keep your sign-in account secure and contact us if you suspect misuse.</p>
+      </PolicySection>
+      <PolicySection title="Prices and payments">
+        <p>Prices are in Indian rupees. The applicable package, stamp duty, courier charge, optional services, discounts and final payable total are shown for review before payment. Online payments are handled through PhonePe. A payment attempt alone does not confirm a successful payment; check your order status. Custom agreement work is subject to the scope and price you accept.</p>
+      </PolicySection>
+      <PolicySection title="Preparation, delivery and corrections">
+        <p>Preparation depends on receiving payment and complete, usable details. Dispatch estimates, tracking and address issues are covered by our Shipping & Delivery Policy. Cancellation, refund and replacement requests are handled under the linked policies. Contact us promptly if you discover an error; changes may require new stamp paper once printing has occurred.</p>
+      </PolicySection>
+      <PolicySection title="Website use and third parties">
+        <p>Use the website only for lawful purposes. Do not interfere with its security or misuse another customer?s account or information. Website content does not grant ownership rights in our branding or software. External payment and courier services have their own terms and privacy practices.</p>
+      </PolicySection>
+      <PolicySection title="Service issues and changes to these terms">
+        <p>If we cannot fulfil an order, we will contact you about an alternative or an applicable refund. Events outside our reasonable control may affect preparation or delivery; contact support for an update. Updated terms will be published with a revised date. Changes will not retrospectively remove commitments made for an existing order. Nothing in these policies limits rights available under applicable law. These terms are governed by the laws of India; disputes may be raised before the competent court or consumer forum.</p>
+      </PolicySection>
+    </PolicyPage>
   );
 }

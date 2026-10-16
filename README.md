@@ -63,6 +63,14 @@ npm run dev
 
 Open http://localhost:3000, or the address printed by the development server.
 
+Development output uses `.next-dev`; production builds use `.next`. This keeps `npm run build` from overwriting a running preview's generated files. `NEXT_BUILD_DIR` can override the output directory; use distinct directories for concurrent development and build processes.
+
+### Customer bills
+
+After confirmed payment, customers can download an order bill as a PDF from the confirmation screen, PhonePe payment return page, or My Orders. The authenticated `/api/orders/bill` endpoint checks ownership and reads the saved payment totals; pending, failed, refunded or inconsistent payment records cannot produce a paid bill. The bill includes the saved package total, coupon discount, referral credits, amount paid and available transaction reference. It is a payment receipt, not a GST tax invoice or a receipt for tenancy rent/deposit. Older paid records without a saved amount require support review.
+
+PDF generation runs on the server with PDFKit and the bundled OFL-licensed Noto Sans font. The standalone build traces the font into the bill route; no public bill files are stored. Downloads are private and not cached. No email is sent automatically.
+
 When using npm, commit the generated `package-lock.json` so other environments use the same dependency versions. Once it exists and matches `package.json`, use `npm ci` for reproducible installs.
 
 ## Environment variables
@@ -245,9 +253,9 @@ This README was prepared from the GitHub repository and the supplied AI Studio m
 
 ## Agent referral codes
 
-Admin Console → Referral Rewards includes Agent Referral Codes. Create one or more custom codes for each agent, such as `AGRAVI2026`, with a name and optional contact. Codes start with `AG`, contain 5–20 uppercase letters/numbers, and cannot duplicate existing codes. Existing customer referral credits continue unchanged; agent codes do not generate automatic credits.
+Admin Console → Referral Rewards includes Agent Referral Codes. Create one or more custom codes for each agent, such as `AGRAVI2026`, with a name and optional contact. Codes contain 5–20 uppercase letters/numbers and cannot duplicate existing codes. No prefix is required; each agent code has its own discount. Existing customer referral credits continue unchanged; agent codes do not generate automatic credits.
 
-Share the displayed `/?ref=CODE` link. When a visitor signs in, the server records their name, email, tracking date, and agent code. The first agent attribution is permanent; returning signed-in customers can also be tracked, so this is a referral attribution record rather than proof of a new account creation. Pending links are retained locally until recording succeeds. Browser storage restrictions can prevent attribution across navigation before sign-in.
+Share the displayed `/order?coupon=CODE` link. When a visitor signs in, the server records their name, email, tracking date, and agent code. The first agent attribution is permanent; returning signed-in customers can also be tracked, so this is a referral attribution record rather than proof of a new account creation. Pending links are retained locally until recording succeeds. Browser storage restrictions can prevent attribution across navigation before sign-in.
 
 Customers can also enter an agent code in the existing order referral field; successful validation records the same first-agent attribution. The admin can search agents/customers and record a personally delivered reward with details. Rewards are recorded per attributed customer and are idempotent; this action does not send money. Deploy the updated app and Firestore rules together. Live Firebase authentication, share-link attribution, and reward persistence require staging verification. Agent tracking and rewards are private server-managed records.
 
@@ -284,3 +292,38 @@ The final isolated production build completed without standalone-copy warnings. 
 ## Rs.1 PhonePe test product
 
 Open `/payment-test`, sign in and use the fixed Rs.1 checkout. The page shows live or sandbox mode from the server configuration. Set `PHONEPE_ENV=production` with production credentials to test real payment. Test payments are stored separately in server-only `phonepeTestPayments` and `phonepeTestCustomers`; they do not create agreement orders or referral rewards. Returning from PhonePe does not prove payment: use Check payment status to verify it with PhonePe. The existing authenticated webhook also confirms test payments. Pending attempts are reused; ambiguous checkout errors require status verification before another attempt.
+
+## Repository verification (15 October 2026)
+
+See [CODE_REVIEW.md](CODE_REVIEW.md) for review scope, fixes, verification results and remaining integration/content checks. Deploy the application and Firestore rules together: customer clarifications require the new allowed field, and order validation and the administrator allowlist have been tightened. Configure TTL on `orderTrackingLimits.expiresAt` for tracking counter cleanup.
+
+For a production build alongside `npm run dev`, set `NEXT_BUILD_DIR=.next-review` before `npm run build`. This keeps review output separate from the running development server. Normal deployment builds continue to use `.next`.
+
+## First-order coupon discounts
+
+Customer-generated coupon codes all use one amount. Set **Shared customer coupon discount** in **Admin → Referral Rewards → First-Order Coupons**. This applies to existing and future customer-generated codes. The shared setting is stored at `settings/coupons.customerDiscountAmount` and defaults to ₹0 when absent. Old per-code customer amounts are ignored; individual customer codes can only be enabled or disabled.
+
+Agent coupon codes have customizable text and an independent fixed discount per code. Create them in **Agent Coupon Codes**, using any unique 5–20 letters/numbers; no AG prefix is required. Agent and promotion discounts remain independent of the shared customer amount. All amounts accept whole rupees from ₹0–₹100,000. Existing referral credit rewards and historical tracking remain intact.
+
+Customers apply one coupon while reviewing their rental order. Accounts with a previous paid rental order cannot apply it; account eligibility does not verify that a person has never used another account. The server calculates the discount before applying referral credits and caps the discount at the package total. A fully covered order is confirmed without opening PhonePe. The checkout, order history, customer receipt and admin order detail show the discount.
+
+Codes remain in `referralCodes` and orders retain the legacy `referralCode` field for compatibility. New share links use `?coupon=CODE`; existing `?ref=CODE` links remain supported. Server-only `firstOrderCoupons/{uid}` records reserve first-order checkout across simultaneous orders, are consumed on settlement, and released only after verified failure/expiry. Do not expire a pending reservation locally: its gateway payment may still complete. Discount amounts are snapshotted in server-owned payment attempts, so later admin changes apply to new checkouts, not an already pending payment.
+
+Deploy the application and updated Firestore rules together. Do not grant client writes to code configuration, coupon reservations or payment snapshots. Real Google sign-in, PhonePe and the admin/browser workflow still require staging verification before release. No production coupon amounts have been set by this local change.
+
+Latest coupon validation: 113 application/regression tests and 14 Firebase rules emulator tests passed, along with lint, TypeScript and the production build. Coverage includes customer-wide discount consistency, custom agent codes/amounts, admin-only settings, legacy data compatibility and pending payment snapshots.
+
+
+Agent reward management: each agent has a separate whole-rupee reward, distinct from the customer checkout discount. Admins can add agents, edit names/contact/reward amounts, and remove agents. Removal disables the code and retains referral/payment history; codes cannot be reassigned. New referral records snapshot the agent reward so future edits do not change existing obligations. Admins record payments manually with notes; duplicate requests do not record a second payment. Dashboard totals include active agents, referred customers, pending reviews, recorded payment count and recorded INR totals. Legacy payments without a numeric amount are excluded from monetary totals and retain their notes. Customer referrers continue to share the global admin reward after the referred customer first pays.
+
+
+Referral management redesign: Admin > Referrals & Coupons now opens Agents. Agents are listed once with their own code, the amount the agent earns, and the amount a new customer saves. Add/Edit opens a focused form; View agent opens referral history and manual payment recording. Pausing disables new attribution/discounts; deleting retains history. Customers contains the shared customer-referrer reward and aggregate credited totals. Customer discounts contains the shared customer-coupon discount; optional promotions are collapsed. Customer-facing referral benefits separately show You earn and Your friend saves. Existing codes, attribution, balances, and payment history are retained. Agent editing now saves both reward and checkout discount together. This redesign has not been tested or built, per the request to wait for "run test".
+
+
+Current referral scope (supersedes earlier redesign notes): only Customers and Agents remain. For customer referrals, settings/referrals.rewardAmount credits the existing customer after the new customer's first successfully paid order; settings/referrals.refereeDiscountAmount discounts the new customer's first order at checkout. Both amounts are shared by all customer referrers. Each agent has rewardAmount for a manual payout after the first paid order and customerDiscountAmount for the new customer's discount on that order. Agent eligibility is recorded atomically with first-payment settlement; sign-in attribution alone cannot be paid. No joining credits are issued to new customers. The discount is capped at the order total. Legacy agent discountAmount and settings/coupons.customerDiscountAmount are supported as fallbacks until updated through the new controls. Agent rewards, referral balances, historical payment records and pending gateway price snapshots are retained. Standalone promotions are excluded; manage both amounts in Customers or Agents. No tests, lint, type checking, or build were run for this change, per user instruction.
+
+Dashboard count correction: sign-in attribution is shown separately as Awaiting customer payment. Customers who paid and agent payments due require an eligible order whose current server payment status is Paid and whose owner matches the referred customer. Zero-rate agent rewards are excluded from payments due. Customer referral aggregate totals likewise exclude reward rows without a matching confirmed paid order. This change has not been tested, per user instruction.
+
+Latest validation after authorization to run tests: all 121 application/regression tests and all 15 Firebase Firestore/Storage emulator tests passed. ESLint, TypeScript, and the isolated .next-review production build passed. Regression coverage includes unpaid dashboard counts (0 paid, 1 awaiting, 0 due), matching confirmed payment ownership, agent manual payout eligibility, zero-rate rewards, shared customer and individual agent discounts, first-paid-order rewards, concurrent duplicate callbacks, and failed/returning-customer payment exclusion. No live payment was submitted and changes have not been deployed.
+
+Customer referral settings screen corrections: both rates load before editing is enabled; unavailable totals are shown as a dash, not zero. Empty fields are not coerced to zero. Both amounts and their audit entry save together in a server transaction. Errors are displayed inline and settings/totals can be refreshed. Totals exclude malformed, self-referring, unmatched and unpaid reward rows. Regression cases have been updated for a future test run.

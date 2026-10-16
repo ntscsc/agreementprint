@@ -6,6 +6,12 @@ import { AgreementTerms } from '@/lib/types';
 import { DEFAULT_PRICING, PricingConfig, calculateOrderPrice } from '@/src/config/pricing';
 import { getPricingConfig } from '@/lib/pricing-service';
 import { detectCourierRegion } from '@/lib/pincode-utils';
+import { amountInWords } from '@/lib/number-to-words';
+
+function AmountInWords({ id, amount }: { id: string; amount: number | undefined }) {
+  const words = amount === 0 ? 'Zero Rupees' : amountInWords(amount);
+  return <p id={id} aria-live="polite" aria-atomic="true" className="mt-1.5 min-h-5 text-xs font-medium leading-5 text-brand-800">{words ? `${words} only` : ''}</p>;
+}
 
 interface AgreementTermsStepProps {
   data: Partial<AgreementTerms>;
@@ -104,7 +110,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
               }
               placeholder="e.g. 15000"
               aria-invalid={!!errors.monthlyRent}
-              aria-describedby={errors.monthlyRent ? 'terms-monthlyRent-error' : undefined}
+              aria-describedby={`terms-monthlyRent-words${errors.monthlyRent ? ' terms-monthlyRent-error' : ''}`}
               className={`w-full pl-8 pr-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
                 errors.monthlyRent
                   ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
@@ -112,6 +118,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
               }`}
             />
           </div>
+          <AmountInWords id="terms-monthlyRent-words" amount={data.monthlyRent} />
           {errors.monthlyRent && (
             <p id="terms-monthlyRent-error" className="text-xs text-rose-600 mt-1">
               {errors.monthlyRent}
@@ -138,7 +145,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
               }
               placeholder="e.g. 100000"
               aria-invalid={!!errors.securityDeposit}
-              aria-describedby={errors.securityDeposit ? 'terms-securityDeposit-error' : undefined}
+              aria-describedby={`terms-securityDeposit-words${errors.securityDeposit ? ' terms-securityDeposit-error' : ''}`}
               className={`w-full pl-8 pr-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
                 errors.securityDeposit
                   ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
@@ -146,6 +153,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
               }`}
             />
           </div>
+          <AmountInWords id="terms-securityDeposit-words" amount={data.securityDeposit} />
           {errors.securityDeposit && (
             <p id="terms-securityDeposit-error" className="text-xs text-rose-600 mt-1">
               {errors.securityDeposit}
@@ -170,9 +178,11 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
                 onChange({ maintenanceCharges: e.target.value ? Number(e.target.value) : 0 })
               }
               placeholder="0 if included in rent"
+              aria-describedby="terms-maintenance-words"
               className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
+          <AmountInWords id="terms-maintenance-words" amount={data.maintenanceCharges ?? 0} />
         </div>
 
         {/* Agreement Start Date */}

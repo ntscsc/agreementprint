@@ -20,8 +20,10 @@ function database(seed: Data) {
   const db = {
     read: (path: string) => structuredClone(documents[path]),
     collection: (name: string) => ({
+      get: async () => ({ docs: Object.keys(documents).filter(path => path.startsWith(`${name}/`)).map(path => snapshot(path)) }),
+      limit: (count: number) => ({ get: async () => ({ docs: Object.keys(documents).filter(path => path.startsWith(`${name}/`)).slice(0, count).map(path => snapshot(path)) }) }),
       doc: (id: string) => ({ path: `${name}/${id}`, get: async () => snapshot(`${name}/${id}`) }),
-      where: (key: string, _op: string, value: unknown) => ({ get: async () => ({ docs: Object.keys(documents).filter((path) => path.startsWith(`${name}/`) && documents[path][key] === value).map((path) => snapshot(path)) }) }),
+      where: (key: string, _op: string, value: unknown) => ({ get: async () => ({ docs: Object.keys(documents).filter((path) => path.startsWith(`${name}/`) && key.split('.').reduce((data: any, part: string) => data?.[part], documents[path]) === value).map((path) => snapshot(path)) }) }),
     }),
     runTransaction: (callback: (tx: Data) => Promise<unknown>) => {
       const result = queue.then(async () => {
@@ -79,6 +81,16 @@ const seed = {
   'orders/O1': { ...agreement, orderId: 'O1', ownerUid: 'U1', status: 'Submitted', payment: { status: 'Pending' } },
   'referralAccounts/U1': { balance: 100 },
 };
+
+test('Agreement submission accepts customer and agent referral codes consistently', () => {
+  const { validateAgreement } = loader(database({}))('@/lib/agreement-validation');
+  for (const referralCode of [undefined, '', 'ABCDEF123456', 'AGRAVI2026', 'AG123', 'AG123456789012345678']) {
+    assert.doesNotThrow(() => validateAgreement({ ...agreement, referralCode }));
+  }
+  for (const referralCode of ['AG12', 'AG1234567890123456789', 'INVALID!CODE', 'agravi2026', 123, null]) {
+    assert.throws(() => validateAgreement({ ...agreement, referralCode }), /valid coupon code/);
+  }
+});
 const attempt = (id: string, credit = 100) => ({ orderId: 'O1', ownerUid: 'U1', merchantOrderId: id, amount: 250, creditApplied: credit, initiatedAt: Date.now(), redirectUrl: 'https://checkout.example', returnUrl: 'https://vendor.example/payment/phonepe/return', totalBeforeCredits: 350, state: 'PENDING' });
 
 async function prepare(db: ReturnType<typeof database>, load: ReturnType<typeof loader>, id: string) {
@@ -173,6 +185,186 @@ function checkoutLoader(db: ReturnType<typeof database>, gatewayState = 'PENDING
 function checkoutRequest(body: unknown) {
   return { headers: { get: () => 'Bearer TOKEN' }, json: async () => ({ reviewedTotal: 350, ...(body as object) }), nextUrl: { origin: 'https://vendor.example' } };
 }
+
+const couponSeed = (discountAmount = 100) => ({
+  ...seed,
+  'orders/O1': { ...seed['orders/O1'], referralCode: 'WELCOME100' },
+  'referralCodes/WELCOME100': { kind: 'agent', discountAmount, rewardAmount: 50, active: true },
+});
+
+test('Server checkout ignores client discount injection and saves the verified discount and net gateway amount', async () => {
+  const db = database(couponSeed()); let gatewayCalls = 0;
+  const route = checkoutLoader(db, 'PENDING', async () => { gatewayCalls++; });
+  const quote = await route.POST(checkoutRequest({ orderId: 'O1', creditAmount: 100, couponDiscount: 999999 }));
+  assert.equal(quote.status, 409);
+  assert.equal(quote.body.reviewedTotal, 250);
+  assert.equal(quote.body.couponDiscount, 100);
+  assert.equal(quote.body.amountDue, 150);
+  assert.equal(gatewayCalls, 0);
+  const response = await route.POST(checkoutRequest({ orderId: 'O1', creditAmount: 100, reviewedTotal: 250, couponDiscount: 999999 }));
+  assert.equal(response.status, 200);
+  const order = db.read('orders/O1');
+  const saved = db.read(`phonepePaymentAttempts/${order.payment.phonepeMerchantOrderId}`);
+  assert.equal(saved.subtotal, 350); assert.equal(saved.couponDiscount, 100); assert.equal(saved.amount, 150);
+  assert.equal(saved.creditApplied, 100); assert.equal(order.payment.couponCode, 'WELCOME100');
+  await loader(db)('@/lib/referral-admin').confirmPaidOrderAndGrantReferral('O1', { merchantOrderId: saved.merchantOrderId });
+  assert.equal(db.read('orders/O1').payment.status, 'Paid');
+  assert.equal(db.read('firstOrderCoupons/U1').state, 'consumed');
+  assert.equal(db.read('referralAccounts/U1').balance, 0);
+});
+
+test('Concurrent orders cannot reserve two first-order discounts for one customer', async () => {
+  const db = database({ ...couponSeed(), 'orders/O2': { ...seed['orders/O1'], orderId: 'O2', referralCode: 'WELCOME100' } });
+  let calls = 0;
+  const route = checkoutLoader(db, 'PENDING', async () => { calls++; });
+  const results = await Promise.all(['O1', 'O2'].map(orderId => route.POST(checkoutRequest({ orderId, reviewedTotal: 250 }))));
+  assert.equal(results.filter(result => result.status === 200).length, 1);
+  assert.equal(results.filter(result => result.status === 409).length, 1);
+  assert.equal(calls, 1);
+});
+
+test('First-order reservation also blocks a concurrent undiscounted checkout', async () => {
+  const db = database({ ...couponSeed(), 'orders/O2': { ...seed['orders/O1'], orderId: 'O2' } });
+  const route = checkoutLoader(db);
+  assert.equal((await route.POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 250 }))).status, 200);
+  assert.equal((await route.POST(checkoutRequest({ orderId: 'O2' }))).status, 409);
+});
+
+test('Confirmed failure releases the coupon while an uncertain or pending attempt keeps its discount snapshot', async () => {
+  const db = database(couponSeed()); let calls = 0;
+  const route = checkoutLoader(db, 'PENDING', async () => { calls++; });
+  await route.POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 250 }));
+  const id = db.read('orders/O1').payment.phonepeMerchantOrderId;
+  await db.runTransaction(async tx => tx.update(db.collection('referralCodes').doc('WELCOME100'), { discountAmount: 200, active: false }));
+  assert.equal((await route.POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 250 }))).status, 200);
+  assert.equal(calls, 1);
+  assert.equal(db.read('orders/O1').payment.couponDiscount, 100);
+  await loader(db)('@/lib/referral-admin').releaseReferralReservation('O1', id, 'EXPIRED');
+  assert.equal(db.read('firstOrderCoupons/U1').state, 'released');
+  assert.equal((await route.POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 150 }))).status, 400);
+  await db.runTransaction(async tx => tx.update(db.collection('referralCodes').doc('WELCOME100'), { active: true }));
+  assert.equal((await route.POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 150 }))).status, 200);
+  assert.equal(calls, 2);
+  assert.equal(db.read('orders/O1').payment.couponDiscount, 200);
+});
+
+test('A coupon covering the full price settles once without a gateway request', async () => {
+  const db = database(couponSeed(500)); let calls = 0;
+  const response = await checkoutLoader(db, 'PENDING', async () => { calls++; }).POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 0 }));
+  assert.equal(response.status, 200); assert.equal(response.body.paid, true); assert.equal(calls, 0);
+  assert.equal(db.read('orders/O1').payment.amount, 0);
+  assert.equal(db.read('orders/O1').payment.couponDiscount, 350);
+  assert.equal(db.read('firstOrderCoupons/U1').state, 'consumed');
+  assert.equal(db.read('referralAccounts/U1').balance, 100);
+});
+
+test('Returning customers, self-coupons, unknown and disabled codes cannot get a discount', async () => {
+  for (const changes of [
+    { 'referralFirstPaidOrders/U1': { orderId: 'old' } },
+    { 'orders/old': { ...seed['orders/O1'], orderId: 'old', payment: { status: 'Paid' } } },
+    { 'referralCodes/WELCOME100': { uid: 'U1', discountAmount: 100 } },
+    { 'referralCodes/WELCOME100': { active: false, discountAmount: 100 } },
+    { 'referralCodes/WELCOME100': { kind: 'coupon', active: true, discountAmount: -1 } },
+  ]) {
+    const db = database({ ...couponSeed(), ...changes }); let calls = 0;
+    const response = await checkoutLoader(db, 'PENDING', async () => { calls++; }).POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 250 }));
+    assert.ok(response.status >= 400); assert.equal(calls, 0);
+    assert.equal(db.read('orders/O1').payment.status, 'Pending');
+  }
+});
+
+test('Coupon changes between quote and reservation fail before any credits or gateway association are written', async () => {
+  const db = database(couponSeed(200)), load = loader(db);
+  const token = await load('@/lib/checkout-lock').acquireCheckoutLock(db, 'O1', 'U1');
+  await assert.rejects(load('@/lib/referral-admin').reserveReferralCreditForOrder('O1', 'U1', 100, {
+    merchantOrderId: 'C1', lockToken: token, totalBeforeCredits: 250,
+    coupon: { code: 'WELCOME100', subtotal: 350, couponDiscount: 100, total: 250 },
+  }), /discount changed/);
+  assert.equal(db.read('referralAccounts/U1').balance, 100);
+  assert.equal(db.read('firstOrderCoupons/U1'), undefined);
+});
+
+test('Standalone promotion administration is retired and cannot modify referral data', async () => {
+  const db = database({ 'referralCodes/ABCDEF123456': { uid: 'referrer', createdAt: 'original' } });
+  const modules = {
+    'next/server': { NextResponse: { json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200 }) } },
+    '@/lib/firebase-admin': { getAdminDb: () => db, verifyFirebaseIdToken: async (token: string) => ({ uid: token, email: token === 'admin' || token === 'unverified' ? 'pradeep1992official@gmail.com' : 'customer@example.com', email_verified: token !== 'unverified' }) },
+  };
+  const route = loader(db, modules)('@/app/api/admin/coupons/route');
+  const request = (token = 'admin') => ({ headers: { get: () => token ? `Bearer ${token}` : null } });
+  assert.equal((await route.POST(request(''))).status, 401);
+  assert.equal((await route.POST(request('customer'))).status, 403);
+  assert.equal((await route.POST(request('unverified'))).status, 403);
+  assert.equal((await route.POST(request())).status, 410);
+  assert.equal((await route.GET(request())).status, 410);
+  assert.equal(db.read('referralCodes/ABCDEF123456').uid, 'referrer');
+});
+
+test('Coupon preview calculates the package server-side and rejects returning customers before agent attribution', async () => {
+  const db = database(couponSeed());
+  const modules = {
+    'next/server': { NextResponse: { json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200 }) } },
+    '@/lib/firebase-admin': { getAdminDb: () => db, verifyFirebaseIdToken: async () => ({ uid: 'U1' }) },
+  };
+  const route = loader(db, modules)('@/app/api/referrals/validate/route');
+  const response = await route.POST(checkoutRequest({ code: 'welcome-100', subtotal: 1, discountAmount: 99999, packageOptions: { stampPaperDenomination: 100, deliveryLocation: 'Within Chennai', includeNotary: false } }));
+  assert.equal(response.status, 200); assert.equal(response.body.subtotal, 350);
+  assert.equal(response.body.couponDiscount, 100); assert.equal(response.body.total, 250);
+  await db.runTransaction(async tx => tx.set(db.collection('referralFirstPaidOrders').doc('U1'), { orderId: 'old' }));
+  assert.equal((await route.POST(checkoutRequest({ code: 'WELCOME100' }))).status, 409);
+});
+
+test('Coupon-only checkout recovers a committed reservation without charging or granting it twice', async () => {
+  const db = database(couponSeed(350)), load = loader(db);
+  const token = await load('@/lib/checkout-lock').acquireCheckoutLock(db, 'O1', 'U1');
+  await load('@/lib/referral-admin').reserveReferralCreditForOrder('O1', 'U1', 0, { merchantOrderId: 'FREE1', lockToken: token, totalBeforeCredits: 0, coupon: { code: 'WELCOME100', subtotal: 350, couponDiscount: 350, total: 0 } });
+  await load('@/lib/checkout-lock').releaseCheckoutLock(db, 'O1', token);
+  let calls = 0;
+  const route = checkoutLoader(db, 'PENDING', async () => { calls++; });
+  const response = await route.POST(checkoutRequest({ orderId: 'O1' }));
+  assert.equal(response.status, 200); assert.equal(response.body.paid, true);
+  assert.equal(calls, 0); assert.equal(db.read('firstOrderCoupons/U1').state, 'consumed');
+  assert.equal((await route.POST(checkoutRequest({ orderId: 'O1' }))).status, 409);
+});
+
+test('Every customer-generated code uses the shared discount, ignoring old per-code overrides', async () => {
+  for (const codeData of [{ uid: 'referrer-a', discountAmount: 5 }, { kind: 'customer', uid: 'referrer-b', discountAmount: 999 }]) {
+    const db = database({ ...seed, 'settings/coupons': { customerDiscountAmount: 80 }, 'referralCodes/ABCDEF123456': codeData, 'orders/O1': { ...seed['orders/O1'], referralCode: 'ABCDEF123456' } });
+    const response = await checkoutLoader(db).POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 270, customerDiscountAmount: 9999 }));
+    assert.equal(response.status, 200);
+    assert.equal(db.read('orders/O1').payment.couponDiscount, 80);
+    assert.equal(db.read('orders/O1').payment.amount, 270);
+  }
+  const db = database({ ...seed, 'settings/coupons': { customerDiscountAmount: 80 } });
+  const load = loader(db);
+  const account = await load('@/lib/referral-admin').getOrCreateReferralAccount('new-referrer', db);
+  const quote = await load('@/lib/coupon-server').getCouponQuote(db, 'U1', account.code, 350, 'O1');
+  assert.equal(quote.couponDiscount, 80);
+  assert.equal(db.read(`referralCodes/${account.code}`).kind, 'customer');
+});
+
+test('Shared customer discount changes preserve pending prices and apply after confirmed failure', async () => {
+  const db = database({ ...seed, 'settings/coupons': { customerDiscountAmount: 80 }, 'referralCodes/ABCDEF123456': { uid: 'referrer' }, 'orders/O1': { ...seed['orders/O1'], referralCode: 'ABCDEF123456' } });
+  let calls = 0;
+  const route = checkoutLoader(db, 'PENDING', async () => { calls++; });
+  assert.equal((await route.POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 270 }))).status, 200);
+  const id = db.read('orders/O1').payment.phonepeMerchantOrderId;
+  await db.runTransaction(async tx => tx.set(db.collection('settings').doc('coupons'), { customerDiscountAmount: 120 }));
+  assert.equal((await route.POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 270 }))).status, 200);
+  assert.equal(db.read('orders/O1').payment.couponDiscount, 80);
+  assert.equal(calls, 1);
+  await loader(db)('@/lib/referral-admin').releaseReferralReservation('O1', id, 'EXPIRED');
+  assert.equal((await route.POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 230 }))).status, 200);
+  assert.equal(db.read('orders/O1').payment.couponDiscount, 120);
+  assert.equal(calls, 2);
+});
+
+test('A shared customer discount change during reservation cannot bypass the reviewed price', async () => {
+  const db = database({ ...seed, 'settings/coupons': { customerDiscountAmount: 120 }, 'referralCodes/ABCDEF123456': { uid: 'referrer' } });
+  const load = loader(db), token = await load('@/lib/checkout-lock').acquireCheckoutLock(db, 'O1', 'U1');
+  await assert.rejects(load('@/lib/referral-admin').reserveReferralCreditForOrder('O1', 'U1', 0, { merchantOrderId: 'C1', lockToken: token, totalBeforeCredits: 270, coupon: { code: 'ABCDEF123456', subtotal: 350, couponDiscount: 80, total: 270 } }), /discount changed/);
+  assert.equal(db.read('firstOrderCoupons/U1'), undefined);
+});
 
 test('Concurrent checkout handlers create one gateway request with a durable pre-request association', async () => {
   const db = database(seed); let outbound = 0;
@@ -275,6 +467,7 @@ test('Complete agreement validation blocks malformed paid orders before financia
     { ownerDetails: { ...agreement.ownerDetails, age: 'NaN' } },
     { tenantDetails: { ...agreement.tenantDetails, phone: 'wrong' } },
     { propertyDetails: { ...agreement.propertyDetails, propertyType: 'Unknown' } },
+    { propertyDetails: { ...agreement.propertyDetails, pincode: '000000' } },
     { agreementTerms: { ...agreement.agreementTerms, includeNotary: 'false' } },
     { agreementTerms: { ...agreement.agreementTerms, monthlyRent: Infinity } },
     { agreementTerms: { ...agreement.agreementTerms, startDate: '2026-02-30' } },
@@ -303,6 +496,32 @@ test('Malformed request JSON and expired authentication use 400 and 401', async 
   });
   assert.equal((await load('@/app/api/payment/phonepe/create-order/route').POST(checkoutRequest({ orderId: 'O1' }))).status, 401);
   assert.equal((await load('@/app/api/payment/phonepe/status/route').POST(checkoutRequest({ orderId: 'O1' }))).status, 401);
+});
+
+test('Public tracking hides reference existence, returns only tracking fields and limits concurrent guesses', async () => {
+  const db = database(seed);
+  const route = loader(db, { 'next/server': { NextResponse: { json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200 }) } } })('@/app/api/orders/track/route');
+  const lookup = (orderId = 'O1', phone = '9876543210') => route.POST(checkoutRequest({ orderId, phone }));
+  const found = await lookup();
+  assert.equal(found.status, 200);
+  assert.equal(found.body.order.ownerDetails, undefined);
+  assert.equal(found.body.order.payment, undefined);
+  assert.equal(found.body.order.proofUploads, undefined);
+  const missing = await lookup('unknown');
+  const wrongPhone = await lookup('O1', '9876543299');
+  assert.equal(missing.status, 404);
+  assert.equal(wrongPhone.status, 404);
+  assert.equal(missing.body.error, wrongPhone.body.error);
+  const results = await Promise.all(Array.from({ length: 10 }, () => lookup()));
+  assert.equal(results.filter(result => result.status === 200).length, 8);
+  assert.equal(results.filter(result => result.status === 429).length, 2);
+  assert.equal((await lookup('O1', '1234567890')).status, 400);
+});
+
+test('Public tracking global limits cannot be bypassed by changing references', async () => {
+  const db = database({ 'orderTrackingLimits/global': { minute: Math.floor(Date.now() / 60000), count: 120 } });
+  const route = loader(db, { 'next/server': { NextResponse: { json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200 }) } } })('@/app/api/orders/track/route');
+  assert.equal((await route.POST(checkoutRequest({ orderId: 'another', phone: '9876543210' }))).status, 429);
 });
 
 test('Concurrent enquiry submissions share atomic duplicate and per-phone limits', async () => {
@@ -351,4 +570,116 @@ test('Checkout rejects malformed separate PINs and mismatched delivery regions b
     assert.equal(response.status, 400);
     assert.equal(outbound, 0);
   }
+});
+
+test('Customer first-order discount is immediate but referrer credit is granted only after payment and once', async () => {
+  const db = database({ ...seed,
+    'orders/O1': { ...seed['orders/O1'], referralCode: 'ABCDEF123456' },
+    'referralCodes/ABCDEF123456': { kind: 'customer', uid: 'REFERRER' },
+    'referralAccounts/REFERRER': { balance: 10 },
+    'settings/referrals': { rewardAmount: 125, refereeDiscountAmount: 40 },
+  });
+  const route = checkoutLoader(db);
+  const response = await route.POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 310 }));
+  assert.equal(response.status, 200);
+  assert.equal(db.read('orders/O1').payment.amount, 310);
+  assert.equal(db.read('orders/O1').payment.couponDiscount, 40);
+  assert.equal(db.read('referralAccounts/REFERRER').balance, 10);
+  assert.equal(db.read('referralRewards/U1'), undefined);
+  const service = loader(db)('@/lib/referral-admin');
+  const merchantOrderId = db.read('orders/O1').payment.phonepeMerchantOrderId;
+  await Promise.all([service.confirmPaidOrderAndGrantReferral('O1', { merchantOrderId }), service.confirmPaidOrderAndGrantReferral('O1', { merchantOrderId })]);
+  assert.equal(db.read('referralAccounts/REFERRER').balance, 135);
+  assert.equal(db.read('referralAccounts/U1').balance, 100);
+  assert.equal(db.read('referralRewards/U1').amount, 125);
+  assert.equal(db.read('referralRewards/U1').customerDiscount, 40);
+  assert.equal(db.read('referralLedger/welcome_U1'), undefined);
+  assert.equal(db.read('referralLedger/reward_U1').amount, 125);
+});
+
+test('Agent earns a manual payable reward only after the discounted first order is paid', async () => {
+  const db = database({ ...seed,
+    'orders/O1': { ...seed['orders/O1'], referralCode: 'RAVI2026' },
+    'referralCodes/RAVI2026': { kind: 'agent', name: 'Ravi', rewardAmount: 350, customerDiscountAmount: 25, active: true },
+    'agentReferralCustomers/U1': { code: 'RAVI2026', uid: 'U1', rewardStatus: 'Awaiting payment', joinedAt: '2026-10-15' },
+  });
+  const response = await checkoutLoader(db).POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 325 }));
+  assert.equal(response.status, 200);
+  assert.equal(db.read('orders/O1').payment.amount, 325);
+  assert.equal(db.read('agentReferralCustomers/U1').eligiblePaidOrderId, undefined);
+  const service = loader(db)('@/lib/referral-admin');
+  const merchantOrderId = db.read('orders/O1').payment.phonepeMerchantOrderId;
+  await Promise.all([service.confirmPaidOrderAndGrantReferral('O1', { merchantOrderId }), service.confirmPaidOrderAndGrantReferral('O1', { merchantOrderId })]);
+  const customer = db.read('agentReferralCustomers/U1');
+  assert.equal(customer.eligiblePaidOrderId, 'O1');
+  assert.equal(customer.rewardStatus, 'Pending');
+  assert.equal(customer.rewardAmount, 350);
+  assert.equal(customer.customerDiscountAmount, 25);
+  assert.equal(db.read('referralAccounts/U1').balance, 100);
+  assert.equal(db.read('referralLedger/welcome_U1'), undefined);
+  assert.equal(db.read('referralRewards/U1').amount, 0);
+});
+
+test('Failed and historical payments cannot create an agent reward', async () => {
+  for (const historical of [false, true]) {
+    const db = database({ ...seed,
+      'orders/O1': { ...seed['orders/O1'], referralCode: 'RAVI2026' },
+      'referralCodes/RAVI2026': { kind: 'agent', rewardAmount: 350, customerDiscountAmount: 25 },
+      ...(historical ? { 'orders/OLD': { ownerUid: 'U1', payment: { status: 'Paid' } } } : {}),
+    });
+    const service = loader(db)('@/lib/referral-admin');
+    if (historical) await service.confirmPaidOrderAndGrantReferral('O1');
+    else {
+      await checkoutLoader(db).POST(checkoutRequest({ orderId: 'O1', reviewedTotal: 325 }));
+      await service.releaseReferralReservation('O1', db.read('orders/O1').payment.phonepeMerchantOrderId);
+    }
+    assert.equal(db.read('agentReferralCustomers/U1'), undefined);
+    assert.equal(db.read('referralRewards/U1'), undefined);
+  }
+});
+
+test('Customer dashboard totals require confirmed paid orders belonging to the referred customer', async () => {
+  const db = database({
+    'settings/referrals': { rewardAmount: 100, refereeDiscountAmount: 20 },
+    'orders/PAID': { ownerUid: 'U1', payment: { status: 'Paid' } },
+    'orders/PENDING': { ownerUid: 'U2', payment: { status: 'Pending' } },
+    'referralRewards/U1': { referrerUid: 'REFERRER', referredUid: 'U1', orderId: 'PAID', amount: 100 },
+    'referralRewards/U2': { referrerUid: 'REFERRER', referredUid: 'U2', orderId: 'PENDING', amount: 100 },
+    'referralRewards/U3': { referrerUid: 'REFERRER', referredUid: 'U3', orderId: 'PAID', amount: 999 },
+    'referralRewards/U4': { referrerUid: 'REFERRER', referredUid: 'U4', orderId: 'MISSING', amount: 999 },
+    'referralRewards/MALFORMED': { orderId: 'MISSING', amount: 999 },
+    'referralRewards/SELF': { referrerUid: 'U1', referredUid: 'U1', orderId: 'PAID', amount: 100 },
+    'referralRewards/AGENT': { kind: 'agent', referredUid: 'U1', orderId: 'PAID', amount: 0 },
+  });
+  const route = loader(db, {
+    'next/server': { NextResponse: { json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200 }) } },
+    '@/lib/firebase-admin': { getAdminDb: () => db, verifyFirebaseIdToken: async () => ({ email: 'pradeep1992official@gmail.com', email_verified: true }) },
+  })('@/app/api/admin/referrals/route');
+  const response = await route.GET(checkoutRequest({}));
+  assert.equal(response.status, 200);
+  assert.equal(response.body.rewardedReferrals, 1);
+  assert.equal(response.body.totalCreditsIssued, 100);
+  assert.equal(response.body.refereeDiscountAmount, 20);
+});
+
+
+test('Customer referral amounts and their audit record save atomically; invalid inputs are rejected', async () => {
+  const db = database({ 'settings/referrals': { rewardAmount: 100, refereeDiscountAmount: 20 } });
+  const route = loader(db, {
+    'node:crypto': { randomUUID: () => 'AUDIT_TEST' },
+    'next/server': { NextResponse: { json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200 }) } },
+    '@/lib/firebase-admin': { getAdminDb: () => db, verifyFirebaseIdToken: async () => ({ uid: 'ADMIN', email: 'pradeep1992official@gmail.com', email_verified: true }) },
+  })('@/app/api/admin/referrals/route');
+  for (const value of ['', null, '20', -1, 1.5, 100001]) {
+    assert.equal((await route.POST(checkoutRequest({ rewardAmount: value, refereeDiscountAmount: 20 }))).status, 400);
+    assert.equal((await route.POST(checkoutRequest({ rewardAmount: 20, refereeDiscountAmount: value }))).status, 400);
+  }
+  assert.equal((await route.POST(checkoutRequest({ rewardAmount: 50, refereeDiscountAmount: 25 }))).status, 200);
+  assert.equal(db.read('settings/referrals').rewardAmount, 50);
+  assert.equal(db.read('settings/referrals').refereeDiscountAmount, 25);
+  assert.equal(db.read('adminLogs/REFERRAL_AUDIT_TEST').adminUid, 'ADMIN');
+  // A simulated audit failure must roll the settings back as well.
+  assert.equal((await route.POST(checkoutRequest({ rewardAmount: 70, refereeDiscountAmount: 40 }))).status, 500);
+  assert.equal(db.read('settings/referrals').rewardAmount, 50);
+  assert.equal(db.read('settings/referrals').refereeDiscountAmount, 25);
 });

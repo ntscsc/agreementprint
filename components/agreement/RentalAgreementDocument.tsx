@@ -85,7 +85,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
   const depositAmount = terms.securityDeposit !== undefined && terms.securityDeposit !== null 
     ? terms.securityDeposit.toLocaleString('en-IN') 
     : '';
-  const depositWords = amountInWords(terms.securityDeposit);
+  const depositWords = terms.securityDeposit === 0 ? 'Zero Rupees' : amountInWords(terms.securityDeposit);
 
   const validFrom = formatLegalDate(terms.startDate);
   const validTo = calculateAgreementEndDate(terms.startDate, terms.tenureMonths || 11);
@@ -291,7 +291,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
             <p className="leading-loose">
               <strong>1.</strong> The Tenant has agreed to pay monthly rent of Rs.{' '}
               {renderBlank(rentAmount ? `${rentAmount}/-` : '', !!terms.monthlyRent, 'w-24')}{' '}
-              only (Rupees{' '}
+              only ({' '}
               {renderBlank(rentWords, !!rentWords, 'w-64')}{' '}
               only) on or before the{' '}
               {renderBlank(dueDay, true, 'w-16')}{' '}
@@ -302,7 +302,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
             <p className="leading-loose">
               <strong>2.</strong> The Tenant has paid on this date the sum of Rs.{' '}
               {renderBlank(depositAmount !== '' ? `${depositAmount}/-` : '', terms.securityDeposit !== undefined, 'w-28')}{' '}
-              only (Rupees{' '}
+              only ({' '}
               {renderBlank(depositWords, !!depositWords, 'w-64')}{' '}
               only) as security cum advance to the OWNER without interest. At the time of vacating, subject to any damages or any other amounts due to the OWNER by the TENANT will be deducted and refunded to the Tenant.
             </p>

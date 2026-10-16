@@ -1,93 +1,29 @@
 import type { Metadata } from 'next';
-import { RefreshCw, CheckCircle2, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { DisclaimerBanner } from '@/components/DisclaimerBanner';
-import { SupportEmailLink } from '@/components/SupportEmailLink';
+import { PolicyPage, PolicySection } from '@/components/PolicyPage';
 
-export const metadata: Metadata = {
-  title: 'Refund & Cancellation Policy | AgreementPrint',
-  description: 'Our transparent refund and cancellation policy for rental agreement drafting and stamp paper procurement.',
-  openGraph: {
-    title: 'Refund & Cancellation Policy | AgreementPrint',
-    description: 'Our transparent refund and cancellation policy for rental agreement drafting and stamp paper procurement.',
-  },
-};
+export const metadata: Metadata = { title: 'Refund & Cancellation Policy | AgreementPrint', description: 'Refund & Cancellation Policy for AgreementPrint rental and custom agreement services.' };
 
-export default function RefundPolicyPage() {
+export default function Page() {
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-      {/* Header */}
-      <div className="space-y-3 border-b border-stone-200 pb-6">
-        <span className="text-xs uppercase tracking-wider font-bold text-amber-800 bg-amber-100 px-3 py-1 rounded-full">
-          Cancellation Terms
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
-          Refund and Cancellation Policy
-        </h1>
-        <p className="text-xs text-stone-500">Last Updated: October 2026</p>
-      </div>
-
-      <div className="space-y-8 text-xs sm:text-sm text-stone-700 leading-relaxed">
-        {/* Policy Highlight */}
-        <div className="bg-stone-50 border border-stone-200 rounded-2xl p-6 space-y-3">
-          <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-            <RefreshCw className="w-5 h-5 text-amber-700" />
-            <span>Refunds for Serialized Government Stamp Paper</span>
-          </h2>
-          <p className="text-stone-600">
-            Because our service involves the procurement of serialized government non-judicial stamp paper from the Tamil Nadu Registration Department, our refund terms strictly reflect the physical execution status of your order:
-          </p>
-        </div>
-
-        {/* Status Stages */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 space-y-2">
-            <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              <span>Before Printing: 100% Full Refund</span>
-            </div>
-            <p className="text-xs text-emerald-800 leading-relaxed">
-              If you request cancellation while your order status is <strong>Submitted</strong> or <strong>Under verification</strong> (before physical non-judicial stamp paper has been serialized and printed with party names), you will receive a full refund back to your original payment method.
-            </p>
-          </div>
-
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-2">
-            <div className="flex items-center gap-2 font-bold text-amber-900 text-sm">
-              <AlertTriangle className="w-5 h-5 text-amber-700" />
-              <span>After Stamping: Non-Refundable Duty</span>
-            </div>
-            <p className="text-xs text-amber-900 leading-relaxed">
-              Once an order enters the <strong>Drafting</strong> or <strong>Dispatched</strong> stage and non-judicial stamp paper is printed with owner and tenant names, the government stamp duty cannot be refunded because government stamp paper is non-reusable.
-            </p>
-          </div>
-        </div>
-
-        {/* Correction Policy */}
-        <section className="space-y-2">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-amber-700" />
-            <span>Typographical Errors & Corrections</span>
-          </h2>
-          <p>
-            If a typographical error on the physical agreement was caused by our vendor drafting desk (where submitted details did not match what was printed), we will draft and re-dispatch a fresh agreement on new stamp paper at <strong>zero additional charge</strong>.
-          </p>
-          <p className="text-stone-600">
-            If the error was present in the customer&apos;s original form submission, a re-stamping charge limited to the raw stamp duty and courier charge will apply.
-          </p>
-        </section>
-
-        {/* How to initiate */}
-        <section className="space-y-2">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900">
-            How to Request a Cancellation or Refund
-          </h2>
-          <p>
-              To cancel an order, contact our desk via WhatsApp or email{' '}
-              <SupportEmailLink className="font-mono text-amber-800 font-semibold" /> with your Order ID. Approved refunds are credited to the original payment method within 3 to 5 business days.
-          </p>
-        </section>
-      </div>
-
-      <DisclaimerBanner />
-    </div>
+    <PolicyPage title="Refund & Cancellation Policy">
+      <PolicySection title="How to request cancellation">
+        <p>Email support with your order ID and cancellation reason as soon as possible, preferably within one day of placing the order. We review cancellation and refund requests within one day of receipt and communicate the decision or any further information needed. We assess cancellation against the actual work completed, not the order status label alone. A request within one day does not guarantee cancellation if personalised stamp paper has already been printed. We will confirm the outcome and any refund breakdown.</p>
+      </PolicySection>
+      <PolicySection title="Before personalised printing">
+        <p>If no personalised stamp paper has been printed, cancellation of a standard rental agreement order qualifies for a full refund of the amount paid, including service and unspent courier charges. If we cannot fulfil your order, we will offer a full refund for the unfulfilled order.</p>
+      </PolicySection>
+      <PolicySection title="After personalised printing or dispatch">
+        <p>For change-of-mind cancellations after personalised printing, the cost of stamp paper already used and preparation or printing already completed is not refundable through our service. Unperformed optional services and courier charges not yet incurred remain refundable. Once dispatched, an incurred courier charge is not refundable for a change of mind. We will explain any deduction; an order status alone is not proof that these costs were incurred. These terms do not exclude remedies for our errors, damaged or incorrect delivery, or rights under applicable law.</p>
+      </PolicySection>
+      <PolicySection title="Custom agreements">
+        <p>Submitting a custom sample is a request for review and a quote, not a paid order. The accepted quote must identify the work and any cancellation charges before paid work begins. For a paid custom request, contact us for a breakdown based on the agreed scope and work completed; we will not impose undisclosed cancellation charges.</p>
+      </PolicySection>
+      <PolicySection title="Refund processing">
+        <p>Approved refunds are initiated to the original payment method within 3 business days of approval. After initiation, the refund is expected to reach your original payment method within 3 to 4 working days, subject to bank or payment-provider processing. We will share the available refund reference for tracking. If the credit has not appeared after this period, contact support with your order ID and refund reference so we can investigate. Referral credits used for an order are restored as credits for the refundable portion and are not paid out in cash. Report duplicate debits or a debit with no confirmed order to support with the transaction reference. Never send an OTP or PIN.</p>
+      </PolicySection>
+      <PolicySection title="Errors, damage and replacements">
+        <p>For incorrect details printed by us, damaged delivery or missing items, see the Return & Replacement Policy. Do not reject a parcel at the doorstep as a cancellation method: contact support so we can record and resolve the issue. This policy does not limit rights available under applicable law.</p>
+      </PolicySection>
+    </PolicyPage>
   );
 }

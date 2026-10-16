@@ -30,7 +30,7 @@ function convertBelowThousand(n: number): string {
 
 export function numberToWordsIndian(num: number): string {
   if (num === 0) return 'Zero';
-  if (isNaN(num)) return '';
+  if (!Number.isFinite(num) || Math.abs(num) > Number.MAX_SAFE_INTEGER) return '';
 
   const rounded = Math.floor(Math.abs(num));
   let n = rounded;
@@ -48,7 +48,7 @@ export function numberToWordsIndian(num: number): string {
   const hundredsAndBelow = n;
 
   if (crores > 0) {
-    result += convertBelowThousand(crores) + (crores > 1 ? ' Crores ' : ' Crore ');
+    result += numberToWordsIndian(crores) + (crores > 1 ? ' Crores ' : ' Crore ');
   }
   if (lakhs > 0) {
     result += convertBelowThousand(lakhs) + (lakhs > 1 ? ' Lakhs ' : ' Lakh ');
@@ -67,9 +67,11 @@ export function numberToWordsIndian(num: number): string {
  * Returns formatted words with currency for legal agreements, e.g. "Fifteen Thousand Rupees"
  */
 export function amountInWords(num: number | undefined | null): string {
-  if (num === undefined || num === null || isNaN(num) || num <= 0) {
+  if (num === undefined || num === null || !Number.isFinite(num) || num <= 0 || !Number.isSafeInteger(Math.round(num * 100))) {
     return '';
   }
-  const words = numberToWordsIndian(num);
-  return `${words} Rupees`;
+  const totalPaise = Math.round(num * 100);
+  const words = numberToWordsIndian(Math.floor(totalPaise / 100));
+  const paise = totalPaise % 100;
+  return `${words} Rupees${paise ? ` and ${numberToWordsIndian(paise)} Paise` : ''}`;
 }

@@ -3,7 +3,7 @@ import { ReferralDashboard } from '@/components/referrals/ReferralDashboard';
 
 export const metadata: Metadata = {
   title: 'Referral Credits | AgreementPrint',
-  description: 'Share your AgreementPrint referral code, track eligible referrals, and view your available credits.',
+  description: 'Share your AgreementPrint coupon code, track eligible referrals, and view your available credits.',
 };
 
 export default function ReferralsPage() {

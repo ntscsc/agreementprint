@@ -1,5 +1,7 @@
 'use client';
 
+import { readApiResponse } from '@/lib/api-response';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { 
@@ -34,11 +36,14 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { AgentReferralAdmin } from '@/components/referrals/AgentReferralAdmin';
+import { SupportEmailLink } from '@/components/SupportEmailLink';
+import { AdminMilestone } from '@/components/AdminMilestone';
 import { CustomRequests } from '@/components/custom-agreements/CustomRequests';
 import { db } from '@/lib/firebase';
 import { 
   collection, 
   getDocs,
+  onSnapshot,
   deleteDoc,
   doc, 
   updateDoc, 
@@ -66,6 +71,11 @@ interface Enquiry {
 }
 
 export function AdminClient() {
+  const { user } = useAuth();
+  return <AdminBody key={user?.uid ?? 'guest'} />;
+}
+
+function AdminBody() {
   const { user, loading: authLoading, signInWithGoogle, authError } = useAuth();
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [checkingRole, setCheckingRole] = useState<boolean>(true);
@@ -86,14 +96,20 @@ export function AdminClient() {
   const [newCourierPartner, setNewCourierPartner] = useState('');
   const [savingCourierPartners, setSavingCourierPartners] = useState(false);
   const [courierPartnersSavedToast, setCourierPartnersSavedToast] = useState(false);
-  const [referralRewardAmount, setReferralRewardAmount] = useState(100);
+  const [referralSection, setReferralSection] = useState<'customers' | 'agents'>('agents');
+  const [referralRewardAmount, setReferralRewardAmount] = useState('');
+  const [refereeDiscountAmount, setRefereeDiscountAmount] = useState('');
   const [referralStats, setReferralStats] = useState({ rewardedReferrals: 0, totalCreditsIssued: 0 });
   const [savingReferralSettings, setSavingReferralSettings] = useState(false);
+  const [loadingReferralSettings, setLoadingReferralSettings] = useState(false);
+  const [referralSettingsLoaded, setReferralSettingsLoaded] = useState(false);
+  const [referralSettingsError, setReferralSettingsError] = useState<string | null>(null);
+  const referralSaveBusy = useRef(false);
   const [referralSettingsSavedToast, setReferralSettingsSavedToast] = useState(false);
 
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState<boolean>(false);
+  const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loadingEnquiries, setLoadingEnquiries] = useState<boolean>(false);
@@ -224,6 +240,27 @@ export function AdminClient() {
     }
   };
 
+  const loadReferralSettings = useCallback(async () => {
+    if (!user) return;
+    setLoadingReferralSettings(true);
+    setReferralSettingsError(null);
+    setReferralSettingsSavedToast(false);
+    try {
+      const response = await fetch('/api/admin/referrals', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
+      const data = await readApiResponse(response);
+      if (![data.rewardAmount, data.refereeDiscountAmount].every(value => Number.isSafeInteger(value) && value >= 0 && value <= 100000) ||
+          !Number.isSafeInteger(data.rewardedReferrals) || data.rewardedReferrals < 0 ||
+          !Number.isSafeInteger(data.totalCreditsIssued) || data.totalCreditsIssued < 0) throw new Error('The referral settings response is invalid. Please refresh.');
+      setReferralRewardAmount(String(data.rewardAmount));
+      setRefereeDiscountAmount(String(data.refereeDiscountAmount));
+      setReferralStats({ rewardedReferrals: data.rewardedReferrals, totalCreditsIssued: data.totalCreditsIssued });
+      setReferralSettingsLoaded(true);
+    } catch (error) {
+      setReferralSettingsLoaded(false);
+      setReferralSettingsError(error instanceof Error ? error.message : 'Could not load referral settings.');
+    } finally { setLoadingReferralSettings(false); }
+  }, [user]);
+
   // Verify Admin Role on Auth Ready and fetch orders asynchronously
   useEffect(() => {
     if (!user) {
@@ -239,7 +276,6 @@ export function AdminClient() {
         setCheckingRole(false);
 
         if (hasClaim) {
-          await fetchOrderList();
           await fetchEnquiries();
           try {
             const cfg = await getPricingConfig();
@@ -258,23 +294,7 @@ export function AdminClient() {
           } catch (error) {
             console.warn('Could not load courier partner settings:', error);
           }
-          try {
-            const idToken = await user!.getIdToken();
-            const response = await fetch('/api/admin/referrals', {
-              headers: { Authorization: `Bearer ${idToken}` },
-            });
-            if (!response.ok) throw new Error('Referral settings request failed.');
-            const referralData = await response.json();
-            if (isMounted) {
-              setReferralRewardAmount(referralData.rewardAmount);
-              setReferralStats({
-                rewardedReferrals: referralData.rewardedReferrals,
-                totalCreditsIssued: referralData.totalCreditsIssued,
-              });
-            }
-          } catch (error) {
-            console.error('Could not load referral settings:', error);
-          }
+          if (isMounted) await loadReferralSettings();
         }
       } catch (err) {
         console.error('Role verification error:', err);
@@ -290,7 +310,23 @@ export function AdminClient() {
     return () => {
       isMounted = false;
     };
-  }, [user, fetchOrderList, fetchEnquiries]);
+  }, [user, fetchEnquiries, loadReferralSettings]);
+
+  // Live order updates also trigger paid-order milestone notifications.
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+    return onSnapshot(collection(db, 'orders'), snapshot => {
+      const list = snapshot.docs.map(order => order.data() as Order);
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setOrders(list);
+      setOrdersError(null);
+      setLoadingOrders(false);
+    }, error => {
+      console.error('Live order updates failed:', error);
+      setOrdersError('Orders could not be updated. Please refresh to try again.');
+      setLoadingOrders(false);
+    });
+  }, [user, isAdmin]);
 
   // Handle Status Update
   const handleUpdateStatus = async () => {
@@ -481,41 +517,25 @@ export function AdminClient() {
     }
   };
 
+  const validReferralAmounts = [referralRewardAmount, refereeDiscountAmount].every(value => /^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) <= 100000);
   const handleSaveReferralSettings = async () => {
-    if (!user) return;
+    if (!user || referralSaveBusy.current || !referralSettingsLoaded || loadingReferralSettings || !validReferralAmounts) return;
+    referralSaveBusy.current = true;
     setSavingReferralSettings(true);
     setReferralSettingsSavedToast(false);
+    setReferralSettingsError(null);
     try {
-      const idToken = await user.getIdToken();
       const response = await fetch('/api/admin/referrals', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ rewardAmount: referralRewardAmount }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` },
+        body: JSON.stringify({ rewardAmount: Number(referralRewardAmount), refereeDiscountAmount: Number(refereeDiscountAmount) }),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Could not save referral settings.');
-
-      const logId = `LOG_${Date.now()}`;
-      await setDoc(doc(db, 'adminLogs', logId), {
-        logId,
-        orderId: 'REFERRAL_CONFIG',
-        adminUid: user.uid,
-        adminEmail: user.email || 'admin',
-        action: 'REFERRAL_REWARD_UPDATED',
-        notes: `Referral reward amount set to ₹${referralRewardAmount}.`,
-        timestamp: new Date().toISOString(),
-      });
+      await readApiResponse(response);
       setReferralSettingsSavedToast(true);
       setTimeout(() => setReferralSettingsSavedToast(false), 4000);
     } catch (error) {
-      console.error('Failed to save referral settings:', error);
-      alert(error instanceof Error ? error.message : 'Failed to save referral settings.');
-    } finally {
-      setSavingReferralSettings(false);
-    }
+      setReferralSettingsError(error instanceof Error ? error.message : 'Could not save referral settings.');
+    } finally { referralSaveBusy.current = false; setSavingReferralSettings(false); }
   };
 
   const handleSaveSupportEmail = async () => {
@@ -710,14 +730,15 @@ export function AdminClient() {
   }
 
   return (
-    <div className="admin-portal max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-        <div><p className="text-sm font-semibold text-amber-800">AgreementPrint Administration</p><h1 className="mt-1 text-2xl font-black text-stone-900 sm:text-3xl">Admin Portal</h1><p className="mt-2 break-all text-sm text-stone-600">Signed in as {user.email}</p></div>
-        <div className="flex flex-wrap gap-3"><Link href="/" className="inline-flex min-h-11 items-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50">View Website</Link>{(activeTab === 'orders' || activeTab === 'enquiries') && <button type="button" onClick={activeTab === 'orders' ? fetchOrderList : fetchEnquiries} disabled={activeTab === 'orders' ? loadingOrders : loadingEnquiries || updatingEnquiryId !== null || deletingEnquiryId !== null} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800 disabled:opacity-50"><RefreshCw className="h-4 w-4" />Refresh {activeTab === 'orders' ? 'Orders' : 'Enquiries'}</button>}</div>
-      </div>
-      <nav aria-label="Admin sections" className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
-        <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
-          {[{ label: 'Daily Work', items: [{ id: 'orders' as const, label: 'Rental Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Settings & Rewards', items: [{ id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referral Rewards', icon: Gift }, { id: 'couriers' as const, label: 'Couriers', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }].map((group) => <div key={group.label}><h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-stone-600">{group.label}</h2><div className="flex flex-wrap gap-2">{group.items.map((item) => <button key={item.id} type="button" aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${activeTab === item.id ? 'border-amber-700 bg-amber-700 text-white' : 'border-stone-300 bg-white text-stone-700 hover:bg-amber-50'}`}><item.icon aria-hidden="true" className="h-4 w-4 shrink-0" />{item.label}{'count' in item && <span className={`rounded-md px-1.5 py-0.5 text-xs ${activeTab === item.id ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-700'}`}>{item.count}</span>}</button>)}</div></div>)}
+    <div className="admin-portal max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" data-section={activeTab}>
+      <AdminMilestone uid={user.uid} paidOrders={orders.filter(order => order.payment?.status === 'Paid').length} ready={!loadingOrders && !ordersError} />
+      <header className="admin-hero">
+        <div className="admin-hero-copy"><span className="admin-eyebrow"><ShieldCheck aria-hidden="true" className="h-4 w-4" />AgreementPrint Administration</span><h1>Your workspace.<br className="sm:hidden" /> All in one place.</h1><p>Orders, customers and everything that keeps your business moving.</p><span className="admin-account"><span aria-hidden="true" /><SupportEmailLink className="rounded-sm hover:underline" /></span></div>
+        <div className="admin-hero-actions"><Link href="/" className="admin-website-link"><ExternalLink aria-hidden="true" className="h-4 w-4" />View website</Link>{(activeTab === 'orders' || activeTab === 'enquiries') && <button type="button" onClick={activeTab === 'orders' ? fetchOrderList : fetchEnquiries} disabled={activeTab === 'orders' ? loadingOrders : loadingEnquiries || updatingEnquiryId !== null || deletingEnquiryId !== null} className="admin-refresh"><RefreshCw aria-hidden="true" className={`h-4 w-4 ${(activeTab === 'orders' ? loadingOrders : loadingEnquiries) ? 'animate-spin' : ''}`} />Refresh {activeTab === 'orders' ? 'orders' : 'enquiries'}</button>}</div>
+      </header>
+      <nav aria-label="Admin sections" className="admin-navigation">
+        <div className="grid gap-6 lg:grid-cols-[1fr_1.25fr]">
+          {[{ label: 'Daily work', items: [{ id: 'orders' as const, label: 'Rental Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Settings & rewards', items: [{ id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Couriers', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }].map((group) => <div key={group.label}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
         </div>
       </nav>
 
@@ -851,64 +872,75 @@ export function AdminClient() {
         </section>
       ) : activeTab === 'referrals' ? (
         <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in duration-200">
+          <header><p className="text-xs font-bold uppercase tracking-wider text-brand-700">Growth</p><h1 className="mt-1 text-2xl font-bold text-stone-900">Referrals</h1><p className="mt-2 text-sm text-stone-600">Reward the referrer after payment and discount the first order for the new customer.</p></header>
+          <nav aria-label="Referral management" className="flex flex-wrap gap-2 border-b border-stone-200 pb-4">
+            {([{ id: 'agents', label: 'Agents' }, { id: 'customers', label: 'Customers' }] as const).map(section => <button key={section.id} type="button" aria-current={referralSection === section.id ? 'page' : undefined} onClick={() => setReferralSection(section.id)} className={`min-h-11 rounded-xl px-5 py-2 text-sm font-semibold ${referralSection === section.id ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}>{section.label}</button>)}
+          </nav>
+          {referralSection === 'customers' && <section className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-stone-600">Shared rates for customer-generated coupons.</p><button type="button" disabled={savingReferralSettings || loadingReferralSettings} onClick={() => void loadReferralSettings()} className="min-h-11 rounded-xl border border-stone-300 px-4 py-2 text-sm font-semibold disabled:opacity-50">{loadingReferralSettings ? 'Refreshing...' : 'Refresh settings & totals'}</button></div>
+          {loadingReferralSettings && <p role="status" className="text-sm text-stone-600">Loading saved settings and confirmed referral totals...</p>}
+          {referralSettingsError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{referralSettingsError}</p>}
           <div className="border-b border-stone-200 pb-5">
             <span className="text-xs font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2.5 py-0.5 rounded-full">
-              Customer Rewards
+              Customers
             </span>
-            <h2 className="text-xl font-bold text-stone-900 mt-1">Referral Credit Settings</h2>
+            <h2 className="text-xl font-bold text-stone-900 mt-1">Customer referral rewards</h2>
             <p className="text-xs text-stone-500 mt-0.5">
-              Set the reward issued to the referrer after a new customer’s first order is paid. Changes apply to future eligible payments.
+              The new customer receives a discount on their first order. After successful payment, the customer who referred them earns credits. Set both shared amounts below.
             </p>
           </div>
 
           {referralSettingsSavedToast && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold" role="status">
-              Referral reward settings saved.
+              Customer referral credit and first-order discount saved.
             </div>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Eligible referrals</p>
-              <p className="mt-2 text-2xl font-black text-stone-900">{referralStats.rewardedReferrals}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Successful customer referrals</p>
+              <p className="mt-2 text-2xl font-black text-stone-900">{referralSettingsLoaded && !loadingReferralSettings ? referralStats.rewardedReferrals : '\u2014'}</p>
             </div>
             <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Credits issued</p>
-              <p className="mt-2 text-2xl font-black text-stone-900">₹{referralStats.totalCreditsIssued.toLocaleString('en-IN')}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Total customer referrer credits</p>
+              <p className="mt-2 text-2xl font-black text-stone-900">{referralSettingsLoaded && !loadingReferralSettings ? `\u20b9${referralStats.totalCreditsIssued.toLocaleString('en-IN')}` : '\u2014'}</p>
             </div>
           </div>
 
-          <div className="max-w-md">
-            <label htmlFor="referral-reward-amount" className="block text-xs font-bold text-stone-700">
-              Reward per eligible referral (₹)
-            </label>
-            <input
-              id="referral-reward-amount"
-              type="number"
-              min="0"
-              max="100000"
-              step="1"
-              value={referralRewardAmount}
-              onChange={(event) => setReferralRewardAmount(Number(event.target.value))}
-              className="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-            <p className="mt-1 text-xs text-stone-500">Use 0 to pause new rewards. Existing customer balances are not changed.</p>
+          <p className="text-sm text-stone-600">The totals above count completed first payments. The amounts below are settings for future referrals, not money already issued.</p>
+          <form id="customer-referral-settings" onSubmit={event => { event.preventDefault(); void handleSaveReferralSettings(); }}>
+            <fieldset disabled={savingReferralSettings || loadingReferralSettings || !referralSettingsLoaded} className="grid gap-5 sm:grid-cols-2">
+              <label htmlFor="referral-reward-amount" className="block text-sm font-semibold text-stone-700">Referrer earns in credits (INR)
+                <input id="referral-reward-amount" required type="number" min={0} max={100000} step={1} value={referralRewardAmount} onChange={event => { setReferralRewardAmount(event.target.value); setReferralSettingsSavedToast(false); }} aria-describedby="referral-credit-help" className="mt-2 min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                <span id="referral-credit-help" className="mt-2 block text-sm font-normal text-stone-600">Added as credits after the new customer pays for their first order. Use 0 to disable new credits.</span>
+              </label>
+              <label htmlFor="referee-discount-amount" className="block text-sm font-semibold text-stone-700">New customer saves on first order (INR)
+                <input id="referee-discount-amount" required type="number" min={0} max={100000} step={1} value={refereeDiscountAmount} onChange={event => { setRefereeDiscountAmount(event.target.value); setReferralSettingsSavedToast(false); }} aria-describedby="referral-discount-help" className="mt-2 min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                <span id="referral-discount-help" className="mt-2 block text-sm font-normal text-stone-600">Deducted before payment, up to the order total. Use 0 for no discount. Already-started checkouts keep their reserved price.</span>
+              </label>
+            </fieldset>
+          </form>
+
+          <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
+            <p><strong className="text-stone-900">How it works:</strong> A customer shares their coupon. A new customer uses it and pays for their first order. The new customer gets the discount on that order. After payment, the customer who shared the code earns account credits.</p>
+            <p className="mt-2">Customer codes are managed as one group. Agent referrals have separate amounts in Agents. Each new customer can use the first-order discount only once.</p>
           </div>
 
           <div className="flex justify-end border-t border-stone-200 pt-5">
             <button
-              type="button"
-              disabled={savingReferralSettings || !Number.isSafeInteger(referralRewardAmount) || referralRewardAmount < 0 || referralRewardAmount > 100000}
-              onClick={() => void handleSaveReferralSettings()}
+              type="submit"
+              form="customer-referral-settings"
+              disabled={savingReferralSettings || loadingReferralSettings || !referralSettingsLoaded || !validReferralAmounts}
               className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
             >
               {savingReferralSettings
                 ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 : <Save className="h-3.5 w-3.5" />}
-              <span>{savingReferralSettings ? 'Saving…' : 'Save Referral Settings'}</span>
+              <span>{savingReferralSettings ? 'Saving…' : 'Save customer amounts'}</span>
             </button>
           </div>
-          <AgentReferralAdmin />
+          </section>}
+          {referralSection === 'agents' && <AgentReferralAdmin />}
         </div>
       ) : activeTab === 'couriers' ? (
         <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in duration-200">
@@ -1258,7 +1290,7 @@ export function AdminClient() {
         <>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {[{ label: 'New Orders', status: 'Submitted', count: submittedCount, hint: 'Ready for review' }, { label: 'Under Review', status: 'Under verification', count: pendingVerificationCount, hint: 'Details being checked' }, { label: 'Waiting for Customer', status: 'Documents needed', count: documentsNeededCount, hint: 'Corrections requested' }, { label: 'Being Prepared', status: 'Drafting', count: draftingCount, hint: 'Preparation and printing' }, { label: 'Sent by Courier', status: 'Dispatched', count: dispatchedCount, hint: 'On the way to customers' }].map((item) => <button key={item.status} type="button" aria-pressed={statusFilter === item.status} onClick={() => { setStatusFilter(statusFilter === item.status ? 'ALL' : item.status); setSearchQuery(''); }} className={`rounded-2xl border p-4 text-left shadow-sm transition sm:p-5 ${statusFilter === item.status ? 'border-amber-600 bg-amber-50' : 'border-stone-200 bg-white hover:border-amber-400'}`}><span className="block text-sm font-semibold text-stone-700">{item.label}</span><span className="mt-2 block text-3xl font-black text-stone-900">{item.count}</span><span className="mt-2 block text-sm text-stone-600">{item.hint}</span></button>)}
+        {[{ label: 'New orders', status: 'Submitted', count: submittedCount, hint: 'Ready for review', tone: 'sky', icon: FileText }, { label: 'Under review', status: 'Under verification', count: pendingVerificationCount, hint: 'Details being checked', tone: 'violet', icon: ShieldCheck }, { label: 'Waiting for customer', status: 'Documents needed', count: documentsNeededCount, hint: 'Corrections requested', tone: 'amber', icon: Clock }, { label: 'Being prepared', status: 'Drafting', count: draftingCount, hint: 'Preparation and printing', tone: 'pink', icon: Printer }, { label: 'Sent by courier', status: 'Dispatched', count: dispatchedCount, hint: 'On the way to customers', tone: 'teal', icon: Truck }].map((item) => <button key={item.status} type="button" data-tone={item.tone} aria-pressed={statusFilter === item.status} onClick={() => { setStatusFilter(statusFilter === item.status ? 'ALL' : item.status); setSearchQuery(''); }} className="admin-summary-card"><span className="admin-summary-top"><span className="admin-summary-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-summary-arrow" aria-hidden="true"><ChevronRight className="h-4 w-4" /></span></span><span className="admin-summary-number">{item.count}</span><span className="admin-summary-label">{item.label}</span><span className="admin-summary-hint">{item.hint}</span></button>)}
       </div>
       {ordersError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{ordersError}<button type="button" onClick={fetchOrderList} className="ml-3 font-semibold underline">Retry</button></div>}
 
@@ -1491,6 +1523,7 @@ export function AdminClient() {
                   {(selectedOrder.payment?.referralCreditApplied ?? 0) > 0 && (
                     <div>Referral credit: <strong>−₹{selectedOrder.payment.referralCreditApplied?.toLocaleString('en-IN')}</strong></div>
                   )}
+                  {(selectedOrder.payment?.couponDiscount ?? 0) > 0 && <div className="col-span-2">Coupon ({selectedOrder.payment.couponCode}): <strong>−₹{selectedOrder.payment.couponDiscount?.toLocaleString('en-IN')}</strong></div>}
                   <div>Rent: <strong>₹{selectedOrder.agreementTerms.monthlyRent?.toLocaleString('en-IN')}</strong></div>
                   <div>Advance: <strong>₹{selectedOrder.agreementTerms.securityDeposit?.toLocaleString('en-IN')}</strong></div>
                   <div>Tenure: <strong>{selectedOrder.agreementTerms.tenureMonths} Months</strong></div>
@@ -1522,6 +1555,12 @@ export function AdminClient() {
             </div>
 
             {/* Status Change & Workflow Action Box */}
+            {selectedOrder.customerClarification && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">
+                <h3 className="font-bold text-sky-900">Customer clarification</h3>
+                <p className="mt-2 whitespace-pre-wrap break-words text-sky-950">{selectedOrder.customerClarification}</p>
+              </div>
+            )}
             <div className="border-t border-stone-200 pt-4 space-y-4">
               <h3 className="font-bold text-stone-900 text-xs">Fulfillment Workflow Actions</h3>
 

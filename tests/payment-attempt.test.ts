@@ -29,6 +29,7 @@ function loadRoute(route: string, documents: Record<string, unknown>, calls: { g
   const modules: Record<string, unknown> = {
     '@/lib/api-input': apiInput,
     '@/lib/agreement-validation': {},
+    '@/lib/coupon-server': {},
     'next/server': { NextResponse: { json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200 }) } },
     'firebase-admin/firestore': { FieldValue: {} },
     '@/src/config/pricing': {},
@@ -114,6 +115,14 @@ test('Invalid trusted payment amounts and credits are rejected', () => {
   }
   for (const creditApplied of [-1, 0.5, NaN, '0']) {
     assert.equal(isTrustedPaymentAttempt({ ...attempt, creditApplied }, 'ORDER_A', 'CUSTOMER_A', 'TN123'), false);
+  }
+});
+
+test('Discount snapshots must balance subtotal, coupon, credits and gateway amount', () => {
+  const discounted = { ...attempt, subtotal: 500, couponDiscount: 100, couponCode: 'WELCOME100', amount: 350, creditApplied: 50 };
+  assert.equal(isTrustedPaymentAttempt(discounted, 'ORDER_A', 'CUSTOMER_A', 'TN123'), true);
+  for (const changes of [{ subtotal: 501 }, { couponDiscount: -1 }, { couponDiscount: 501 }, { couponDiscount: '100' }, { couponCode: 'BAD!' }, { subtotal: undefined }]) {
+    assert.equal(isTrustedPaymentAttempt({ ...discounted, ...changes }, 'ORDER_A', 'CUSTOMER_A', 'TN123'), false);
   }
 });
 

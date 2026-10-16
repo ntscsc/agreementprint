@@ -49,20 +49,20 @@ export interface VendorConfig {
 }
 
 export const VENDOR_CONFIG: VendorConfig = {
-  name: 'Rental Agreement Service',
-  tradeName: 'TN Rental Agreement Service',
+  name: 'Net Time Systems',
+  tradeName: 'AgreementPrint',
   licenceNumber: '',
   issuingAuthority: '',
-  addressLine1: '',
-  addressLine2: '',
+  addressLine1: '32, 13 First Main Road',
+  addressLine2: 'Nanganallur',
   city: 'Chennai',
-  pincode: '',
+  pincode: '600061',
   state: 'Tamil Nadu, India',
   phone: '',
   whatsappNumber: '',
   whatsappPrefilledMessage: '',
   email: 'pradeep1992@official.com',
-  workingHours: '',
+  workingHours: 'Monday to Friday, 9:00 AM to 6:00 PM IST',
   courierPartner: 'Courier Partner',
   fees: {
     stampDuty: {

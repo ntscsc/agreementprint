@@ -1,55 +1,33 @@
-import { readJsonObject, inputErrorStatus } from '@/lib/api-input';
+import { ApiInputError, readJsonObject, inputErrorStatus } from '@/lib/api-input';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyFirebaseIdToken } from '@/lib/firebase-admin';
-import { normalizeReferralCode, isValidReferralCode } from '@/lib/referral-utils';
+import { normalizeReferralCode } from '@/lib/referral-utils';
 import { recordAgentReferral } from '@/lib/agent-referral';
+import { getCouponQuote } from '@/lib/coupon-server';
+import { getServerPricing } from '@/lib/server-pricing';
+import { calculateOrderPrice } from '@/src/config/pricing';
 
 export async function POST(request: NextRequest) {
   try {
-    const idToken = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-    if (!idToken) return NextResponse.json({ error: 'Sign in before applying a referral code.' }, { status: 401 });
-
-    const user = await verifyFirebaseIdToken(idToken);
-    const { uid } = user;
-    const body = await readJsonObject(request);
-    const code = normalizeReferralCode(body?.code);
-    if (!isValidReferralCode(code)) {
-      return NextResponse.json({ valid: false, error: 'Enter a valid referral code.' }, { status: 400 });
+    const token = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!token) throw new ApiInputError('Sign in before applying a coupon code.', 401);
+    const user = await verifyFirebaseIdToken(token), body = await readJsonObject(request);
+    const code = normalizeReferralCode(body.code);
+    if (!code) throw new ApiInputError('Enter a coupon code.');
+    let subtotal = 1;
+    if (body.packageOptions !== undefined) {
+      const terms = body.packageOptions;
+      if (!terms || ![100, 200].includes(terms.stampPaperDenomination) || !['Within Chennai', 'Within Tamil Nadu'].includes(terms.deliveryLocation) || typeof terms.includeNotary !== 'boolean') throw new ApiInputError('Select valid package options.');
+      subtotal = calculateOrderPrice(await getServerPricing(), terms.stampPaperDenomination, terms.deliveryLocation, terms.includeNotary).totalPayable;
     }
-
     const db = getAdminDb();
-    const codeSnapshot = await db.collection('referralCodes').doc(code).get();
-    const referrerUid = codeSnapshot.data()?.uid;
-    if (codeSnapshot.exists && codeSnapshot.data()?.kind === 'agent') {
-      await recordAgentReferral(db, code, user);
-      return NextResponse.json({ valid: true });
-    }
-    if (!codeSnapshot.exists || typeof referrerUid !== 'string') {
-      return NextResponse.json({ valid: false, error: 'That referral code was not found.' }, { status: 404 });
-    }
-    if (referrerUid === uid) {
-      return NextResponse.json({ valid: false, error: 'You cannot use your own referral code.' }, { status: 400 });
-    }
-
-    const [firstPaidOrder, previousOrders] = await Promise.all([
-      db.collection('referralFirstPaidOrders').doc(uid).get(),
-      db.collection('orders')
-        .where('ownerUid', '==', uid)
-        .get(),
-    ]);
-    const hasPaidOrder = previousOrders.docs.some((order) => order.data().payment?.status === 'Paid');
-    if (firstPaidOrder.exists || hasPaidOrder) {
-      return NextResponse.json({
-        valid: false,
-        error: 'Referral codes are available for a customer’s first paid order only.',
-      }, { status: 409 });
-    }
-
-    return NextResponse.json({ valid: true });
+    const quote = await getCouponQuote(db, user.uid, code, subtotal, typeof body.orderId === 'string' ? body.orderId : undefined);
+    const coupon = await db.collection('referralCodes').doc(code).get();
+    if (coupon.data()?.kind === 'agent') await recordAgentReferral(db, code, user);
+    return NextResponse.json({ valid: true, ...(body.packageOptions !== undefined ? quote : {}) }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
-    const status = inputErrorStatus(error);
-    if (status) return NextResponse.json({ error: status === 401 ? 'Sign in again to continue.' : (error as Error).message }, { status });
-    console.error('Referral code validation failed:', error);
-    return NextResponse.json({ error: 'Could not validate that referral code right now.' }, { status: 500 });
+    const status = inputErrorStatus(error) ?? 500;
+    if (status === 500) console.error('Coupon validation failed:', error);
+    return NextResponse.json({ valid: false, error: status === 500 ? 'Could not validate that coupon right now.' : (error as Error).message }, { status, headers: { 'Cache-Control': 'no-store' } });
   }
 }

@@ -9,7 +9,8 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import { isUserAdmin } from '@/src/config/admin';
-import { normalizeReferralCode, isValidAgentCode } from '@/lib/referral-utils';
+import { normalizeReferralCode } from '@/lib/referral-utils';
+import { isValidCouponCode } from '@/lib/coupon';
 
 interface AuthContextType {
   user: User | null;
@@ -38,26 +39,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    const incoming = normalizeReferralCode(new URLSearchParams(window.location.search).get('ref'));
+    const incoming = normalizeReferralCode(new URLSearchParams(window.location.search).get('coupon') || new URLSearchParams(window.location.search).get('ref'));
     try {
-      if (isValidAgentCode(incoming)) localStorage.setItem('pendingAgentReferral', incoming);
+      if (isValidCouponCode(incoming)) localStorage.setItem('pendingAgentReferral', incoming);
     } catch { /* Referral links still work when browser storage is disabled. */ }
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      // Referral attribution must not hold every signed-in page in its loading state.
+      setLoading(false);
       if (currentUser) {
         // Vendor admin is authorized when email matches designated admin email and is verified
         setIsAdmin(isUserAdmin(currentUser.email, currentUser.emailVerified));
         setAuthError(null);
         let agentCode = incoming;
         try { agentCode = localStorage.getItem('pendingAgentReferral') || incoming; } catch {}
-        if (isValidAgentCode(agentCode)) {
+        if (isValidCouponCode(agentCode)) {
           try {
             const token = await currentUser.getIdToken();
             const response = await fetch('/api/referrals/agent', {
               method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({ code: agentCode }),
             });
-            if (response.ok) { try { localStorage.removeItem('pendingAgentReferral'); } catch {} }
+            // The server identifies agents by their stored kind, not a prefix.
+            // Other valid coupon links do not need an attribution retry.
+            if (response.ok || response.status === 400 || response.status === 404 || response.status === 409) { try { if (localStorage.getItem('pendingAgentReferral') === agentCode) localStorage.removeItem('pendingAgentReferral'); } catch {} }
           } catch (error) { console.error('Agent referral tracking failed:', error); }
         }
       } else {

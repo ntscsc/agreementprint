@@ -1,5 +1,8 @@
 'use client';
 
+import { readApiResponse } from '@/lib/api-response';
+import { createOrderReference } from '@/lib/order-reference';
+
 import { validateAgreement } from '@/lib/agreement-validation';
 
 import { requestReviewedCheckout } from '@/lib/checkout-client';
@@ -35,13 +38,20 @@ import {
 } from '@/lib/types';
 import { saveDraft, getDraft, deleteDraft, createOrder } from '@/lib/order-service';
 import { extractPincode } from '@/lib/pincode-utils';
+import { restoreAgreementTerms } from '@/lib/agreement-draft';
 
 function getReferralCodeFromUrl() {
   if (typeof window === 'undefined') return '';
-  return new URLSearchParams(window.location.search).get('ref')?.toUpperCase().replace(/[\s-]/g, '').slice(0, 12) || '';
+  const params = new URLSearchParams(window.location.search);
+  return (params.get('coupon') || params.get('ref') || '').toUpperCase().replace(/[\s-]/g, '').slice(0, 20);
 }
 
 export function OrderIntakeWizard() {
+  const { user } = useAuth();
+  return <OrderIntakeBody key={user?.uid ?? 'guest'} />;
+}
+
+function OrderIntakeBody() {
   const { user, loading: authLoading, signInWithGoogle, authError } = useAuth();
   const [signingIn, setSigningIn] = useState<boolean>(false);
   const [localSignInError, setLocalSignInError] = useState<string | null>(null);
@@ -83,19 +93,7 @@ export function OrderIntakeWizard() {
     furnishing: 'Semi-Furnished',
   });
 
-  const [termsData, setTermsData] = useState<Partial<AgreementTerms>>({
-    monthlyRent: undefined,
-    securityDeposit: undefined,
-    maintenanceCharges: 0,
-    startDate: '',
-    tenureMonths: 11,
-    noticePeriodDays: 30,
-    rentIncreasePct: 5,
-    paymentDueDay: 5,
-    stampPaperDenomination: 100,
-    deliveryRecipient: undefined,
-    includeNotary: false,
-  });
+  const [termsData, setTermsData] = useState<Partial<AgreementTerms>>(() => restoreAgreementTerms());
 
   const [proofData, setProofData] = useState<Partial<ProofUploads>>({});
   const [referralCode, setReferralCode] = useState('');
@@ -188,15 +186,7 @@ export function OrderIntakeWizard() {
       propertyType: 'Flat',
       furnishing: 'Semi-Furnished',
     });
-    setTermsData({
-      monthlyRent: undefined,
-      securityDeposit: undefined,
-      maintenanceCharges: 0,
-      startDate: '',
-      tenureMonths: 11,
-      noticePeriodDays: 30,
-      rentIncreasePct: 5,
-    });
+    setTermsData(restoreAgreementTerms());
     setProofData({});
     setReferralCode(getReferralCodeFromUrl());
     setCurrentStep(1);
@@ -251,7 +241,7 @@ export function OrderIntakeWizard() {
 
           if (fd.tenantDetails) setTenantData({ ...fd.tenantDetails, pincode: fd.tenantDetails.pincode ?? extractPincode(fd.tenantDetails.address) ?? '' });
           if (fd.propertyDetails) setPropertyData(fd.propertyDetails);
-          if (fd.agreementTerms) setTermsData(fd.agreementTerms);
+          if (fd.agreementTerms) setTermsData(restoreAgreementTerms(fd.agreementTerms));
           if (fd.proofUploads) setProofData(fd.proofUploads);
 
           if (draft.currentStep && draft.currentStep >= 1 && draft.currentStep <= 6) {
@@ -433,7 +423,7 @@ export function OrderIntakeWizard() {
     if (!propertyData.city?.trim() || propertyData.city.trim().length < 2) {
       errs.city = 'City or Taluk in Tamil Nadu is required';
     }
-    if (!propertyData.pincode || !/^\d{6}$/.test(propertyData.pincode)) {
+    if (!propertyData.pincode || !/^[1-9]\d{5}$/.test(propertyData.pincode)) {
       errs.pincode = 'Valid 6-digit Indian pincode required';
     }
     if (!propertyData.fullAddress?.trim() || propertyData.fullAddress.trim().length < 12) {
@@ -572,15 +562,15 @@ export function OrderIntakeWizard() {
           },
           body: JSON.stringify({ code: normalizedReferralCode }),
         });
-        const validationResult = await validationResponse.json();
+        const validationResult = await readApiResponse(validationResponse);
         if (!validationResponse.ok || !validationResult.valid) {
-          throw new Error(validationResult.error || 'That referral code is not valid for this order.');
+          throw new Error(validationResult.error || 'That coupon code is not valid for this order.');
         }
       }
 
       let orderId = pendingPaymentOrderId;
       if (!orderId) {
-        orderId = `TNR_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+        orderId = createOrderReference();
 
         await createOrder({
           orderId,
@@ -608,7 +598,7 @@ export function OrderIntakeWizard() {
           proofUploads: proofData,
           referralCode: normalizedReferralCode,
         } }, idToken);
-      const paymentResult = await paymentResponse.json();
+      const paymentResult = await readApiResponse(paymentResponse);
       if (paymentResult.paid) {
         setConfirmedOrder(paymentResult.order as Order);
         return;

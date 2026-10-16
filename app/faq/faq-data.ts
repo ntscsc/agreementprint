@@ -21,7 +21,7 @@ export const faqData: FaqItem[] = [
   { category: 'pricing', q: 'What is included in the price?', a: 'The agreement price includes preparation, stamp paper and printing. Courier delivery and any notary service are shown separately. You can see the full total before paying.' },
   { category: 'delivery', q: 'Can you deliver to the owner or tenant?', a: 'Yes. Choose the owner or tenant when placing the order. We use that person\'s permanent address and PIN code for delivery.' },
   { category: 'delivery', q: 'How much is courier delivery?', a: 'Courier delivery costs ₹50 within Chennai and ₹100 elsewhere in Tamil Nadu. The PIN code of the person receiving the agreement decides the delivery charge.' },
-  { category: 'delivery', q: 'When will my agreement arrive?', a: 'The time needed depends on preparing the agreement and the courier journey. Check My Orders for updates and courier details once your agreement has been sent.' },
+  { category: 'delivery', q: 'When will my agreement arrive?', a: 'Our dispatch target is the same day or next day after payment and complete agreement details. After dispatch, delivery takes 1 to 2 days within Chennai (maximum 2 days) and 3 to 4 days elsewhere in Tamil Nadu (maximum 4 days). The same timings apply to approved replacements. Check My Orders for tracking and contact support if delivery exceeds these limits.' },
   { category: 'delivery', q: 'How can I track my order?', a: 'Open My Orders or Track Order. Once your agreement is sent, the courier name and tracking details will be available with your order.' },
   { category: 'payment', q: 'How do I pay for a rental agreement?', a: 'Pay online after checking your agreement details and total. The available payment options are shown when you pay.' },
   { category: 'payment', q: 'What if my payment fails or I close the payment window?', a: 'Your order stays saved. Sign in, open My Orders and choose Pay or Retry Payment for that order.' },
@@ -32,7 +32,7 @@ export const faqData: FaqItem[] = [
   { category: 'custom', q: 'Can I remove a wrong attachment?', a: 'Yes. Before submitting, click Remove beside the file and choose the correct one.' },
   { category: 'custom', q: 'Where can I see my custom request?', a: 'Open My Account and choose My Requests. You can see updates, the price shared by our team and any questions that need your reply.' },
   { category: 'rewards', q: 'How do I earn referral credits?', a: 'Open Referral Credits and share your link with a friend. When a new customer uses it for their first paid order, you earn the reward shown on your referral page.' },
-  { category: 'rewards', q: 'Can I use a referral code on every order?', a: 'No. A referral code is valid only for your first paid order. After that, the code box no longer appears. You can still use credits you have earned on later orders.' },
+  { category: 'rewards', q: 'Can I use a coupon code on every order?', a: 'No. A coupon code is valid only for your first paid order. After that, the code box no longer appears. You can still use credits you have earned on later orders.' },
   { category: 'rewards', q: 'How do I spend my referral credits?', a: 'Use the Apply referral credit option when reviewing your rental agreement order. Your credits reduce the amount you need to pay, up to the order total.' },
   { category: 'rewards', q: 'Are rent receipts free?', a: 'Yes. Open Rent Receipt, enter the details and create your receipt. Print it or save it as a PDF. The receipt details stay on your device.' },
 ];

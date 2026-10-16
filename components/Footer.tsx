@@ -23,6 +23,8 @@ const policies = [
   { label: 'Privacy Policy', href: '/privacy-policy' },
   { label: 'Terms of Service', href: '/terms' },
   { label: 'Refunds & Cancellations', href: '/refund-policy' },
+  { label: 'Returns & Replacements', href: '/return-policy' },
+  { label: 'Shipping & Delivery', href: '/shipping-policy' },
   { label: 'Disclaimer', href: '/disclaimer' },
 ];
 
@@ -35,27 +37,27 @@ export const Footer: React.FC = () => {
     { label: 'Referral Credits', href: '/referrals' },
     ...(isAdmin ? [{ label: 'Admin Portal', href: '/admin' }] : []),
   ];
-  const focus = 'rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-700';
+  const focus = 'rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white';
 
   return (
-    <footer className="border-t border-stone-200 bg-stone-100 text-stone-700">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-9 py-9 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] lg:gap-12">
-          <div className="space-y-4">
-            <Link href="/" className={`${focus} inline-flex items-center gap-2.5`}><span className="flex h-11 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-transparent"><svg aria-hidden="true" viewBox="245 106 208 179" className="h-full w-full"><image href="/agreementprint-logo.png" width="677" height="369" /></svg></span><span className="text-lg font-extrabold tracking-tight text-[#b84d12]">AgreementPrint</span></Link>
-            <p className="max-w-md text-sm font-semibold leading-relaxed text-stone-800">{VENDOR_SERVICE_TITLE}</p>
-            <p className="max-w-md text-sm leading-relaxed text-stone-600">Stamp paper, e-Stamps and agreements made simple. Get your rental agreement prepared, printed and delivered across Tamil Nadu.</p>
-            <div className="flex items-start gap-2 text-sm text-stone-600"><Truck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" /><span>Courier delivery with tracking</span></div>
-            <div className="flex items-start gap-2 text-sm text-stone-700"><Mail aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" /><SupportEmailLink className={`${focus} min-w-0 break-all hover:text-amber-800 hover:underline`} /></div>
+    <footer className="w-full border-t border-[#334b74] bg-[linear-gradient(120deg,#172343_0%,#24245b_55%,#134750_100%)] text-blue-50">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-5 py-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] lg:gap-8">
+          <div className="space-y-2">
+            <Link href="/" className={`${focus} inline-flex items-center gap-2.5`}><span className="flex h-11 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white"><svg aria-hidden="true" viewBox="245 106 208 179" className="h-full w-full"><image href="/agreementprint-logo.png" width="677" height="369" /></svg></span><span className="text-lg font-extrabold tracking-tight text-[#ffffff]">AgreementPrint</span></Link>
+            <p className="max-w-md text-sm font-semibold leading-relaxed text-[#f1f5f9]">{VENDOR_SERVICE_TITLE}</p>
+            <p className="max-w-md text-sm leading-relaxed text-blue-50">Stamp paper, e-Stamps and agreements made simple. Get your rental agreement prepared, printed and delivered across Tamil Nadu.</p>
+            <div className="flex items-start gap-2 text-sm text-blue-50"><Truck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[#dcfce7]" /><span>Courier delivery with tracking</span></div>
+            <div className="flex items-start gap-2 text-sm text-blue-50"><Mail aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[#dcfce7]" /><SupportEmailLink className={`${focus} min-w-0 break-all hover:text-[#dcfce7] hover:underline`} /></div>
           </div>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3">
-            {[{ title: 'Services', links: services }, { title: 'My Account', links: account }, { title: 'Help', links: help }].map((group) => <nav key={group.title} aria-label={`Footer ${group.title}`}><h2 className="text-sm font-bold text-stone-900">{group.title}</h2><ul className="mt-3 space-y-1">{group.links.map((link) => <li key={link.href}><Link href={link.href} className={`${focus} inline-block py-2 text-sm leading-relaxed text-stone-600 transition hover:text-amber-800 hover:underline`}>{link.label}</Link></li>)}</ul></nav>)}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+            {[{ title: 'Services', links: services }, { title: 'My Account', links: account }, { title: 'Help', links: help }].map((group) => <nav key={group.title} aria-label={`Footer ${group.title}`}><h2 className="text-sm font-bold text-[#ffffff]">{group.title}</h2><ul className="mt-2 space-y-0">{group.links.map((link) => <li key={link.href}><Link href={link.href} className={`${focus} inline-block py-1 text-sm leading-relaxed text-blue-50 transition hover:text-[#dcfce7] hover:underline`}>{link.label}</Link></li>)}</ul></nav>)}
           </div>
         </div>
 
-        <div className="space-y-4 border-t border-stone-300 py-6">
-          <nav aria-label="Policies" className="flex flex-wrap gap-x-5 gap-y-2">{policies.map((link) => <Link key={link.href} href={link.href} className={`${focus} py-1 text-xs font-medium text-stone-600 hover:text-amber-800 hover:underline`}>{link.label}</Link>)}</nav>
-          <div className="flex flex-col gap-3 text-xs leading-relaxed text-stone-600 sm:flex-row sm:items-center sm:justify-between"><p>© {new Date().getFullYear()} AgreementPrint. All rights reserved.</p><a href="mailto:pradhiip1992official@gmail.com" className={`${focus} hover:text-amber-800 hover:underline`}>Contact Developer</a></div>
+        <div className="space-y-2 border-t border-[#ffffff26] py-3">
+          <nav aria-label="Policies" className="flex flex-wrap gap-x-5 gap-y-2">{policies.map((link) => <Link key={link.href} href={link.href} className={`${focus} py-1 text-xs font-medium text-blue-50 hover:text-[#dcfce7] hover:underline`}>{link.label}</Link>)}</nav>
+          <div className="flex flex-col gap-2 text-xs leading-relaxed text-blue-50 sm:flex-row sm:items-center sm:justify-between"><p>© {new Date().getFullYear()} AgreementPrint. All rights reserved.</p><div className="flex flex-wrap gap-x-5 gap-y-2"><SupportEmailLink className={`${focus} hover:text-[#dcfce7] hover:underline`}>Contact Support</SupportEmailLink><a href="mailto:pradhiip1992official@gmail.com" className={`${focus} hover:text-[#dcfce7] hover:underline`}>Contact Developer</a></div></div>
         </div>
       </div>
     </footer>

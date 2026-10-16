@@ -4,6 +4,8 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { DEFAULT_REFERRAL_REWARD_AMOUNT } from '@/lib/referral-utils';
 import { isTrustedPaymentAttempt } from '@/lib/payment-attempt';
 import { assertCheckoutLock } from '@/lib/checkout-lock';
+import { couponTotal, couponDiscountAmount, isValidCouponDiscount } from '@/lib/coupon';
+import type { CouponQuote } from '@/lib/coupon-server';
 
 export interface ReferralAccount {
   uid: string;
@@ -46,7 +48,7 @@ export async function getOrCreateReferralAccount(
         updatedAt: now,
       };
       transaction.create(accountRef, newAccount);
-      transaction.create(codeRef, { uid, createdAt: now });
+      transaction.create(codeRef, { kind: 'customer', uid, createdAt: now });
       return newAccount;
     });
 
@@ -105,7 +107,15 @@ export async function confirmPaidOrderAndGrantReferral(
     }
 
     const firstPaidSnapshot = await transaction.get(firstPaidOrderRef);
-    const referralCode = typeof order.referralCode === 'string' ? order.referralCode : '';
+    const couponRef = db.collection('firstOrderCoupons').doc(order.ownerUid);
+    const couponSnapshot = await transaction.get(couponRef);
+    const coupon = couponSnapshot.data();
+    const expectedCouponCode = trustedAttempt?.couponCode ?? (paymentDetails.reservationKey ? order.payment?.couponCode : '');
+    const expectedCouponDiscount = trustedAttempt?.couponDiscount ?? (paymentDetails.reservationKey ? order.payment?.couponDiscount : 0) ?? 0;
+    if (expectedCouponCode && (firstPaidSnapshot.exists || coupon?.state !== 'reserved' || coupon.orderId !== orderId || coupon.merchantOrderId !== (paymentDetails.merchantOrderId ?? paymentDetails.reservationKey) || coupon.code !== expectedCouponCode || coupon.couponDiscount !== expectedCouponDiscount)) throw new Error('The first-order coupon reservation does not match this payment. Contact support for reconciliation.');
+    const agentCustomerRef = db.collection('agentReferralCustomers').doc(order.ownerUid);
+    const agentCustomerSnapshot = await transaction.get(agentCustomerRef);
+    const referralCode = expectedCouponCode || (typeof order.referralCode === 'string' ? order.referralCode : '') || agentCustomerSnapshot.data()?.code || '';
     const referralCodeRef = referralCode
       ? db.collection('referralCodes').doc(referralCode)
       : null;
@@ -125,9 +135,7 @@ export async function confirmPaidOrderAndGrantReferral(
       ? await transaction.get(referrerAccountRef)
       : null;
     const rewardRef = db.collection('referralRewards').doc(order.ownerUid);
-    const rewardSnapshot = referrerAccountSnapshot?.exists
-      ? await transaction.get(rewardRef)
-      : null;
+    const rewardSnapshot = await transaction.get(rewardRef);
     const reservationRef = db.collection('referralReservations').doc(orderId);
     const reservationSnapshot = await transaction.get(reservationRef);
     const expectedCredit = trustedAttempt?.creditApplied ?? paymentDetails.paymentUpdates?.['payment.referralCreditApplied'] ?? 0;
@@ -152,6 +160,9 @@ export async function confirmPaidOrderAndGrantReferral(
         'payment.amount': trustedAttempt.amount,
         'payment.referralCreditApplied': trustedAttempt.creditApplied,
         'payment.totalBeforeCredits': trustedAttempt.totalBeforeCredits ?? trustedAttempt.amount + trustedAttempt.creditApplied,
+        'payment.subtotal': trustedAttempt.subtotal ?? trustedAttempt.amount + trustedAttempt.creditApplied,
+        'payment.couponDiscount': trustedAttempt.couponDiscount ?? 0,
+        'payment.couponCode': trustedAttempt.couponCode ?? '',
       } : {}),
     };
     if (paymentDetails.transactionId) {
@@ -161,6 +172,7 @@ export async function confirmPaidOrderAndGrantReferral(
       paidOrderUpdate['payment.phonepeMerchantOrderId'] = paymentDetails.merchantOrderId;
     }
     transaction.update(orderRef, paidOrderUpdate);
+    if (coupon?.state === 'reserved' && coupon.orderId === orderId && coupon.merchantOrderId === (paymentDetails.merchantOrderId ?? paymentDetails.reservationKey)) transaction.update(couponRef, { state: 'consumed', updatedAt: now });
     if (paymentDetails.merchantOrderId) transaction.update(db.collection('phonepePaymentAttempts').doc(paymentDetails.merchantOrderId), { state: 'COMPLETED', updatedAt: now });
 
     let rewardAmount = 0;
@@ -181,37 +193,45 @@ export async function confirmPaidOrderAndGrantReferral(
         throw new Error('Referral account is missing for an active referral code.');
       }
 
-      if (
-        !hasHistoricalPaidOrder &&
-        !rewardSnapshot?.exists &&
-        referrerAccountRef &&
-        referrerAccountSnapshot?.exists &&
-        typeof referrerUid === 'string' &&
-        referrerUid !== order.ownerUid
-      ) {
-        rewardAmount = getReferralRewardAmount(referralSettingsSnapshot?.data());
-        if (rewardAmount > 0) {
-          const currentBalance = Number(referrerAccountSnapshot.data()?.balance || 0);
-          const updatedBalance = currentBalance + rewardAmount;
-          if (!Number.isSafeInteger(currentBalance) || currentBalance < 0 || !Number.isSafeInteger(updatedBalance)) {
-            throw new Error('Referrer credit balance is invalid and cannot be updated safely.');
+      const codeData = referralCodeSnapshot?.data();
+      const agentReferral = codeData?.kind === 'agent';
+      const customerReferral = typeof referrerUid === 'string' && referrerUid !== order.ownerUid && codeData?.kind !== 'coupon' && codeData?.kind !== 'agent';
+      const validCode = codeData && !codeData.deletedAt && codeData.active !== false;
+      // A code disabled after checkout began can still settle its reserved order.
+      const reservedCode = expectedCouponCode && expectedCouponCode === referralCode && coupon?.orderId === orderId && coupon?.state === 'reserved';
+      if (!hasHistoricalPaidOrder && !rewardSnapshot.exists && (validCode || reservedCode) && (agentReferral || customerReferral)) {
+        rewardAmount = customerReferral ? getReferralRewardAmount(referralSettingsSnapshot?.data()) : 0;
+        const credit = (account: NonNullable<typeof referrerAccountRef>, snapshot: NonNullable<typeof referrerAccountSnapshot>, amount: number) => {
+          if (!snapshot.exists) throw new Error('Referral credit account is missing.');
+          const balance = Number(snapshot.data()?.balance ?? 0);
+          if (!Number.isSafeInteger(balance) || balance < 0 || !Number.isSafeInteger(balance + amount)) throw new Error('Invalid referral credit balance.');
+          if (amount > 0) transaction.update(account, { balance: balance + amount, updatedAt: now });
+        };
+        if (customerReferral && referrerAccountRef && referrerAccountSnapshot) {
+          credit(referrerAccountRef, referrerAccountSnapshot, rewardAmount);
+          if (rewardAmount > 0) transaction.create(db.collection('referralLedger').doc(`reward_${order.ownerUid}`), {
+            ownerUid: referrerUid, type: 'reward', amount: rewardAmount, referredUid: order.ownerUid, orderId, createdAt: now,
+          });
+        }
+        transaction.create(rewardRef, {
+          referredUid: order.ownerUid, ...(customerReferral ? { referrerUid } : {}), code: referralCode,
+          kind: agentReferral ? 'agent' : 'customer', orderId, amount: rewardAmount, customerDiscount: expectedCouponDiscount, createdAt: now,
+        });
+        if (agentReferral) {
+          const agentReward = codeData?.rewardAmount ?? 0;
+          if (!isValidCouponDiscount(agentReward)) throw new Error('Invalid agent reward configuration.');
+          const existing = agentCustomerSnapshot.data();
+          const attribution = {
+            code: referralCode, uid: order.ownerUid, name: existing?.name ?? '', email: existing?.email || order.customerEmail || '',
+            joinedAt: existing?.joinedAt || now, eligiblePaidOrderId: orderId, eligibleAt: now,
+            rewardAmount: agentReward, customerDiscountAmount: expectedCouponDiscount,
+          };
+          // Never rewrite a legacy payment that the admin has already recorded.
+          if (existing?.rewardStatus !== 'Rewarded') {
+            transaction.set(agentCustomerRef, { ...attribution, rewardStatus: 'Pending' });
+          } else {
+            transaction.update(agentCustomerRef, { eligiblePaidOrderId: orderId, eligibleAt: now });
           }
-          transaction.update(referrerAccountRef, { balance: updatedBalance, updatedAt: now });
-          transaction.create(rewardRef, {
-            referredUid: order.ownerUid,
-            referrerUid,
-            orderId,
-            amount: rewardAmount,
-            createdAt: now,
-          });
-          transaction.create(db.collection('referralLedger').doc(`reward_${order.ownerUid}`), {
-            ownerUid: referrerUid,
-            type: 'reward',
-            amount: rewardAmount,
-            referredUid: order.ownerUid,
-            orderId,
-            createdAt: now,
-          });
         }
       }
     }
@@ -235,7 +255,7 @@ export async function reserveReferralCreditForOrder(
   orderId: string,
   uid: string,
   amount: number,
-  options?: { merchantOrderId: string; lockToken: string; totalBeforeCredits: number; paymentAttempt?: DocumentData },
+  options?: { merchantOrderId: string; lockToken: string; totalBeforeCredits: number; paymentAttempt?: DocumentData; coupon?: CouponQuote },
 ) {
   const db = getAdminDb();
   const orderRef = db.collection('orders').doc(orderId);
@@ -250,6 +270,19 @@ export async function reserveReferralCreditForOrder(
       transaction.get(reservationRef),
     ]);
     if (options) await assertCheckoutLock(db, transaction, orderId, options.lockToken);
+    const couponRef = db.collection('firstOrderCoupons').doc(uid);
+    const couponReservation = options ? await transaction.get(couponRef) : null;
+    const firstPaid = options ? await transaction.get(db.collection('referralFirstPaidOrders').doc(uid)) : null;
+    const couponConfig = options?.coupon?.code ? await transaction.get(db.collection('referralCodes').doc(options.coupon.code)) : null;
+    const couponSettings = options?.coupon?.code ? await transaction.get(db.collection('settings').doc('referrals')) : null;
+    const legacyDiscounts = options?.coupon?.code ? await transaction.get(db.collection('settings').doc('coupons')) : null;
+    if (options && couponReservation?.data()?.state === 'reserved' && (couponReservation.data()?.orderId !== orderId || couponReservation.data()?.merchantOrderId !== options.merchantOrderId)) throw new Error('A first-order coupon is already reserved. Complete that checkout or wait for confirmed failure before starting another.');
+    if (options?.coupon?.code) {
+      const saved = couponConfig?.data();
+      if (firstPaid?.exists || !saved || saved.active === false || saved.deletedAt || saved.kind === 'coupon' || saved.uid === uid) throw new Error('This coupon is not available for this account.');
+      const current = couponTotal(options.coupon.subtotal, couponDiscountAmount(saved, { ...legacyDiscounts?.data(), ...couponSettings?.data() }));
+      if (current.couponDiscount !== options.coupon.couponDiscount || current.total !== options.totalBeforeCredits) throw new Error('The coupon discount changed. Review your price again.');
+    }
     if (!Number.isSafeInteger(amount) || amount < 0) throw new Error('Invalid referral credit amount.');
     if (!orderSnapshot.exists) throw new Error('Order not found.');
     if (orderSnapshot.data()?.ownerUid !== uid) throw new Error('Order access denied.');
@@ -280,18 +313,25 @@ export async function reserveReferralCreditForOrder(
         'payment.amount': options.paymentAttempt.amount,
         'payment.referralCreditApplied': amount,
         'payment.totalBeforeCredits': options.paymentAttempt.totalBeforeCredits,
+        'payment.subtotal': options.coupon?.subtotal ?? options.totalBeforeCredits,
+        'payment.couponDiscount': options.coupon?.couponDiscount ?? 0,
+        'payment.couponCode': options.coupon?.code ?? '',
         'payment.phonepeInitiatedAt': options.paymentAttempt.initiatedAt,
         'payment.phonepeReturnUrl': options.paymentAttempt.returnUrl,
         'payment.phonepeRedirectUrl': '', updatedAt: now,
       });
-    } else if (options && amount > 0) {
+    } else if (options && (amount > 0 || options.coupon?.code)) {
       transaction.update(orderRef, {
-        'payment.gateway': 'ReferralCredit', 'payment.status': 'Pending',
+        'payment.gateway': amount > 0 ? 'ReferralCredit' : 'Coupon', 'payment.status': 'Pending',
         'payment.reservationKey': options.merchantOrderId,
         'payment.amount': 0, 'payment.referralCreditApplied': amount,
         'payment.totalBeforeCredits': options.totalBeforeCredits, updatedAt: now,
+        'payment.subtotal': options.coupon?.subtotal ?? options.totalBeforeCredits,
+        'payment.couponDiscount': options.coupon?.couponDiscount ?? 0,
+        'payment.couponCode': options.coupon?.code ?? '',
       });
     }
+    if (options && !firstPaid?.exists) transaction.set(couponRef, { ...(options.coupon ?? { code: '', subtotal: options.totalBeforeCredits, couponDiscount: 0, total: options.totalBeforeCredits }), orderId, merchantOrderId: options.merchantOrderId, state: 'reserved', updatedAt: now });
     if (amount === 0) return { balance: currentBalance, reserved: 0 };
     transaction.update(accountRef, { balance: currentBalance - amount, updatedAt: now });
     const attempt = Number(reservationSnapshot.data()?.attempt || 0) + 1;
@@ -327,6 +367,8 @@ export async function releaseReferralReservation(orderId: string, merchantOrderI
     const reservationSnapshot = await transaction.get(reservationRef);
     if (!orderSnapshot.exists) return false;
     const order = orderSnapshot.data()!;
+    const couponRef = db.collection('firstOrderCoupons').doc(order.ownerUid);
+    const couponReservation = await transaction.get(couponRef);
     if (order.payment?.status === 'Paid') return false;
     const attemptRef = merchantOrderId ? db.collection('phonepePaymentAttempts').doc(merchantOrderId) : null;
     const attemptSnapshot = attemptRef ? await transaction.get(attemptRef) : null;
@@ -347,6 +389,7 @@ export async function releaseReferralReservation(orderId: string, merchantOrderI
     if (attemptRef) {
       transaction.update(attemptRef, { state: terminalState, updatedAt: now });
       transaction.update(orderRef, { 'payment.status': 'Failed', updatedAt: now });
+      if (couponReservation.data()?.state === 'reserved' && couponReservation.data()?.orderId === orderId && couponReservation.data()?.merchantOrderId === merchantOrderId) transaction.update(couponRef, { state: 'released', updatedAt: now });
     }
     if (!shouldRelease) return false;
 

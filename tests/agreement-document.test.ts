@@ -1,13 +1,44 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
 import { numberToWordsIndian, amountInWords } from '../lib/number-to-words.ts';
 import { 
   getOrdinal, 
   formatExecutionDate, 
+  formatLegalDate,
   calculateAgreementEndDate, 
   formatNoticePeriodMonths, 
   formatPropertyDescription 
 } from '../lib/agreement-formatter.ts';
+
+test('Rendered agreement keeps currency units accurate and spells out a zero deposit', () => {
+  const require = createRequire(import.meta.url), ts = require('typescript');
+  const cache = new Map<string, any>();
+  function load(name: string): any {
+    if (!name.startsWith('@/')) return require(name);
+    if (cache.has(name)) return cache.get(name);
+    const extension = name.includes('/components/') ? 'tsx' : 'ts';
+    const source = readFileSync(new URL(`../${name.slice(2)}.${extension}`, import.meta.url), 'utf8');
+    const target = { exports: {} };
+    runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText, {
+      module: target, exports: target.exports, require: load, Date, console,
+    });
+    cache.set(name, target.exports);
+    return target.exports;
+  }
+  const React = require('react'), { renderToStaticMarkup } = require('react-dom/server');
+  const { RentalAgreementDocument } = load('@/components/agreement/RentalAgreementDocument');
+  const markup = renderToStaticMarkup(React.createElement(RentalAgreementDocument, {
+    data: { agreementTerms: { monthlyRent: 15000.75, securityDeposit: 0, startDate: '2026-01-31', tenureMonths: 1 } },
+  }));
+  const text = markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(text, /Fifteen Thousand Rupees and Seventy Five Paise/);
+  assert.match(text, /Zero Rupees/);
+  assert.match(text, /27th February 2026/);
+  assert.doesNotMatch(text, /Rupees\s+Fifteen Thousand Rupees/);
+});
 
 test('Indian Rupee Number to Words Converter for Legal Agreements', () => {
   assert.equal(numberToWordsIndian(15000), 'Fifteen Thousand');
@@ -24,6 +55,36 @@ test('Indian Rupee Number to Words Converter for Legal Agreements', () => {
 
   assert.equal(amountInWords(0), '');
   assert.equal(amountInWords(null as any), '');
+});
+
+test('Agreement dates clamp month anniversaries and reject invalid calendar input', () => {
+  assert.equal(calculateAgreementEndDate('2026-01-31', 1), '27th February 2026');
+  assert.equal(calculateAgreementEndDate('2024-01-31', 1), '28th February 2024');
+  assert.equal(calculateAgreementEndDate('2024-02-29', 12), '27th February 2025');
+  assert.equal(calculateAgreementEndDate('2026-12-31', 1), '30th January 2027');
+  for (const date of ['2026-02-30', '2026-13-01', 'invalid']) {
+    assert.equal(formatLegalDate(date), '');
+    assert.equal(calculateAgreementEndDate(date, 11), '');
+  }
+  for (const months of [0, -1, 1.5, Infinity, 121]) assert.equal(calculateAgreementEndDate('2026-01-01', months), '');
+  const oldTimezone = process.env.TZ;
+  try {
+    process.env.TZ = 'America/Los_Angeles';
+    assert.equal(formatLegalDate('2026-10-07'), '7th October 2026');
+    assert.equal(formatExecutionDate('2026-10-07'), '7th day of October 2026');
+  } finally {
+    if (oldTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = oldTimezone;
+  }
+});
+
+test('Currency words retain paise and safely handle large or non-finite values', () => {
+  assert.equal(amountInWords(15000.75), 'Fifteen Thousand Rupees and Seventy Five Paise');
+  assert.equal(amountInWords(0.01), 'Zero Rupees and One Paise');
+  assert.equal(amountInWords(999.999), 'One Thousand Rupees');
+  assert.equal(numberToWordsIndian(10_000_000_000), 'One Thousand Crores');
+  assert.equal(amountInWords(Infinity), '');
+  assert.equal(numberToWordsIndian(Infinity), '');
 });
 
 test('Agreement Formatter: Ordinal Numbers & Dates', () => {

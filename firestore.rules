@@ -11,13 +11,49 @@ service cloud.firestore {
       return isSignedIn()
         && (
           request.auth.token.email == "pradeep1992official@gmail.com"
-          || request.auth.token.email == "ntscsc@gmail.com"
+          || request.auth.token.email == "ntcsc@gmail.com"
         )
         && request.auth.token.email_verified == true;
     }
 
     function isOwner() {
       return isSignedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Clients can bypass the form. Reject incomplete records before they can
+    // break customer/admin screens or enter the payment workflow.
+    function validPerson(data) {
+      return data is map
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 100
+        && data.relativeName is string && data.relativeName.size() >= 2 && data.relativeName.size() <= 100
+        && (data.age is int || data.age is string)
+        && data.address is string && data.address.size() >= 10 && data.address.size() <= 2000
+        && data.phone is string && data.phone.matches('^[6-9][0-9]{9}$');
+    }
+
+    function validProperty(data) {
+      return data is map
+        && data.fullAddress is string && data.fullAddress.size() >= 12 && data.fullAddress.size() <= 2000
+        && data.city is string && data.city.size() >= 2 && data.city.size() <= 100
+        && data.pincode is string && data.pincode.matches('^[1-9][0-9]{5}$')
+        && data.propertyType in ['House', 'Flat', 'Commercial Shop']
+        && data.furnishing in ['Unfurnished', 'Semi-Furnished', 'Fully Furnished'];
+    }
+
+    function validAgreement(data) {
+      return validPerson(data.ownerDetails) && validPerson(data.tenantDetails)
+        && validProperty(data.propertyDetails)
+        && data.agreementTerms is map
+        && data.agreementTerms.monthlyRent is number && data.agreementTerms.monthlyRent > 0 && data.agreementTerms.monthlyRent <= 1000000000
+        && data.agreementTerms.securityDeposit is number && data.agreementTerms.securityDeposit >= 0 && data.agreementTerms.securityDeposit <= 1000000000
+        && data.agreementTerms.maintenanceCharges is number && data.agreementTerms.maintenanceCharges >= 0 && data.agreementTerms.maintenanceCharges <= 1000000000
+        && data.agreementTerms.tenureMonths is int && data.agreementTerms.tenureMonths >= 1 && data.agreementTerms.tenureMonths <= 120
+        && data.agreementTerms.startDate is string && data.agreementTerms.startDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.agreementTerms.stampPaperDenomination in [100, 200]
+        && data.agreementTerms.deliveryRecipient in ['Owner', 'Tenant']
+        && data.agreementTerms.deliveryLocation in ['Within Chennai', 'Within Tamil Nadu']
+        && data.agreementTerms.includeNotary is bool
+        && data.proofUploads is map;
     }
 
     // Owner correction logic:
@@ -32,16 +68,24 @@ service cloud.firestore {
         && request.resource.data.orderId == resource.data.orderId
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.payment == resource.data.payment
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['customerClarification'])
+          || (request.resource.data.customerClarification is string
+            && request.resource.data.customerClarification.size() >= 5
+            && request.resource.data.customerClarification.size() <= 3000))
         && (!('courier' in resource.data) || request.resource.data.courier == resource.data.courier)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'ownerDetails',
           'tenantDetails',
           'propertyDetails',
-          'agreementTerms',
           'proofUploads',
+          'customerClarification',
           'status',
           'updatedAt'
-        ]);
+        ])
+        && validPerson(request.resource.data.ownerDetails)
+        && validPerson(request.resource.data.tenantDetails)
+        && validProperty(request.resource.data.propertyDetails)
+        && request.resource.data.proofUploads is map;
     }
 
     // Default deny for all unmatched documents
@@ -69,6 +113,15 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    match /orderTrackingLimits/{limitId} {
+      allow read, write: if false;
+    }
+
+    // First-order discount reservations and redemptions are server-managed.
+    match /firstOrderCoupons/{uid} {
+      allow read, write: if false;
+    }
+
     // In-progress customer draft forms: owner-only access
     match /drafts/{uid} {
       allow read, delete: if isSignedIn() && request.auth.uid == uid;
@@ -92,6 +145,10 @@ service cloud.firestore {
       // 4. Disallow courier and correctionMessage on initial creation
       // 5. Restrict allowed payload keys using hasOnly()
       allow create: if isSignedIn()
+        && validAgreement(request.resource.data)
+        && request.resource.data.customerEmail is string
+        && request.resource.data.createdAt is string
+        && request.resource.data.updatedAt is string
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.orderId == orderId
         && request.resource.data.status == 'Submitted'
@@ -161,7 +218,14 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin()
-        && (settingId != 'pricing' || isValidPricing(request.resource.data));
+        && (settingId != 'pricing' || isValidPricing(request.resource.data))
+        && (settingId != 'referrals' || (request.resource.data.rewardAmount is int
+          && request.resource.data.rewardAmount >= 0 && request.resource.data.rewardAmount <= 100000
+          && request.resource.data.refereeDiscountAmount is int
+          && request.resource.data.refereeDiscountAmount >= 0 && request.resource.data.refereeDiscountAmount <= 100000))
+        && (settingId != 'coupons' || (request.resource.data.customerDiscountAmount is int
+          && request.resource.data.customerDiscountAmount >= 0
+          && request.resource.data.customerDiscountAmount <= 100000));
     }
   }
 }

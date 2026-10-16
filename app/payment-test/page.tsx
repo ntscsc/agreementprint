@@ -1,18 +1,24 @@
 'use client';
+
+import { readApiResponse } from '@/lib/api-response';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 export default function PaymentTestPage() {
+  const { user } = useAuth();
+  return <PaymentTestBody key={user?.uid ?? 'guest'} />;
+}
+function PaymentTestBody() {
   const { user, loading, signInWithGoogle } = useAuth();
   const [config, setConfig] = useState<{ configured: boolean; live: boolean } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [state, setState] = useState('');
   const [reference, setReference] = useState('');
-  useEffect(() => { fetch('/api/payment/phonepe/test-product').then(r => r.json()).then(setConfig).catch(() => setError('Could not load payment configuration.')); setReference(new URLSearchParams(window.location.search).get('merchantOrderId') || ''); }, []);
+  useEffect(() => { fetch('/api/payment/phonepe/test-product').then(readApiResponse).then(data => setConfig({ configured: data.configured === true, live: data.live === true })).catch(() => setError('Could not load payment configuration.')); setReference(new URLSearchParams(window.location.search).get('merchantOrderId') || ''); }, []);
   async function action(action: 'start' | 'status') {
     if (!user) return;
     setBusy(true); setError('');
     try {
       const response = await fetch('/api/payment/phonepe/test-product', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` }, body: JSON.stringify({ action, ...(action === 'status' && reference ? { merchantOrderId: reference } : {}) }) });
-      const data = await response.json();
+      const data = await readApiResponse(response);
       if (!response.ok) throw new Error(data.error);
       setReference(data.merchantOrderId); setState(data.state);
       if (action === 'start' && data.redirectUrl && !data.paid) window.location.assign(data.redirectUrl);

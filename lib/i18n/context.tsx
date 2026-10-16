@@ -55,11 +55,11 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLangState(newLang);
     try {
       localStorage.setItem('tn_stamp_lang', newLang);
-      document.documentElement.lang = newLang;
-      window.dispatchEvent(new Event('tn_lang_change'));
     } catch {
       // Fallback
     }
+    document.documentElement.lang = newLang;
+    window.dispatchEvent(new Event('tn_lang_change'));
   };
 
   const t = lang === 'ta' ? ta : en;

@@ -14,11 +14,23 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
+// HTML date inputs are calendar dates, not UTC timestamps. Parse them locally
+// so a customer's timezone cannot move the agreement to the preceding day.
+function parseDate(dateInput: string | Date): Date {
+  if (typeof dateInput !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) return new Date(dateInput);
+  const [year, month, day] = dateInput.split('-').map(Number);
+  const date = new Date(0);
+  date.setFullYear(year, month - 1, day);
+  date.setHours(12, 0, 0, 0);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+    ? date : new Date(NaN);
+}
+
 /**
  * Formats a date into legal execution style, e.g. "7th day of October 2026"
  */
 export function formatExecutionDate(dateInput?: string | Date): string {
-  const d = dateInput ? new Date(dateInput) : new Date();
+  const d = dateInput ? parseDate(dateInput) : new Date();
   if (isNaN(d.getTime())) {
     return '';
   }
@@ -34,7 +46,7 @@ export function formatExecutionDate(dateInput?: string | Date): string {
  */
 export function formatLegalDate(dateInput?: string | Date): string {
   if (!dateInput) return '';
-  const d = new Date(dateInput);
+  const d = parseDate(dateInput);
   if (isNaN(d.getTime())) return '';
   const day = getOrdinal(d.getDate());
   const month = MONTH_NAMES[d.getMonth()];
@@ -48,12 +60,15 @@ export function formatLegalDate(dateInput?: string | Date): string {
  */
 export function calculateAgreementEndDate(startDateInput?: string, tenureMonths: number = 11): string {
   if (!startDateInput) return '';
-  const start = new Date(startDateInput);
-  if (isNaN(start.getTime())) return '';
+  const start = parseDate(startDateInput);
+  if (isNaN(start.getTime()) || !Number.isSafeInteger(tenureMonths) || tenureMonths < 1 || tenureMonths > 120) return '';
 
   // Add tenure months
   const end = new Date(start);
+  end.setDate(1);
   end.setMonth(end.getMonth() + tenureMonths);
+  const lastDay = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+  end.setDate(Math.min(start.getDate(), lastDay));
   // Deduct 1 day to complete the exact tenure
   end.setDate(end.getDate() - 1);
 

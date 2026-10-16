@@ -1,107 +1,29 @@
 import type { Metadata } from 'next';
-import { ShieldCheck, Lock, EyeOff, FileText, CheckCircle2 } from 'lucide-react';
-import { DisclaimerBanner } from '@/components/DisclaimerBanner';
-import { VENDOR_CONFIG } from '@/src/config/vendor';
-import { SupportEmailLink } from '@/components/SupportEmailLink';
+import { PolicyPage, PolicySection } from '@/components/PolicyPage';
 
-export const metadata: Metadata = {
-  title: 'Privacy Policy | AgreementPrint',
-  description: 'Read how we protect agreement details, contact information and custom agreement sample uploads.',
-  openGraph: {
-    title: 'Privacy Policy | AgreementPrint',
-    description: 'Read how we protect agreement details, contact information and custom agreement sample uploads.',
-  },
-};
+export const metadata: Metadata = { title: 'Privacy Policy | AgreementPrint', description: 'Privacy Policy for AgreementPrint rental and custom agreement services.' };
 
-export default function PrivacyPolicyPage() {
+export default function Page() {
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-      {/* Header */}
-      <div className="space-y-3 border-b border-stone-200 pb-6">
-        <span className="text-xs uppercase tracking-wider font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
-          Identity Protection
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
-          Privacy & Identity Protection Policy
-        </h1>
-        <p className="text-xs text-stone-500">Last Updated: October 2026</p>
-      </div>
-
-      {/* Mandatory Aadhaar Masking Highlight Box */}
-      <div className="bg-emerald-50 border-2 border-emerald-300/80 rounded-2xl p-6 space-y-3">
-        <div className="flex items-center gap-2 text-emerald-950 font-bold text-base">
-          <ShieldCheck className="w-6 h-6 text-emerald-700" />
-          <span>Strict Aadhaar Privacy & Masking Commitment</span>
-        </div>
-        <p className="text-xs sm:text-sm text-emerald-900 leading-relaxed">
-          Aadhaar information is optional. Share only the minimum identification details needed for your agreement and avoid entering full Aadhaar numbers. Before uploading custom agreement samples, redact unnecessary Aadhaar, bank and other sensitive information. Sample files may contain the information you choose to share with our drafting team.
-        </p>
-      </div>
-
-      {/* Policy Details */}
-      <div className="space-y-8 text-xs sm:text-sm text-stone-700 leading-relaxed">
-        <section className="space-y-2">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <Lock className="w-4 h-4 text-amber-700" />
-            <span>1. Information We Collect</span>
-          </h2>
-          <p>
-            When you order a rental agreement through {VENDOR_CONFIG.tradeName}, we collect only information strictly essential to draft the legal tenancy contract onto official non-judicial stamp paper:
-          </p>
-          <ul className="list-disc pl-5 space-y-1 text-stone-600">
-            <li>Owner & Tenant full legal names, father/spouse name, age, permanent address, contact number, and email.</li>
-            <li>Last 4 digits of Aadhaar number and optional PAN number for tax accounting records.</li>
-            <li>Rental property location, survey number/door number, pincode, monthly rent, security deposit, and tenancy dates.</li>
-            <li>For custom agreement requests: sample PDF/DOCX templates or JPG/PNG photos, customisation instructions, preferred language, contact details and contact preference.</li>
-          </ul>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <EyeOff className="w-4 h-4 text-amber-700" />
-            <span>2. Private Agreement Data</span>
-          </h2>
-          <p>
-            Agreement drafts and orders are stored with access controls. Custom agreement samples are uploaded privately and verified before vendor review. Identity or property proof uploads are not part of the standard rental agreement flow.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 text-xs">
-              <strong className="text-stone-900 block mb-1">Restricted Customer Access</strong>
-              Accessible only by the authenticated customer who created the order.
-            </div>
-            <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 text-xs">
-              <strong className="text-stone-900 block mb-1">Certified Vendor Only</strong>
-              Authorized vendor staff review submitted details to prepare the agreement.
-            </div>
-          </div>
-          <p className="text-stone-600 pt-1">
-            Enter standard rental agreement details directly in the order form. Custom agreement requests accept up to three sample files, 10 MB each. Remove unnecessary Aadhaar, bank and other sensitive information before sharing a sample. We use your chosen contact details to clarify your request and communicate the quote; consent to this contact does not include marketing.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-amber-700" />
-            <span>3. Zero Commercial Data Sharing</span>
-          </h2>
-          <p>
-            We will never sell, rent, lease, or commercialize your personal data, rental figures, or contact details to third-party telemarketers, brokers, or advertising networks. Your information is used strictly to fulfill your physical stamp paper dispatch.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-amber-700" />
-            <span>4. Data Retention & Erasure</span>
-          </h2>
-          <p>
-            Customer orders and status history are maintained so you can track your courier dispatch. For questions about your stored agreement details or data deletion requests, contact our vendor desk at{' '}
-            <SupportEmailLink className="font-mono text-amber-800 font-semibold" />.
-          </p>
-        </section>
-      </div>
-
-      <DisclaimerBanner />
-    </div>
+    <PolicyPage title="Privacy Policy">
+      <PolicySection title="Information we collect">
+        <p>We collect sign-in details such as name, email and account identifier; order and enquiry contact details; owner and tenant information entered for the agreement; property and tenancy details; delivery addresses; and order, payment-status and referral records. Custom requests also include your instructions, contact preferences and uploaded PDF, DOCX, JPG or PNG samples. Aadhaar details are optional: avoid full Aadhaar numbers and share only the last four digits if needed. Redact unnecessary identity, bank and other sensitive information from samples.</p>
+      </PolicySection>
+      <PolicySection title="How we use information">
+        <p>We use this information to prepare agreements, review samples, provide quotes, fulfil and track orders, respond to enquiries, verify payment status, manage referral credits and protect the service against misuse. Custom-request contact permission is used to discuss that request and does not itself authorise marketing.</p>
+      </PolicySection>
+      <PolicySection title="Service providers and sharing">
+        <p>We use Google/Firebase for sign-in and application data, private Supabase storage for custom samples, PhonePe for payments, and courier providers for physical delivery. Relevant information is processed by these providers to deliver their services; courier providers receive delivery and contact details. PhonePe handles payment credentials; do not send us card PINs, banking passwords or OTPs. We do not sell or rent personal information to advertisers. We may disclose information where required by law or necessary to investigate fraud and protect rights.</p>
+      </PolicySection>
+      <PolicySection title="Storage and security">
+        <p>Access controls restrict customer records to the relevant customer and authorised staff or service processes. Custom samples are stored privately. Providers may process data in locations covered by their infrastructure and terms; we do not promise that all data remains in India. No internet transmission or storage system can be guaranteed completely secure. Protect your sign-in credentials and report suspected unauthorised access.</p>
+      </PolicySection>
+      <PolicySection title="Retention and your requests">
+        <p>We retain information needed for order fulfilment, customer support, payment reconciliation and applicable record-keeping obligations. Retention may continue while a dispute, pending order or fraud investigation remains unresolved. Email support to request access, correction, deletion or withdrawal of permission for processing. We may verify your identity before acting and explain any information that must be retained. Withdrawal may affect services requiring that information. This website does not currently offer a self-service account deletion control.</p>
+      </PolicySection>
+      <PolicySection title="Cookies, sign-in and updates">
+        <p>Sign-in and related browser storage are used to maintain your authenticated session and service preferences. Third-party services apply their own privacy policies when you use them. We will publish changes to this policy with an updated date. Send privacy concerns through the contact details below; include only the information needed to identify your request.</p>
+      </PolicySection>
+    </PolicyPage>
   );
 }

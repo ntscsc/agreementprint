@@ -1,5 +1,8 @@
 'use client';
 
+import { readApiResponse } from '@/lib/api-response';
+import { Celebration, paidOrderCelebrationKey } from '@/components/Celebration';
+
 import { requestReviewedCheckout } from '@/lib/checkout-client';
 
 import React, { useState, useEffect } from 'react';
@@ -24,14 +27,21 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { Order, OrderStatus } from '@/lib/types';
 import { submitDocumentCorrection } from '@/lib/order-service';
 import { RentalAgreementDocument } from '@/components/agreement/RentalAgreementDocument';
+import { DownloadBillButton } from '@/components/order/DownloadBillButton';
 
 export function MyOrdersClient() {
+  const { user } = useAuth();
+  return <MyOrdersBody key={user?.uid ?? 'guest'} />;
+}
+
+function MyOrdersBody() {
   const { user, loading: authLoading, signInWithGoogle, authError } = useAuth();
   const [signingIn, setSigningIn] = useState(false);
   const [localSignInError, setLocalSignInError] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [celebratedOrderId, setCelebratedOrderId] = useState<string | null>(null);
   const [startingPaymentOrderId, setStartingPaymentOrderId] = useState<string | null>(null);
   const [paymentRetryError, setPaymentRetryError] = useState<{ orderId: string; message: string } | null>(null);
 
@@ -89,12 +99,14 @@ export function MyOrdersClient() {
     if (!user) return;
     setSubmittingCorrection(true);
     try {
-      await submitDocumentCorrection(orderId, {});
+      const customerClarification = correctionNote.trim();
+      await submitDocumentCorrection(orderId, { customerClarification });
       setCorrectionSuccess('Correction submitted successfully. Your order is now under verification.');
       setActiveCorrectionOrderId(null);
+      setCorrectionNote('');
       // Update local status
       setOrders((prev) =>
-        prev.map((o) => (o.orderId === orderId ? { ...o, status: 'Under verification' } : o))
+        prev.map((o) => (o.orderId === orderId ? { ...o, status: 'Under verification', customerClarification } : o))
       );
     } catch (err) {
       console.error('Correction submission failed:', err);
@@ -112,8 +124,9 @@ export function MyOrdersClient() {
     try {
       const idToken = await user.getIdToken();
       const response = await requestReviewedCheckout({ orderId }, idToken);
-      const result = await response.json();
+      const result = await readApiResponse(response);
       if (response.ok && result.paid) {
+        setCelebratedOrderId(orderId);
         setOrders((previous) => previous.map((order) => order.orderId === orderId ? result.order as Order : order));
         setStartingPaymentOrderId(null);
         return;
@@ -233,6 +246,7 @@ export function MyOrdersClient() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+      <Celebration eventKey={user && celebratedOrderId ? paidOrderCelebrationKey(user.uid, celebratedOrderId) : null} message="Payment confirmed! Your order is ready for our team." />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-stone-900">
@@ -316,6 +330,7 @@ export function MyOrdersClient() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  {ord.payment.status === 'Paid' && <DownloadBillButton orderId={ord.orderId} />}
                   <button
                     type="button"
                     onClick={() => setSelectedAgreementOrder(ord)}
@@ -358,7 +373,8 @@ export function MyOrdersClient() {
 
               {(ord.payment.totalBeforeCredits !== undefined || (ord.payment.referralCreditApplied ?? 0) > 0) && (
                 <div className="flex flex-wrap gap-x-5 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-xs text-emerald-950">
-                  <span>Order total: ₹{(ord.payment.totalBeforeCredits ?? ord.payment.amount ?? 0).toLocaleString('en-IN')}</span>
+                  <span>Package total: ₹{(ord.payment.subtotal ?? ord.payment.totalBeforeCredits ?? ord.payment.amount ?? 0).toLocaleString('en-IN')}</span>
+                  {(ord.payment.couponDiscount ?? 0) > 0 && <span>Coupon discount ({ord.payment.couponCode}): −₹{ord.payment.couponDiscount?.toLocaleString('en-IN')}</span>}
                   {(ord.payment.referralCreditApplied ?? 0) > 0 && (
                     <span>Referral credit: −₹{ord.payment.referralCreditApplied?.toLocaleString('en-IN')}</span>
                   )}
@@ -431,6 +447,7 @@ export function MyOrdersClient() {
                       </p>
                       <textarea
                         rows={2}
+                        maxLength={3000}
                         value={correctionNote}
                         onChange={(e) => setCorrectionNote(e.target.value)}
                         placeholder="Explain any document clarification or changes..."
@@ -446,7 +463,7 @@ export function MyOrdersClient() {
                         </button>
                         <button
                           type="button"
-                          disabled={submittingCorrection}
+                          disabled={submittingCorrection || correctionNote.trim().length < 5}
                           onClick={() => handleCorrectionSubmit(ord.orderId)}
                           className="bg-stone-900 hover:bg-stone-800 text-white px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                         >
@@ -457,7 +474,7 @@ export function MyOrdersClient() {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setActiveCorrectionOrderId(ord.orderId)}
+                      onClick={() => { setCorrectionNote(''); setActiveCorrectionOrderId(ord.orderId); }}
                       className="bg-rose-700 hover:bg-rose-800 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-colors cursor-pointer"
                     >
                       Respond to Correction Request

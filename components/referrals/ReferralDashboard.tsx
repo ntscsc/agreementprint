@@ -1,5 +1,7 @@
 'use client';
 
+import { readApiResponse } from '@/lib/api-response';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Check, Copy, Gift, LogIn, Share2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -8,6 +10,7 @@ interface ReferralData {
   code: string;
   balance: number;
   rewardAmount: number;
+  couponDiscount: number;
   referrals: Array<{
     status: string;
     rewardAmount: number;
@@ -22,6 +25,11 @@ interface ReferralData {
 }
 
 export function ReferralDashboard() {
+  const { user } = useAuth();
+  return <ReferralDashboardBody key={user?.uid ?? 'guest'} />;
+}
+
+function ReferralDashboardBody() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,7 +45,7 @@ export function ReferralDashboard() {
       const response = await fetch('/api/referrals/me', {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      const result = await response.json();
+      const result = await readApiResponse(response);
       if (!response.ok) throw new Error(result.error || 'Could not load your referral details.');
       setData(result as ReferralData);
     } catch (loadError) {
@@ -55,7 +63,7 @@ export function ReferralDashboard() {
 
   async function copyReferralLink() {
     if (!data) return;
-    const link = `${window.location.origin}/order?ref=${encodeURIComponent(data.code)}`;
+    const link = `${window.location.origin}/order?coupon=${encodeURIComponent(data.code)}`;
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
@@ -74,8 +82,8 @@ export function ReferralDashboard() {
     return (
       <section className="mx-auto max-w-md rounded-3xl border border-stone-200 bg-white p-8 text-center shadow-sm">
         <LogIn className="mx-auto h-8 w-8 text-amber-600" />
-        <h1 className="mt-4 text-2xl font-black text-stone-900">Your Referral Credits</h1>
-        <p className="mt-2 text-sm text-stone-600">Sign in to get your personal referral code and view your credit balance.</p>
+        <h1 className="mt-4 text-2xl font-black text-stone-900">Refer a friend</h1>
+        <p className="mt-2 text-sm text-stone-600">Sign in to get your personal coupon code and view your credit balance.</p>
         <button
           type="button"
           onClick={() => void signInWithGoogle().catch((signInError) => {
@@ -101,6 +109,7 @@ export function ReferralDashboard() {
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-stone-600">
           Share your code. When a new customer uses it on their first paid order, you earn ₹
           {data?.rewardAmount.toLocaleString('en-IN') ?? '—'} in AgreementPrint credit.
+          {data && data.couponDiscount > 0 && <> Your friend also gets ₹{data.couponDiscount.toLocaleString('en-IN')} off that first order.</>}
         </p>
       </header>
 
@@ -114,6 +123,10 @@ export function ReferralDashboard() {
         <p className="py-10 text-center text-sm text-stone-500">Loading your referral details…</p>
       ) : data ? (
         <>
+          <section className="grid gap-3 sm:grid-cols-2" aria-label="Referral benefits">
+            <div className="rounded-2xl border border-stone-200 bg-white p-5"><h2 className="text-sm font-semibold text-stone-600">You earn</h2><p className="mt-2 text-2xl font-bold text-stone-900">₹{data.rewardAmount.toLocaleString('en-IN')} credit</p><p className="mt-2 text-sm text-stone-600">After your friend pays for their first order. Use the credit on a future order.</p></div>
+            <div className="rounded-2xl border border-stone-200 bg-white p-5"><h2 className="text-sm font-semibold text-stone-600">Your friend saves</h2><p className="mt-2 text-2xl font-bold text-stone-900">₹{data.couponDiscount.toLocaleString('en-IN')}</p><p className="mt-2 text-sm text-stone-600">Taken off their first order when using your coupon, up to the order total.</p></div>
+          </section>
           <section className="grid gap-5 sm:grid-cols-2">
             <div className="rounded-2xl bg-stone-900 p-6 text-white">
               <p className="text-xs font-semibold uppercase tracking-wide text-stone-300">Available credits</p>
@@ -121,8 +134,9 @@ export function ReferralDashboard() {
               <p className="mt-2 text-xs text-stone-300">No expiry. Apply credits to any part of a future order total.</p>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Your referral code</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Your coupon code</p>
               <p className="mt-2 font-mono text-3xl font-black tracking-[0.15em] text-stone-900">{data.code}</p>
+              <label className="mt-4 block text-xs font-semibold text-stone-700">Your share link<input readOnly value={typeof window === 'undefined' ? '' : `${window.location.origin}/order?coupon=${encodeURIComponent(data.code)}`} onFocus={event => event.target.select()} className="mt-2 min-h-11 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-normal" /></label>
               <button
                 type="button"
                 onClick={() => void copyReferralLink()}

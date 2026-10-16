@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import './admin.css';
 import { AdminClient } from './AdminClient';
 
 export const metadata: Metadata = {

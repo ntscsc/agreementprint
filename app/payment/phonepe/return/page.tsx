@@ -1,5 +1,9 @@
 'use client';
 
+import { readApiResponse } from '@/lib/api-response';
+import { DownloadBillButton } from '@/components/order/DownloadBillButton';
+import { Celebration, paidOrderCelebrationKey } from '@/components/Celebration';
+
 import { requestReviewedCheckout } from '@/lib/checkout-client';
 
 import { Suspense, useEffect, useState } from 'react';
@@ -21,7 +25,7 @@ async function requestPaymentStatus(user: User, orderId: string, merchantOrderId
     },
     body: JSON.stringify({ orderId, merchantOrderId: merchantOrderId || undefined }),
   });
-  const data = await response.json();
+  const data = await readApiResponse(response);
   if (!response.ok) throw new Error(data.error || 'Could not verify payment.');
   return data as { paid: boolean; state?: string; expireAt?: number; initiatedAt?: number };
 }
@@ -41,6 +45,11 @@ function getPhonePeReconciliationOffsets(expireAt?: number, initiatedAt?: number
 }
 
 function PhonePeReturnContent() {
+  const { user } = useAuth();
+  return <PhonePeReturnBody key={user?.uid ?? 'guest'} />;
+}
+
+function PhonePeReturnBody() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') ?? '';
   const merchantOrderId = searchParams.get('merchantOrderId') ?? '';
@@ -74,7 +83,7 @@ function PhonePeReturnContent() {
     try {
       const idToken = await user.getIdToken();
       const response = await requestReviewedCheckout({ orderId }, idToken);
-      const data = await response.json();
+      const data = await readApiResponse(response);
       if (response.ok && data.paid) {
         setResult('paid');
         setMessage('Payment received. Your order is now under verification.');
@@ -158,6 +167,7 @@ function PhonePeReturnContent() {
 
   return (
     <main className="max-w-xl mx-auto px-4 py-16 text-center">
+      <Celebration eventKey={displayResult === 'paid' && user ? paidOrderCelebrationKey(user.uid, orderId) : null} message="Payment confirmed! Thank you for choosing AgreementPrint." />
       <div className="border border-stone-200 bg-white p-8 sm:p-10 rounded-2xl shadow-sm space-y-5">
         <div className={`mx-auto w-14 h-14 rounded-full flex items-center justify-center ${iconColor}`}>
           <Icon className={`w-7 h-7 ${result === 'checking' ? 'animate-pulse' : ''}`} />
@@ -184,6 +194,7 @@ function PhonePeReturnContent() {
         <div>
           <Link href="/my-orders" className="text-sm font-semibold text-amber-800 underline underline-offset-2">Go to My Orders</Link>
         </div>
+        {displayResult === 'paid' && <DownloadBillButton orderId={orderId} />}
       </div>
     </main>
   );

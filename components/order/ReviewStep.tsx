@@ -1,5 +1,7 @@
 'use client';
 
+import { readApiResponse } from '@/lib/api-response';
+
 import React, { useState, useEffect, useRef } from 'react';
 import Script from 'next/script';
 import { 
@@ -96,12 +98,18 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
   const [referralEligibility, setReferralEligibility] = useState<{ uid: string; eligible: boolean } | null>(null);
   const canApplyReferralCode = Boolean(user && referralEligibility?.uid === user.uid && referralEligibility.eligible);
   const [referralBalanceLoading, setReferralBalanceLoading] = useState(false);
+  const [referralLoadError, setReferralLoadError] = useState('');
   const [creditAmount, setCreditAmount] = useState('0');
   const [phonePeSdkReady, setPhonePeSdkReady] = useState(false);
   const [phonePeSdkError, setPhonePeSdkError] = useState<string | null>(null);
   const checkoutAttemptRef = useRef<string | null>(null);
   const [feeReload, setFeeReload] = useState(0);
+  const [couponQuote, setCouponQuote] = useState<{ code: string; key: string; total: number; couponDiscount: number } | null>(null);
+  const [couponBusy, setCouponBusy] = useState(false), [couponError, setCouponError] = useState('');
   const quoteKey = JSON.stringify([termsData.stampPaperDenomination, termsData.deliveryLocation, termsData.includeNotary, submissionError, feeReload]);
+  const normalizedCoupon = referralCode.trim().toUpperCase().replace(/[\s-]/g, '');
+  const couponApplied = canApplyReferralCode && couponQuote?.code === normalizedCoupon && couponQuote?.key === quoteKey;
+  const totalAfterCoupon = couponApplied ? couponQuote.total : null;
   const [feeState, setFeeState] = useState<FeeState>({
     loading: true,
     feesConfigured: false,
@@ -114,6 +122,20 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
     statusMessage: '',
     paymentAllowed: false,
   });
+  const payableTotal = totalAfterCoupon ?? feeState.totalPayable ?? 0;
+  async function applyCoupon() {
+    if (!user) return;
+    setCouponBusy(true); setCouponError('');
+    const key = quoteKey, code = normalizedCoupon;
+    try {
+      const response = await fetch('/api/referrals/validate', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ code, orderId: paymentOrderId, packageOptions: { stampPaperDenomination: termsData.stampPaperDenomination, deliveryLocation: termsData.deliveryLocation, includeNotary: termsData.includeNotary === true } }) });
+      const quote = await readApiResponse(response);
+      if (quote.subtotal !== feeState.totalPayable) { setFeeReload(value => value + 1); throw new Error('The package price changed. Review the refreshed price and apply your coupon again.'); }
+      setCouponQuote({ code, key, total: quote.total, couponDiscount: quote.couponDiscount });
+      setCreditAmount(value => String(Math.min(Number(value) || 0, quote.total)));
+    } catch (err) { setCouponQuote(null); setCouponError(err instanceof Error ? err.message : 'Could not apply coupon.'); }
+    finally { setCouponBusy(false); }
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -126,7 +148,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         const response = await fetch('/api/referrals/me', {
           headers: { Authorization: `Bearer ${idToken}` },
         });
-        const data = await response.json();
+        const data = await readApiResponse(response);
         if (!response.ok) throw new Error(data.error || 'Could not load referral credit.');
         if (isMounted) {
           setReferralBalance(Number(data.balance || 0));
@@ -134,6 +156,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         }
       } catch (error) {
         console.error('Could not load referral credit for checkout:', error);
+        if (isMounted) setReferralLoadError('Could not check coupon eligibility or credits. Refresh this page before applying a coupon.');
       } finally {
         if (isMounted) setReferralBalanceLoading(false);
       }
@@ -166,7 +189,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         });
 
         if (!res.ok) throw new Error('Could not calculate fee');
-        const data = await res.json();
+        const data = await readApiResponse(res);
         if (isMounted) {
           setFeeState({
             loading: false,
@@ -362,21 +385,26 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
       )}
 
       <div className="grid grid-cols-1 gap-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:grid-cols-2">
+        {referralLoadError && <p role="alert" className="text-sm text-rose-800 sm:col-span-2">{referralLoadError}</p>}
+        {referralEligibility && !referralEligibility.eligible && <p className="text-sm text-stone-600 sm:col-span-2">Referral coupons give a discount on your first paid order only. You can still use earned referral credits.</p>}
         {canApplyReferralCode && (
         <label className="block text-xs font-bold text-stone-800">
-          Referral code <span className="font-normal text-stone-500">(optional)</span>
+          Coupon code <span className="font-normal text-stone-500">(optional)</span>
           <input
             type="text"
-            maxLength={12}
+            maxLength={20}
             value={referralCode}
             onChange={(event) => onReferralCodeChange(event.target.value.toUpperCase().replace(/[\s-]/g, ''))}
-            disabled={paymentPending || Boolean(phonePeCheckout)}
-            placeholder="Enter a friend’s code"
+            disabled={Boolean(phonePeCheckout)}
+            placeholder="Enter your coupon code"
             className="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm uppercase text-stone-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 disabled:bg-stone-100"
           />
           <span className="mt-1 block font-normal text-stone-500">
-            Referral codes can be used on your first paid order.
+            Use a customer or agent coupon for a discount on this first order.
           </span>
+          <button type="button" disabled={couponBusy || !normalizedCoupon || Boolean(phonePeCheckout)} onClick={() => void applyCoupon()} className="mt-2 rounded-lg bg-amber-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{couponBusy ? 'Checking…' : couponApplied ? 'Recheck Coupon' : 'Confirm Coupon'}</button>
+          {couponApplied && <span role="status" className="mt-2 block font-semibold text-emerald-800">Coupon applied: ₹{couponQuote.couponDiscount.toLocaleString('en-IN')} off this order.</span>}
+          {couponError && <span role="alert" className="mt-2 block font-normal text-rose-800">{couponError}</span>}
         </label>
         )}
 
@@ -385,7 +413,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <input
             type="number"
             min="0"
-            max={Math.min(referralBalance, feeState.totalPayable ?? 0)}
+            max={Math.min(referralBalance, payableTotal)}
             step="1"
             value={creditAmount}
             onChange={(event) => setCreditAmount(event.target.value)}
@@ -560,9 +588,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
                 {feeState.includeNotary ? `+₹${(feeState.notaryFee ?? 200).toLocaleString('en-IN')}` : 'Not selected (₹0)'}
               </span>
             </div>
+            {couponApplied && <div className="flex justify-between gap-3 text-emerald-300"><span>First-order discount:</span><span className="font-mono">−₹{couponQuote.couponDiscount.toLocaleString('en-IN')}</span></div>}
             <div className="border-t border-stone-800 pt-3 flex justify-between text-sm font-bold text-amber-400">
               <span>Total Payable Amount:</span>
-              <span className="font-mono text-base">₹{feeState.totalPayable?.toLocaleString('en-IN')}</span>
+              <span className="font-mono text-base">₹{payableTotal.toLocaleString('en-IN')}</span>
             </div>
             {Number(creditAmount) > 0 && (
               <>
@@ -573,7 +602,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
                 <div className="flex justify-between border-t border-stone-800 pt-2 text-sm font-bold text-white">
                   <span>Amount due:</span>
                   <span className="font-mono">
-                    ₹{Math.max(0, (feeState.totalPayable ?? 0) - Number(creditAmount)).toLocaleString('en-IN')}
+                    ₹{Math.max(0, payableTotal - Number(creditAmount)).toLocaleString('en-IN')}
                   </span>
                 </div>
               </>
@@ -617,8 +646,8 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         <div className="pt-2">
           <button
             type="button"
-            disabled={submitting || feeState.loading || feeState.quoteKey !== quoteKey || !feeState.paymentAllowed || Boolean(feeState.error) || (Boolean(phonePeCheckout) && !phonePeSdkError)}
-            onClick={() => void onSubmitOrder(canApplyReferralCode ? referralCode : '', Number(creditAmount || 0), feeState.totalPayable ?? 0)}
+            disabled={submitting || couponBusy || (Boolean(normalizedCoupon) && !referralEligibility) || (canApplyReferralCode && Boolean(normalizedCoupon) && !couponApplied) || Number(creditAmount) > Math.min(referralBalance, payableTotal) || feeState.loading || feeState.quoteKey !== quoteKey || !feeState.paymentAllowed || Boolean(feeState.error) || (Boolean(phonePeCheckout) && !phonePeSdkError)}
+            onClick={() => void onSubmitOrder(canApplyReferralCode ? normalizedCoupon : '', Number(creditAmount || 0), payableTotal)}
             className="w-full bg-amber-500 hover:bg-amber-400 disabled:bg-stone-600 text-stone-950 font-bold py-3.5 px-6 rounded-xl text-xs uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
           >
             {submitting ? (

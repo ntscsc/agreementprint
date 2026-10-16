@@ -4,6 +4,8 @@ import { getAdminDb, verifyFirebaseIdToken } from '@/lib/firebase-admin';
 import { ADMIN_EMAILS } from '@/src/config/admin';
 import { getReferralRewardAmount } from '@/lib/referral-admin';
 import { isValidReferralRewardAmount } from '@/lib/referral-utils';
+import { couponDiscountAmount } from '@/lib/coupon';
+import { randomUUID } from 'node:crypto';
 
 async function requireAdmin(request: NextRequest) {
   const idToken = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
@@ -25,18 +27,30 @@ export async function GET(request: NextRequest) {
     }
 
     const db = getAdminDb();
-    const [settings, rewards] = await Promise.all([
+    const [settings, rewards, legacyDiscounts, paidOrders] = await Promise.all([
       db.collection('settings').doc('referrals').get(),
       db.collection('referralRewards').get(),
+      db.collection('settings').doc('coupons').get(),
+      db.collection('orders').where('payment.status', '==', 'Paid').get(),
     ]);
+    const confirmedOrders = new Map(paidOrders.docs.map(doc => [doc.id, doc.data().ownerUid]));
+    const confirmedRewards = rewards.docs.filter(reward => {
+      const data = reward.data();
+      return data.kind !== 'agent' && typeof data.orderId === 'string' &&
+        typeof data.referredUid === 'string' && !!data.referredUid && reward.id === data.referredUid &&
+        typeof data.referrerUid === 'string' && !!data.referrerUid && data.referrerUid !== data.referredUid &&
+        confirmedOrders.has(data.orderId) && confirmedOrders.get(data.orderId) === data.referredUid &&
+        isValidReferralRewardAmount(data.amount);
+    });
     return NextResponse.json({
       rewardAmount: getReferralRewardAmount(settings.data()),
-      rewardedReferrals: rewards.size,
-      totalCreditsIssued: rewards.docs.reduce(
+      refereeDiscountAmount: couponDiscountAmount({}, { ...legacyDiscounts.data(), ...settings.data() }),
+      rewardedReferrals: confirmedRewards.length,
+      totalCreditsIssued: confirmedRewards.reduce(
         (total, reward) => total + Number(reward.data().amount || 0),
         0,
       ),
-    });
+    }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     const status = inputErrorStatus(error);
     if (status) return NextResponse.json({ error: status === 401 ? 'Sign in again to continue.' : (error as Error).message }, { status });
@@ -53,19 +67,31 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await readJsonObject(request);
-    if (!isValidReferralRewardAmount(body?.rewardAmount)) {
+    if (!isValidReferralRewardAmount(body?.rewardAmount) || !isValidReferralRewardAmount(body?.refereeDiscountAmount)) {
       return NextResponse.json({
-        error: 'Reward amount must be a whole-number value from ₹0 to ₹100,000.',
+        error: 'Enter both the referrer credit and first-order discount as whole rupees from ₹0 to ₹100,000.',
       }, { status: 400 });
     }
 
-    await getAdminDb().collection('settings').doc('referrals').set({
-      rewardAmount: body.rewardAmount,
-      updatedAt: new Date().toISOString(),
-      updatedBy: admin.email,
-    }, { merge: true });
+    const db = getAdminDb();
+    const timestamp = new Date().toISOString();
+    const logId = `REFERRAL_${randomUUID()}`;
+    await db.runTransaction(async transaction => {
+      transaction.set(db.collection('settings').doc('referrals'), {
+        rewardAmount: body.rewardAmount,
+        refereeDiscountAmount: body.refereeDiscountAmount,
+        updatedAt: timestamp,
+        updatedBy: admin.email,
+      }, { merge: true });
+      transaction.create(db.collection('adminLogs').doc(logId), {
+        logId, orderId: 'REFERRAL_CONFIG', adminUid: admin.uid, adminEmail: admin.email,
+        action: 'REFERRAL_REWARD_UPDATED',
+        notes: `Customer referrer credit: INR ${body.rewardAmount}; first-order discount: INR ${body.refereeDiscountAmount}.`,
+        timestamp,
+      });
+    });
 
-    return NextResponse.json({ saved: true, rewardAmount: body.rewardAmount });
+    return NextResponse.json({ saved: true, rewardAmount: body.rewardAmount, refereeDiscountAmount: body.refereeDiscountAmount });
   } catch (error) {
     const status = inputErrorStatus(error);
     if (status) return NextResponse.json({ error: status === 401 ? 'Sign in again to continue.' : (error as Error).message }, { status });

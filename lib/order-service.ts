@@ -115,13 +115,20 @@ export async function submitDocumentCorrection(
     tenantDetails?: Order['tenantDetails'];
     propertyDetails?: Order['propertyDetails'];
     proofUploads?: Order['proofUploads'];
+    customerClarification?: string;
   }
 ): Promise<void> {
   const path = `orders/${orderId}`;
   try {
+    if (corrections.customerClarification !== undefined && (
+      typeof corrections.customerClarification !== 'string' ||
+      corrections.customerClarification.trim().length < 5 ||
+      corrections.customerClarification.length > 3000
+    )) throw new Error('Enter a clarification between 5 and 3000 characters.');
     const orderRef = doc(db, 'orders', orderId);
     await updateDoc(orderRef, {
       ...corrections,
+      ...(corrections.customerClarification !== undefined ? { customerClarification: corrections.customerClarification.trim() } : {}),
       status: 'Under verification' as OrderStatus,
       updatedAt: new Date().toISOString(),
     });

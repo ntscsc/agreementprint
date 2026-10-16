@@ -9,6 +9,7 @@ import { confirmPaidOrderAndGrantReferral, releaseReferralReservation, reserveRe
 import { isTrustedPaymentAttempt } from '@/lib/payment-attempt';
 import { acquireCheckoutLock, assertCheckoutLock, releaseCheckoutLock } from '@/lib/checkout-lock';
 import { checkoutDetailsChanged, selectCheckoutDetails } from '@/lib/order-checkout-details';
+import { getCouponQuote } from '@/lib/coupon-server';
 
 export async function POST(req: NextRequest) {
   let lock: { orderId: string; token: string } | undefined;
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     catch (error) { return NextResponse.json({ error: (error as Error).message }, { status: 409 }); }
     // Read again under the distributed lock, rather than using the pre-lock snapshot.
     order = (await orderRef.get()).data()!;
-    if (order.payment?.gateway === 'ReferralCredit' && order.payment?.reservationKey && order.payment?.status === 'Pending') {
+    if (['ReferralCredit', 'Coupon'].includes(order.payment?.gateway) && order.payment?.reservationKey && order.payment?.status === 'Pending') {
       validateAgreement(order);
       await confirmPaidOrderAndGrantReferral(orderId, { reservationKey: order.payment.reservationKey, paymentUpdates: {
         'payment.referralCreditApplied': order.payment.referralCreditApplied,
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
         if (checkoutDetailsChanged(order, details) || requested !== previousAttempt.creditApplied) {
           return NextResponse.json({ error: 'The existing checkout is still pending. Finish it or wait for confirmed expiry before changing the order or credits.' }, { status: 409 });
         }
-        if (body.reviewedTotal !== previousAttempt.amount + previousAttempt.creditApplied) return NextResponse.json({ error: 'Review the payable total before continuing.', quoteRequired: true, reviewedTotal: previousAttempt.amount + previousAttempt.creditApplied, creditApplied: previousAttempt.creditApplied, amountDue: previousAttempt.amount }, { status: 409 });
+        if (body.reviewedTotal !== previousAttempt.amount + previousAttempt.creditApplied) return NextResponse.json({ error: 'Review the payable total before continuing.', quoteRequired: true, reviewedTotal: previousAttempt.amount + previousAttempt.creditApplied, subtotal: previousAttempt.subtotal ?? previousAttempt.amount + previousAttempt.creditApplied, couponDiscount: previousAttempt.couponDiscount ?? 0, couponCode: previousAttempt.couponCode ?? '', creditApplied: previousAttempt.creditApplied, amountDue: previousAttempt.amount }, { status: 409 });
         if (!previousAttempt.redirectUrl) return NextResponse.json({ error: 'Checkout is being verified. Please retry shortly; another charge has not been started.' }, { status: 409 });
         return NextResponse.json({ available: true, redirectUrl: previousAttempt.redirectUrl, merchantOrderId: previousMerchantOrderId, initiatedAt: previousAttempt.initiatedAt, creditApplied: previousAttempt.creditApplied, amountDue: previousAttempt.amount });
       }
@@ -97,8 +98,9 @@ export async function POST(req: NextRequest) {
     const terms = (details.agreementTerms ?? order.agreementTerms ?? {}) as Record<string, unknown>;
     const price = calculateOrderPrice(pricing, terms.stampPaperDenomination === 200 ? 200 : 100, terms.deliveryLocation === 'Within Tamil Nadu' ? 'Within Tamil Nadu' : 'Within Chennai', Boolean(terms.includeNotary));
     if (!Number.isSafeInteger(price.totalPayable) || price.totalPayable <= 0) return NextResponse.json({ error: 'The pricing configuration is invalid. Contact support.' }, { status: 503 });
-    if (requested > price.totalPayable) return NextResponse.json({ error: 'Referral credit cannot exceed the order total.' }, { status: 409 });
-    if (body.reviewedTotal !== price.totalPayable) return NextResponse.json({ error: 'Review the payable total before continuing.', quoteRequired: true, reviewedTotal: price.totalPayable, creditApplied: requested, amountDue: price.totalPayable - requested }, { status: 409 });
+    const coupon = await getCouponQuote(db, decoded.uid, String(details.referralCode ?? order.referralCode ?? ''), price.totalPayable, orderId);
+    if (requested > coupon.total) return NextResponse.json({ error: 'Available credits cannot exceed the order total.' }, { status: 409 });
+    if (body.reviewedTotal !== coupon.total) return NextResponse.json({ error: 'Review the payable total before continuing.', quoteRequired: true, reviewedTotal: coupon.total, subtotal: coupon.subtotal, couponDiscount: coupon.couponDiscount, couponCode: coupon.code, creditApplied: requested, amountDue: coupon.total - requested }, { status: 409 });
     // Save validated details only after the customer has reviewed this exact amount.
     if (Object.keys(details).length) {
       await db.runTransaction(async (tx) => {
@@ -109,7 +111,7 @@ export async function POST(req: NextRequest) {
       });
       order = { ...order, ...details };
     }
-    const amountDue = price.totalPayable - requested;
+    const amountDue = coupon.total - requested;
     if (amountDue > 0 && !credentials) return NextResponse.json({ available: false, error: 'Online payment is not configured. Your order is saved.' }, { status: 503 });
     const merchantOrderId = `TN${randomUUID().replace(/-/g, '')}`;
     const initiatedAt = Date.now();
@@ -121,12 +123,12 @@ export async function POST(req: NextRequest) {
     // A timeout/crash leaves the same attempt recoverable, never a second payable ID.
     try {
       await reserveReferralCreditForOrder(orderId, decoded.uid, requested, {
-        merchantOrderId, lockToken: lock.token, totalBeforeCredits: price.totalPayable,
-        paymentAttempt: amountDue > 0 ? { orderId, ownerUid: decoded.uid, merchantOrderId, amount: amountDue, creditApplied: requested, initiatedAt, redirectUrl: '', returnUrl: returnUrl.toString(), state: 'INITIALIZING', totalBeforeCredits: price.totalPayable } : undefined,
+        merchantOrderId, lockToken: lock.token, totalBeforeCredits: coupon.total, coupon,
+        paymentAttempt: amountDue > 0 ? { orderId, ownerUid: decoded.uid, merchantOrderId, amount: amountDue, creditApplied: requested, initiatedAt, redirectUrl: '', returnUrl: returnUrl.toString(), state: 'INITIALIZING', totalBeforeCredits: coupon.total, subtotal: coupon.subtotal, couponDiscount: coupon.couponDiscount, couponCode: coupon.code } : undefined,
       });
     } catch (error) { return NextResponse.json({ error: (error as Error).message }, { status: 409 }); }
     if (amountDue === 0) {
-      await confirmPaidOrderAndGrantReferral(orderId, { reservationKey: merchantOrderId, paymentUpdates: { 'payment.gateway': 'ReferralCredit', 'payment.amount': 0, 'payment.totalBeforeCredits': price.totalPayable, 'payment.referralCreditApplied': requested } });
+      await confirmPaidOrderAndGrantReferral(orderId, { reservationKey: merchantOrderId, paymentUpdates: { 'payment.gateway': requested > 0 ? 'ReferralCredit' : 'Coupon', 'payment.amount': 0, 'payment.totalBeforeCredits': coupon.total, 'payment.referralCreditApplied': requested } });
       return NextResponse.json({ available: true, paid: true, order: (await orderRef.get()).data(), creditApplied: requested, amountDue: 0 });
     }
     const accessToken = await getPhonePeAccessToken(credentials!);

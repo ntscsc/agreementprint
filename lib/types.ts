@@ -60,9 +60,12 @@ export interface OrderPayment {
   status: PaymentStatus;
   amount?: number;
   totalBeforeCredits?: number;
+  subtotal?: number;
+  couponDiscount?: number;
+  couponCode?: string;
   referralCreditApplied?: number;
   reservationKey?: string;
-  gateway?: 'PhonePe' | 'ReferralCredit' | 'Razorpay';
+  gateway?: 'PhonePe' | 'ReferralCredit' | 'Coupon' | 'Razorpay';
   phonepeMerchantOrderId?: string;
   phonepeMerchantOrderIds?: string[];
   phonepePaymentAttempts?: Array<{
@@ -101,6 +104,7 @@ export interface Order {
   payment: OrderPayment;
   courier?: OrderCourier;
   correctionMessage?: string;
+  customerClarification?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;

@@ -1,28 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { DEFAULT_SUPPORT_EMAIL, getSupportEmail } from '@/lib/support-email';
+import { useEffect, useState, type ReactNode } from 'react';
+import { DEFAULT_SUPPORT_EMAIL, subscribeToSupportEmail } from '@/lib/support-email';
 
 interface SupportEmailLinkProps {
   className?: string;
+  children?: ReactNode;
 }
 
-export function SupportEmailLink({ className }: SupportEmailLinkProps) {
+export function SupportEmailLink({ className, children }: SupportEmailLinkProps) {
   const [email, setEmail] = useState(DEFAULT_SUPPORT_EMAIL);
 
-  useEffect(() => {
-    let isMounted = true;
-    getSupportEmail().then((supportEmail) => {
-      if (isMounted) setEmail(supportEmail);
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  useEffect(() => subscribeToSupportEmail(setEmail), []);
 
   return (
     <a href={`mailto:${email}`} className={className}>
-      {email}
+      {children ?? email}
     </a>
   );
 }

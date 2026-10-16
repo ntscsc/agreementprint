@@ -1,5 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { ADMIN_EMAILS, isUserAdmin } from '../src/config/admin.ts';
+
+test('Firestore and Storage administrator allowlists match the application', () => {
+  for (const name of ['firestore.rules', 'storage.rules']) {
+    const source = readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+    const emails = [...source.matchAll(/request\.auth\.token\.email == "([^"]+)"/g)].map(match => match[1]);
+    assert.deepEqual(emails.sort(), [...ADMIN_EMAILS].sort(), `${name} must use the same verified administrators`);
+  }
+});
 
 // Structural rule validator representing the logic encoded in firestore.rules
 interface OrderDataMock {
@@ -70,7 +80,7 @@ function canCustomerUpdateOrder(
   incomingDoc: OrderDataMock
 ): { allowed: boolean; reason?: string } {
   if (!auth) return { allowed: false, reason: 'Unauthenticated' };
-  const isAdmin = (auth.email === 'pradhiip92@gmail.com' || auth.email === 'pradeep1992official@gmail.com') && auth.email_verified === true;
+  const isAdmin = isUserAdmin(auth.email, auth.email_verified === true);
   if (isAdmin) return { allowed: true }; // Admin can update
 
   const isOwner = auth.uid === existingDoc.ownerUid;
@@ -194,7 +204,7 @@ test('Firestore Security Rules: Status Transitions & Tamper Protection', () => {
   // Admin update always permitted
   assert.equal(
     canCustomerUpdateOrder(
-      { uid: 'admin_1', email: 'pradhiip92@gmail.com', email_verified: true },
+      { uid: 'admin_1', email: ADMIN_EMAILS[0], email_verified: true },
       existingOrder,
       {
         ...existingOrder,

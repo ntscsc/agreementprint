@@ -14,8 +14,11 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { Order } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
+import { Celebration, paidOrderCelebrationKey } from '@/components/Celebration';
 import { VENDOR_CONFIG } from '@/src/config/vendor';
 import { RentalAgreementDocument } from '@/components/agreement/RentalAgreementDocument';
+import { DownloadBillButton } from '@/components/order/DownloadBillButton';
 
 interface OrderConfirmationProps {
   order: Order;
@@ -23,6 +26,7 @@ interface OrderConfirmationProps {
 }
 
 export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onStartNew }) => {
+  const { user } = useAuth();
   const [showAgreementPreview, setShowAgreementPreview] = useState<boolean>(false);
 
   if (showAgreementPreview) {
@@ -56,6 +60,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
   }
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6 space-y-8 animate-in fade-in duration-200">
+      <Celebration eventKey={user && order.payment.status === 'Paid' ? paidOrderCelebrationKey(user.uid, order.orderId) : null} message="Payment confirmed! Your agreement is on its way to being prepared." />
       {/* Success Badge Banner */}
       <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 sm:p-8 text-center space-y-4">
         <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
@@ -94,7 +99,8 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
             <div className="space-y-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:col-span-2">
               <span className="block text-xs font-bold text-emerald-900">Payment summary</span>
               <div className="flex flex-wrap gap-x-6 gap-y-1 text-stone-700">
-                <span>Order total: ₹{(order.payment.totalBeforeCredits ?? order.payment.amount ?? 0).toLocaleString('en-IN')}</span>
+                <span>Package total: ₹{(order.payment.subtotal ?? order.payment.totalBeforeCredits ?? order.payment.amount ?? 0).toLocaleString('en-IN')}</span>
+                {(order.payment.couponDiscount ?? 0) > 0 && <span>Coupon discount ({order.payment.couponCode}): −₹{order.payment.couponDiscount?.toLocaleString('en-IN')}</span>}
                 {(order.payment.referralCreditApplied ?? 0) > 0 && (
                   <span>Referral credit: −₹{order.payment.referralCreditApplied?.toLocaleString('en-IN')}</span>
                 )}
@@ -172,6 +178,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
         </div>
 
         {/* Actions */}
+        {order.payment.status === 'Paid' && <DownloadBillButton orderId={order.orderId} />}
         <div className="border-t border-stone-200 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <button
             type="button"
