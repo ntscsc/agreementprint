@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { VENDOR_CONFIG } from '@/src/config/vendor';
+import { GRIEVANCE_PHONE, VENDOR_CONFIG } from '@/src/config/vendor';
 import { SupportEmailLink } from '@/components/SupportEmailLink';
 
 export function BusinessContact({ showOperator = true, showAddress = true }: { showOperator?: boolean; showAddress?: boolean }) {
@@ -30,6 +30,7 @@ export function PolicyPage({ title, children }: { title: string; children: React
         <div className="space-y-2 border-t border-stone-200 pt-3">
           <h3 className="font-semibold text-stone-900">Grievance officer</h3>
           <p>Name: Mr. Sai Ram<br />Designation: Grievance Officer</p>
+          <p>Grievance phone: <a href={`tel:+91${GRIEVANCE_PHONE}`} className="text-amber-800 underline">+91 {GRIEVANCE_PHONE}</a></p>
           <p>Email: <SupportEmailLink className="text-amber-800 underline break-all" /></p>
           <p>Send complaints to the grievance officer using the email above, with your order ID and a description of the issue. We acknowledge complaints within 48 hours of receipt and resolve them within one month of receipt.</p>
         </div>

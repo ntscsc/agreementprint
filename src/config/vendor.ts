@@ -85,3 +85,6 @@ export const VENDOR_CONFIG: VendorConfig = {
 };
 
 export const VENDOR_SERVICE_TITLE = 'Authorised Non-Judicial Stamp Paper & e-Stamp Vendor';
+
+// Used only in grievance-officer sections, separate from general support.
+export const GRIEVANCE_PHONE = '8248555629';
