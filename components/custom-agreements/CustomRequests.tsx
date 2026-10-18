@@ -73,9 +73,10 @@ function RequestCard({ request: r, admin, token, refresh }: { request: CustomReq
     finally { setBusy(false); }
   }
   async function payment(action: 'pay' | 'status') {
-    setBusy(true); setError('');
     try {
-      const result = await api(await token(), '/api/custom-agreements/payment', 'POST', { requestId: r.requestId, action, quoteAmount: r.quoteAmount });
+      const authorization = await token();
+      setBusy(true); setError('');
+      const result = await api(authorization, '/api/custom-agreements/payment', 'POST', { requestId: r.requestId, action, quoteAmount: r.quoteAmount });
       if (result.redirectUrl && action === 'pay') { window.location.assign(result.redirectUrl); return; }
       if (!result.paid) setError(result.state === 'PENDING' ? 'Payment is awaiting confirmation. Please check again shortly.' : 'Payment has not completed. You can retry payment when ready.');
       await refresh();
@@ -83,7 +84,15 @@ function RequestCard({ request: r, admin, token, refresh }: { request: CustomReq
     finally { setBusy(false); }
   }
   useEffect(() => {
-    if (!admin && new URLSearchParams(window.location.search).get('paymentRequest') === r.requestId && r.payment?.status === 'Pending') void payment('status');
+    if (admin || new URLSearchParams(window.location.search).get('paymentRequest') !== r.requestId || r.payment?.status !== 'Pending') return;
+    let active = true;
+    const checkStatus = async () => api(await token(), '/api/custom-agreements/payment', 'POST', { requestId: r.requestId, action: 'status', quoteAmount: r.quoteAmount });
+    checkStatus().then(async result => {
+      if (!active) return;
+      if (!result.paid) setError(result.state === 'PENDING' ? 'Payment is awaiting confirmation. Please check again shortly.' : 'Payment has not completed. You can retry payment when ready.');
+      await refresh();
+    }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to check payment status.'); });
+    return () => { active = false; };
     // Reconcile once after returning from checkout.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

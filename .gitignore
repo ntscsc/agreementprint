@@ -5,6 +5,9 @@ node_modules/
 .next-review/
 coverage/
 tmp/pdfs/
+tmp/whatsapp-feature-chrome/
+tmp/whatsapp-features.html
+output/
 .DS_Store
 *.log
 .env*

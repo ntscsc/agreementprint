@@ -1,6 +1,6 @@
 'use client';
 import { ExtraCopiesField } from '@/components/order/ExtraCopiesField';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { readApiResponse } from '@/lib/api-response';
@@ -10,14 +10,18 @@ const field = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2
 const blank: CustomInput = { agreementType: '', purpose: '', language: 'English', instructions: '', preferredDate: '', name: '', phone: '', email: '', extraCopies: 0, stampPaperDenomination: 100, contactConsent: false, includeNotary: false };
 export function CustomRequestForm() {
   const { user, loading, signInWithGoogle, customerProfile } = useAuth();
-  const [data, setData] = useState(blank), [files, setFiles] = useState<File[]>([]);
+  const [enteredData, setData] = useState(blank), [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false), [progress, setProgress] = useState(''), [error, setError] = useState(''), [success, setSuccess] = useState('');
   const pending = useRef<{ requestId: string; ownerUid: string; uploaded: Set<string> } | null>(null);
   const sampleInput = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (customerProfile) setData(previous => ({ ...previous, name: previous.name || customerProfile.name, phone: previous.phone || customerProfile.phone, email: previous.email || user?.email || '' }));
-  }, [customerProfile, user?.email]);
-  const update = (key: keyof CustomInput, value: string | boolean | number) => { setData((old) => ({ ...old, [key]: value })); pending.current = null; };
+  const [editedFields, setEditedFields] = useState<Partial<Record<keyof CustomInput, boolean>>>({});
+  const data: CustomInput = {
+    ...enteredData,
+    name: editedFields.name ? enteredData.name : enteredData.name || customerProfile?.name || '',
+    phone: editedFields.phone ? enteredData.phone : enteredData.phone || customerProfile?.phone || '',
+    email: editedFields.email ? enteredData.email : enteredData.email || user?.email || '',
+  };
+  const update = (key: keyof CustomInput, value: string | boolean | number) => { setEditedFields(previous => ({ ...previous, [key]: true })); setData((old) => ({ ...old, [key]: value })); pending.current = null; };
   const removeSample = (index: number) => {
     setFiles((selected) => selected.filter((_, i) => i !== index));
     if (sampleInput.current) sampleInput.current.value = '';

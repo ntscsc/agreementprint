@@ -92,7 +92,7 @@ function AdminBody() {
   const [localSignInError, setLocalSignInError] = useState<string | null>(null);
 
   // Active Admin Console tab
-  const [activeTab, setActiveTab] = useState<'orders' | 'enquiries' | 'pricing' | 'support' | 'couriers' | 'referrals' | 'custom'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'enquiries' | 'pricing' | 'support' | 'couriers' | 'referrals' | 'custom' | 'reports' | 'reviews'>('orders');
 
   // Pricing State
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
@@ -744,14 +744,25 @@ function AdminBody() {
         <div className="admin-hero-copy"><span className="admin-eyebrow"><ShieldCheck aria-hidden="true" className="h-4 w-4" />AgreementPrint Administration</span><h1>Administration</h1><p>Manage agreements, preparation, delivery and customer requests.</p><span className="admin-account"><span aria-hidden="true" /><SupportEmailLink className="rounded-sm hover:underline" /></span></div>
         <div className="admin-hero-actions"><Link href="/" className="admin-website-link"><ExternalLink aria-hidden="true" className="h-4 w-4" />View website</Link>{(activeTab === 'orders' || activeTab === 'enquiries') && <button type="button" onClick={activeTab === 'orders' ? fetchOrderList : fetchEnquiries} disabled={activeTab === 'orders' ? loadingOrders : loadingEnquiries || updatingEnquiryId !== null || deletingEnquiryId !== null} className="admin-refresh"><RefreshCw aria-hidden="true" className={`h-4 w-4 ${(activeTab === 'orders' ? loadingOrders : loadingEnquiries) ? 'animate-spin' : ''}`} />Refresh {activeTab === 'orders' ? 'orders' : 'enquiries'}</button>}</div>
       </header>
-      <AdminReportDownload />
       <nav aria-label="Admin sections" className="admin-navigation">
         <div className="grid gap-6 lg:grid-cols-[1fr_1.25fr]">
-          {[{ label: 'Daily work', items: [{ id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Settings & rewards', items: [{ id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Couriers', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }].map((group) => <div key={group.label}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
+          {[{ label: 'Daily work', items: [{ id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Business tools & settings', items: [{ id: 'reports' as const, label: 'Reports & Analytics', icon: FileText }, { id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Dispatch & Envelopes', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }, { label: 'Reviews & refunds', items: [{ id: 'reviews' as const, label: 'Reviews & Refunds', icon: MessageSquare }] }].map((group) => <div key={group.label} className={group.label === 'Reviews & refunds' ? 'border-t border-stone-200 pt-4 lg:col-span-2' : undefined}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
         </div>
       </nav>
 
-      {activeTab === 'custom' ? <CustomRequests admin /> : activeTab === 'enquiries' ? (
+      {activeTab === 'reports' ? (
+        <section className="space-y-5" aria-label="Reports and analytics">
+          <header><h2 className="text-2xl font-bold text-stone-900">Reports &amp; Analytics</h2><p className="mt-2 text-sm text-stone-600">Download your business records or view website activity.</p></header>
+          <AdminReportDownload />
+          <details className="rounded-2xl border border-stone-200 bg-white p-5"><summary className="cursor-pointer text-sm font-semibold text-stone-700">Website visitor activity</summary><div className="mt-5"><AdminVisitorStats /></div></details>
+        </section>
+      ) : activeTab === 'reviews' ? (
+        <section className="space-y-5" aria-label="Reviews and refunds">
+          <header><h2 className="text-2xl font-bold text-stone-900">Reviews &amp; Refunds</h2><p className="mt-2 text-sm text-stone-600">Manage customer feedback, order-change reviews and refund requests.</p></header>
+          <CustomerReviewModeration />
+          <div className="grid items-start gap-4 xl:grid-cols-2"><OrderReplacementRequests /><CreditRefundRequests /></div>
+        </section>
+      ) : activeTab === 'custom' ? <CustomRequests admin /> : activeTab === 'enquiries' ? (
         <section className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5 animate-in fade-in duration-200">
           <div className="border-b border-stone-200 pb-5">
             <span className="text-xs font-bold uppercase tracking-wider text-indigo-800 bg-indigo-100 px-2.5 py-0.5 rounded-full">
@@ -957,13 +968,12 @@ function AdminBody() {
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
               Dispatch Options
             </span>
-            <h2 className="text-xl font-bold text-stone-900 mt-1">Courier Partners</h2>
+            <h2 className="text-xl font-bold text-stone-900 mt-1">Dispatch &amp; Envelopes</h2>
             <p className="text-xs text-stone-500 mt-0.5">
               Manage the courier choices available when dispatching an order. New options will be available after saving.
             </p>
           </div>
 
-          <EnvelopePrint />
           {courierPartnersSavedToast && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2 font-semibold" role="status">
               <Check className="w-4 h-4 text-emerald-600" />
@@ -1028,6 +1038,7 @@ function AdminBody() {
               <span>{savingCourierPartners ? 'Saving...' : 'Save Courier Partners'}</span>
             </button>
           </div>
+          <section className="border-t border-stone-200 pt-6"><h3 className="mb-3 text-lg font-bold text-stone-900">Envelope printing</h3><EnvelopePrint /></section>
         </div>
       ) : activeTab === 'support' ? (
         <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in duration-200">
@@ -1397,12 +1408,6 @@ function AdminBody() {
         )}
       </div>
         </>
-      )}
-
-      {activeTab === 'orders' && <details className="rounded-2xl border border-stone-200 bg-white p-5"><summary className="cursor-pointer text-sm font-semibold text-stone-600">Visitor activity &amp; analytics</summary><div className="mt-5"><AdminVisitorStats /></div></details>}
-
-      {activeTab === 'orders' && (
-      <section className="space-y-3"><h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">Reviews &amp; refunds</h3><div className="grid items-start gap-3 lg:grid-cols-2"><CustomerReviewModeration /><CreditRefundRequests /><OrderReplacementRequests /></div></section>
       )}
 
       {/* Order Detail Modal */}

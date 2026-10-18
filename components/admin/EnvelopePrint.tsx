@@ -26,7 +26,6 @@ export function EnvelopePrint({ order }: { order?: Order }) {
   useEffect(() => {
     let active = true;
     if (!user) return;
-    setLoading(true); setError('');
     (async () => {
       try {
         const result = await readApiResponse(await fetch('/api/admin/envelope-sender', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' }));
@@ -94,6 +93,6 @@ export function EnvelopePrint({ order }: { order?: Order }) {
       </div>
       <p className="text-sm text-stone-600">Select the matching envelope size in your printer settings and print at 100% scale.</p>
       <div className="flex flex-wrap gap-2"><button type="button" disabled={saving || printing} onClick={printEnvelope} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"><Printer className="h-4 w-4" />{printing ? 'Opening print…' : 'Print Envelope'}</button><button type="button" disabled={saving} onClick={() => void saveSender()} className="min-h-11 rounded-xl border border-stone-300 px-4 py-2 text-sm font-semibold disabled:opacity-50">{saving ? 'Saving…' : 'Save FROM as default'}</button></div>
-    </>}{message && <p role="status" className="text-sm text-emerald-800">{message}</p>}{error && <div role="alert" className="text-sm text-rose-700">{error}<button type="button" onClick={() => setReload(value => value + 1)} className="ml-2 font-semibold underline">Reload sender</button></div>}
+    </>}{message && <p role="status" className="text-sm text-emerald-800">{message}</p>}{error && <div role="alert" className="text-sm text-rose-700">{error}<button type="button" onClick={() => { setLoading(true); setError(''); setReload(value => value + 1); }} className="ml-2 font-semibold underline">Reload sender</button></div>}
   </div></details>;
 }

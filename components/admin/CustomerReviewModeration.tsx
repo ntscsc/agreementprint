@@ -8,16 +8,24 @@ interface Review { id: string; name: string; rating: number; comment: string; pu
 export function CustomerReviewModeration() {
   const { user } = useAuth();
   const [reviews, setReviews] = useState<Review[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [notice, setNotice] = useState('');
-  const load = useCallback(async () => {
-    if (!user) return;
-    setLoading(true); setError('');
-    try {
-      const result = await readApiResponse(await fetch('/api/customer-reviews?scope=admin', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' }));
-      setReviews(result.reviews);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load feedback.'); }
-    finally { setLoading(false); }
+  const fetchReviews = useCallback(async () => {
+    if (!user) return [] as Review[];
+    const result = await readApiResponse(await fetch('/api/customer-reviews?scope=admin', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' }));
+    return result.reviews as Review[];
   }, [user]);
-  useEffect(() => { void load(); }, [load]);
+  const load = async () => {
+    setLoading(true); setError('');
+    try { setReviews(await fetchReviews()); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load feedback.'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => {
+    let active = true;
+    fetchReviews().then(records => { if (active) { setReviews(records); setError(''); } })
+      .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load feedback.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [fetchReviews]);
   async function moderate(review: Review, action: 'publish' | 'hide') {
     if (!user || busy) return;
     setBusy(true); setError(''); setNotice('');

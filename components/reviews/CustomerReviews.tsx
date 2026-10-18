@@ -8,11 +8,16 @@ import { readApiResponse } from '@/lib/api-response';
 
 interface Review { id: string; name: string; rating: number; comment: string; publishedAt: string; }
 export function CustomerReviews({ compact = false }: { compact?: boolean }) {
+  const { user } = useAuth();
+  return <CustomerReviewsBody key={`${user?.uid ?? 'guest'}-${compact}`} compact={compact} />;
+}
+
+function CustomerReviewsBody({ compact }: { compact: boolean }) {
   const { user, signInWithGoogle } = useAuth();
   const [reviews, setReviews] = useState<Review[]>([]), [loading, setLoading] = useState(true), [listError, setListError] = useState('');
   const [summary, setSummary] = useState({ count: 0, totalStars: 0, average: 0 });
   const [rating, setRating] = useState(5), [comment, setComment] = useState('');
-  const [busy, setBusy] = useState(false), [ownLoading, setOwnLoading] = useState(false), [ownStatus, setOwnStatus] = useState(''), [message, setMessage] = useState(''), [error, setError] = useState('');
+  const [busy, setBusy] = useState(false), [ownLoading, setOwnLoading] = useState(() => Boolean(user) && !compact), [ownStatus, setOwnStatus] = useState(''), [message, setMessage] = useState(''), [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     let active = true;
@@ -21,9 +26,7 @@ export function CustomerReviews({ compact = false }: { compact?: boolean }) {
   }, [revision]);
   useEffect(() => {
     let active = true;
-    setRating(5); setComment(''); setOwnStatus(''); setMessage(''); setError('');
-    if (!user || compact) { setOwnLoading(false); return; }
-    setOwnLoading(true);
+    if (!user || compact) return;
     (async () => {
       try {
         const result = await readApiResponse(await fetch('/api/customer-reviews?scope=mine', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' }));

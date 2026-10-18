@@ -17,7 +17,6 @@ export function CustomerProfilePrompt({ user, onSaved, onSignOut, onClose }: { u
   }, [complete]);
   useEffect(() => {
     let active = true;
-    setLoading(true); setError('');
     (async () => {
       try {
         const result = await readApiResponse(await fetch('/api/customer-profile', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' }));
@@ -45,7 +44,7 @@ export function CustomerProfilePrompt({ user, onSaved, onSignOut, onClose }: { u
     }}>
       <label className="block text-sm font-semibold">Full name (required)<input autoFocus required minLength={2} maxLength={100} autoComplete="name" value={name} onChange={event => setName(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-stone-300 px-3 py-2 font-normal" /></label>
       <label className="block text-sm font-semibold">Mobile number (required)<input required type="tel" inputMode="numeric" autoComplete="tel-national" pattern="[6-9][0-9]{9}" maxLength={10} placeholder="10-digit Indian mobile number" value={phone} onChange={event => setPhone(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-stone-300 px-3 py-2 font-normal" /></label>
-      {error && <div role="alert" className="text-sm text-rose-700">{error}<button type="button" onClick={() => setRetry(value => value + 1)} className="ml-2 font-semibold underline">Retry loading</button></div>}
+      {error && <div role="alert" className="text-sm text-rose-700">{error}<button type="button" onClick={() => { setLoading(true); setError(''); setRetry(value => value + 1); }} className="ml-2 font-semibold underline">Retry loading</button></div>}
       <button disabled={busy} className="min-h-11 w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Saving…' : onClose ? 'Save Changes' : 'Save & Continue'}</button>
     </form>}
     <button type="button" disabled={busy} onClick={() => onClose ? onClose() : void onSignOut()} className="mt-4 min-h-11 text-sm font-semibold text-stone-600 underline">{onClose ? 'Cancel' : 'Sign out'}</button>
