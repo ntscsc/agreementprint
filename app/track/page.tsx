@@ -1,3 +1,4 @@
+import { socialImage } from '@/lib/seo';
 import React, { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { TrackClient } from './TrackClient';
@@ -6,6 +7,7 @@ export const metadata: Metadata = {
   title: 'Track Your Order | AgreementPrint',
   description: 'Track your Tamil Nadu non-judicial rental agreement order, verification status, and courier consignment delivery.',
   openGraph: {
+    images: [socialImage],
     title: 'Track Your Order | AgreementPrint',
     description: 'Track your Tamil Nadu non-judicial rental agreement order, verification status, and courier consignment delivery.',
   },

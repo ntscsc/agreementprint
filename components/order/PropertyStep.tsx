@@ -4,6 +4,7 @@ import React from 'react';
 import { Home, CheckCircle2 } from 'lucide-react';
 import { PropertyDetails } from '@/lib/types';
 import { isChennaiPincode } from '@/lib/pincode-utils';
+import { propertyPostcodeError } from '@/lib/property-postcode';
 
 interface PropertyStepProps {
   data: Partial<PropertyDetails>;
@@ -12,6 +13,7 @@ interface PropertyStepProps {
 }
 
 export const PropertyStep: React.FC<PropertyStepProps> = ({ data, onChange, errors }) => {
+  const postcodeIssue = errors.pincode || (data.pincode?.length === 6 ? propertyPostcodeError(data.pincode) : null);
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
       <div className="border-b border-stone-200 pb-4">
@@ -146,16 +148,16 @@ export const PropertyStep: React.FC<PropertyStepProps> = ({ data, onChange, erro
             value={data.pincode || ''}
             onChange={(e) => onChange({ pincode: e.target.value.replace(/[^0-9]/g, '') })}
             placeholder="e.g. 600028"
-            aria-invalid={!!errors.pincode}
-            aria-describedby={errors.pincode ? 'property-pincode-error' : undefined}
+            aria-invalid={!!postcodeIssue}
+            aria-describedby={postcodeIssue ? 'property-pincode-error' : undefined}
             className={`w-full min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
-              errors.pincode
+              postcodeIssue
                 ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
                 : 'border-stone-300 bg-white focus:ring-amber-500'
             }`}
           />
-          {errors.pincode && <p id="property-pincode-error" className="text-xs text-rose-600 mt-1">{errors.pincode}</p>}
-          {!errors.pincode && data.pincode && data.pincode.length === 6 && (
+          {postcodeIssue && <p id="property-pincode-error" role="alert" className="text-xs text-rose-600 mt-1">{postcodeIssue}</p>}
+          {!postcodeIssue && data.pincode && data.pincode.length === 6 && (
             <p className="text-[11px] text-stone-600 font-medium mt-1">
               {isChennaiPincode(data.pincode) ? 'Chennai, Tamilnadu' : 'Tamilnadu, India'}
             </p>

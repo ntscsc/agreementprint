@@ -1,13 +1,17 @@
+import { canonicalUrl, socialImage } from '@/lib/seo';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
-import { PriceBreakdownCard } from '@/components/PriceBreakdownCard';
+import { Suspense } from 'react';
+import { PricingOptions } from '@/components/PricingOptions';
 import { DisclaimerBanner } from '@/components/DisclaimerBanner';
 
 export const metadata: Metadata = {
+  alternates: { canonical: canonicalUrl('/pricing') },
   title: 'Pricing & Fees | AgreementPrint',
   description: 'See the price for your rental agreement, delivery and optional notary service. Choose what you need and check the full total before paying.',
   openGraph: {
+    images: [socialImage],
     title: 'Pricing & Fees | AgreementPrint',
     description: 'Simple prices for your rental agreement. Choose your stamp paper and delivery address to see the full cost.',
   },
@@ -34,7 +38,7 @@ export default function PricingPage() {
       </section>
 
       <section aria-label="Choose your rental agreement" className="mx-auto max-w-3xl space-y-5 px-4 sm:px-6">
-        <PriceBreakdownCard showCta />
+        <Suspense fallback={<p role="status" className="rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-600">Loading your options…</p>}><PricingOptions /></Suspense>
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-5"><CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-amber-800" /><p className="text-sm leading-relaxed text-amber-900">Your agreement price, delivery charge and any notary service are shown above. You can check everything again before paying.</p></div>
       </section>
 

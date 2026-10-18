@@ -1,5 +1,10 @@
 'use client';
 
+import { AdminReportDownload } from '@/components/admin/AdminReportDownload';
+import { EnvelopePrint } from '@/components/admin/EnvelopePrint';
+import { CustomerReviewModeration } from '@/components/admin/CustomerReviewModeration';
+import { OrderReference } from '@/components/order/OrderReference';
+import { maskedAadhaar } from '@/lib/identity-display';
 import { readApiResponse } from '@/lib/api-response';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -38,6 +43,10 @@ import { useAuth } from '@/lib/auth-context';
 import { AgentReferralAdmin } from '@/components/referrals/AgentReferralAdmin';
 import { SupportEmailLink } from '@/components/SupportEmailLink';
 import { AdminMilestone } from '@/components/AdminMilestone';
+import { CreditRefundRequests } from '@/components/admin/CreditRefundRequests';
+import { OrderCorrectionHistory } from '@/components/order/OrderCorrectionHistory';
+import { OrderReplacementRequests } from '@/components/admin/OrderReplacementRequests';
+import { AdminVisitorStats } from '@/components/admin/AdminVisitorStats';
 import { CustomRequests } from '@/components/custom-agreements/CustomRequests';
 import { db } from '@/lib/firebase';
 import { 
@@ -53,7 +62,7 @@ import { Order, OrderStatus } from '@/lib/types';
 import { checkIsAdmin } from '@/lib/order-service';
 import { ADMIN_EMAIL, isUserAdmin } from '@/src/config/admin';
 import { RentalAgreementDocument } from '@/components/agreement/RentalAgreementDocument';
-import { DEFAULT_PRICING, PricingConfig } from '@/src/config/pricing';
+import { DEFAULT_PRICING, PricingConfig, PRICING_MINIMUMS, MAX_PRICING_AMOUNT, PricingField, pricingFieldError } from '@/src/config/pricing';
 import { getPricingConfig, savePricingConfig } from '@/lib/pricing-service';
 
 import { DEFAULT_SUPPORT_EMAIL, getSupportEmail, saveSupportEmail } from '@/lib/support-email';
@@ -87,6 +96,8 @@ function AdminBody() {
 
   // Pricing State
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
+  const pricingErrors = Object.fromEntries((Object.keys(PRICING_MINIMUMS) as PricingField[]).map(key => [key, pricingFieldError(key, pricingConfig[key])]));
+  const pricingInvalid = Object.values(pricingErrors).some(Boolean);
   const [savingPricing, setSavingPricing] = useState<boolean>(false);
   const [pricingSavedToast, setPricingSavedToast] = useState<boolean>(false);
   const [supportEmail, setSupportEmail] = useState(DEFAULT_SUPPORT_EMAIL);
@@ -331,6 +342,23 @@ function AdminBody() {
   // Handle Status Update
   const handleUpdateStatus = async () => {
     if (!selectedOrder || !user) return;
+    if (selectedOrder.replacementPendingId || selectedOrder.replacedByOrderId) { alert('This order is on hold for replacement or has already been replaced.'); return; }
+    if (newStatus === 'Cancelled' && selectedOrder.payment?.status === 'Paid') {
+      if (!window.confirm('Cancel this paid order before preparation and request a refund to its original payment method?')) return;
+      setUpdatingStatus(true);
+      try {
+        const result = await readApiResponse(await fetch('/api/orders/cancel', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: selectedOrder.orderId, updatedAt: selectedOrder.updatedAt }) }));
+        const updated = result.order as Order;
+        setSelectedOrder(updated); setOrders(previous => previous.map(order => order.orderId === updated.orderId ? updated : order));
+        alert('Order cancelled. The source-payment refund is awaiting admin approval; refunds are unavailable in test mode.');
+      } catch (reason) { alert(reason instanceof Error ? reason.message : 'Unable to cancel this order.'); }
+      finally { setUpdatingStatus(false); }
+      return;
+    }
+    if (selectedOrder.payment?.status !== 'Paid' && ['Drafting', 'Dispatched', 'Delivered'].includes(newStatus)) {
+      alert('Payment must be confirmed before fulfilment.');
+      return;
+    }
     setUpdatingStatus(true);
     const nowIso = new Date().toISOString();
     const trimmedStatusNote = statusNotes.trim();
@@ -338,10 +366,15 @@ function AdminBody() {
       status: OrderStatus;
       updatedAt: string;
       notes?: string;
+      preparationStartedAt?: string;
     } = {
       status: newStatus,
       updatedAt: nowIso,
     };
+
+    if (['Drafting', 'Dispatched', 'Delivered'].includes(newStatus) || ['Drafting', 'Dispatched', 'Delivered'].includes(selectedOrder.status)) {
+      statusUpdate.preparationStartedAt = selectedOrder.preparationStartedAt || nowIso;
+    }
 
     if (trimmedStatusNote) {
       statusUpdate.notes = `${selectedOrder.notes || ''}\n[${nowIso}] ${trimmedStatusNote}`.trim();
@@ -359,6 +392,7 @@ function AdminBody() {
 
     const updated = {
       ...selectedOrder,
+      ...(statusUpdate.preparationStartedAt ? { preparationStartedAt: statusUpdate.preparationStartedAt } : {}),
       status: newStatus,
       updatedAt: nowIso,
       ...(trimmedStatusNote ? { notes: statusUpdate.notes } : {}),
@@ -394,51 +428,23 @@ function AdminBody() {
     if (!selectedOrder || !user || !correctionMsg.trim()) return;
     setUpdatingStatus(true);
     try {
-      const orderRef = doc(db, 'orders', selectedOrder.orderId);
-      const nowIso = new Date().toISOString();
-
-      await updateDoc(orderRef, {
-        status: 'Documents needed' as OrderStatus,
-        correctionMessage: correctionMsg.trim(),
-        updatedAt: nowIso,
-      });
-
-      // Admin log
-      const logId = `LOG_${Date.now()}`;
-      await setDoc(doc(db, 'adminLogs', logId), {
-        logId,
-        orderId: selectedOrder.orderId,
-        adminUid: user.uid,
-        adminEmail: user.email || 'admin',
-        action: 'CORRECTION_REQUESTED',
-        previousStatus: selectedOrder.status,
-        newStatus: 'Documents needed',
-        notes: `Correction request: ${correctionMsg.trim()}`,
-        timestamp: nowIso,
-      });
-
-      const updated = {
-        ...selectedOrder,
-        status: 'Documents needed' as OrderStatus,
-        correctionMessage: correctionMsg.trim(),
-        updatedAt: nowIso,
-      };
-      setSelectedOrder(updated);
-      setOrders((prev) => prev.map((o) => (o.orderId === updated.orderId ? updated : o)));
-      setShowCorrectionForm(false);
-      setCorrectionMsg('');
-      alert('Correction message successfully sent to customer.');
-    } catch (err) {
-      console.error('Error sending correction request:', err);
-      alert('Failed to send correction request.');
-    } finally {
-      setUpdatingStatus(false);
-    }
+      const result = await readApiResponse(await fetch('/api/orders/corrections', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'request', orderId: selectedOrder.orderId, updatedAt: selectedOrder.updatedAt, message: correctionMsg.trim() }) }));
+      const updated = result.order as Order;
+      setSelectedOrder(updated); setOrders(previous => previous.map(order => order.orderId === updated.orderId ? updated : order));
+      setShowCorrectionForm(false); setCorrectionMsg('');
+      alert('Correction request sent. The customer can correct and resubmit the same order from My Orders.');
+    } catch (reason) { alert(reason instanceof Error ? reason.message : 'Unable to send correction request.'); }
+    finally { setUpdatingStatus(false); }
   };
 
   // Handle Courier Dispatch
   const handleDispatchCourier = async () => {
     if (!selectedOrder || !user || !trackingNumber.trim()) return;
+    if (selectedOrder.replacementPendingId || selectedOrder.replacedByOrderId) { alert('This order is on hold for replacement or has already been replaced.'); return; }
+    if (selectedOrder.payment?.status !== 'Paid') {
+      alert('Payment must be confirmed before dispatch.');
+      return;
+    }
     setUpdatingStatus(true);
     try {
       const orderRef = doc(db, 'orders', selectedOrder.orderId);
@@ -452,6 +458,7 @@ function AdminBody() {
 
       await updateDoc(orderRef, {
         status: 'Dispatched' as OrderStatus,
+        preparationStartedAt: selectedOrder.preparationStartedAt || nowIso,
         courier: courierData,
         updatedAt: nowIso,
       });
@@ -473,6 +480,7 @@ function AdminBody() {
       const updated = {
         ...selectedOrder,
         status: 'Dispatched' as OrderStatus,
+        preparationStartedAt: selectedOrder.preparationStartedAt || nowIso,
         courier: courierData,
         updatedAt: nowIso,
       };
@@ -491,7 +499,7 @@ function AdminBody() {
 
   // Handle Save Pricing Rates
   const handleSavePricing = async () => {
-    if (!user) return;
+    if (!user || pricingInvalid) return;
     setSavingPricing(true);
     setPricingSavedToast(false);
     try {
@@ -623,7 +631,7 @@ function AdminBody() {
 
   // Handle Reset to Default Rates
   const handleResetPricing = () => {
-    if (window.confirm('Reset all pricing rates to default values (Rs.350 / 400 / 450 / 500 / 200)?')) {
+    if (window.confirm('Reset all pricing rates to default values (₹350 / 400 / 450 / 500 / 200)?')) {
       setPricingConfig(DEFAULT_PRICING);
     }
   };
@@ -730,15 +738,16 @@ function AdminBody() {
   }
 
   return (
-    <div className="admin-portal max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" data-section={activeTab}>
+    <div className="admin-portal admin-tidy max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" data-section={activeTab}>
       <AdminMilestone uid={user.uid} paidOrders={orders.filter(order => order.payment?.status === 'Paid').length} ready={!loadingOrders && !ordersError} />
       <header className="admin-hero">
-        <div className="admin-hero-copy"><span className="admin-eyebrow"><ShieldCheck aria-hidden="true" className="h-4 w-4" />AgreementPrint Administration</span><h1>Your workspace.<br className="sm:hidden" /> All in one place.</h1><p>Orders, customers and everything that keeps your business moving.</p><span className="admin-account"><span aria-hidden="true" /><SupportEmailLink className="rounded-sm hover:underline" /></span></div>
+        <div className="admin-hero-copy"><span className="admin-eyebrow"><ShieldCheck aria-hidden="true" className="h-4 w-4" />AgreementPrint Administration</span><h1>Administration</h1><p>Manage agreements, preparation, delivery and customer requests.</p><span className="admin-account"><span aria-hidden="true" /><SupportEmailLink className="rounded-sm hover:underline" /></span></div>
         <div className="admin-hero-actions"><Link href="/" className="admin-website-link"><ExternalLink aria-hidden="true" className="h-4 w-4" />View website</Link>{(activeTab === 'orders' || activeTab === 'enquiries') && <button type="button" onClick={activeTab === 'orders' ? fetchOrderList : fetchEnquiries} disabled={activeTab === 'orders' ? loadingOrders : loadingEnquiries || updatingEnquiryId !== null || deletingEnquiryId !== null} className="admin-refresh"><RefreshCw aria-hidden="true" className={`h-4 w-4 ${(activeTab === 'orders' ? loadingOrders : loadingEnquiries) ? 'animate-spin' : ''}`} />Refresh {activeTab === 'orders' ? 'orders' : 'enquiries'}</button>}</div>
       </header>
+      <AdminReportDownload />
       <nav aria-label="Admin sections" className="admin-navigation">
         <div className="grid gap-6 lg:grid-cols-[1fr_1.25fr]">
-          {[{ label: 'Daily work', items: [{ id: 'orders' as const, label: 'Rental Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Settings & rewards', items: [{ id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Couriers', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }].map((group) => <div key={group.label}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
+          {[{ label: 'Daily work', items: [{ id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Settings & rewards', items: [{ id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Couriers', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }].map((group) => <div key={group.label}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
         </div>
       </nav>
 
@@ -825,7 +834,7 @@ function AdminBody() {
                           </span>
                         )}
                         <a
-                          href={`https://wa.me/${enquiry.phone}`}
+                          href={`https://wa.me/${enquiry.phone.replace(/\D/g, '').length === 10 ? '91' : ''}${enquiry.phone.replace(/\D/g, '')}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:text-emerald-900"
@@ -954,6 +963,7 @@ function AdminBody() {
             </p>
           </div>
 
+          <EnvelopePrint />
           {courierPartnersSavedToast && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2 font-semibold" role="status">
               <Check className="w-4 h-4 text-emerald-600" />
@@ -1098,7 +1108,7 @@ function AdminBody() {
 
               <button
                 type="button"
-                disabled={savingPricing}
+                disabled={savingPricing || pricingInvalid}
                 onClick={handleSavePricing}
                 className="px-5 py-2 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer"
               >
@@ -1120,11 +1130,11 @@ function AdminBody() {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Box 1: Rs. 100 Stamp Paper Package */}
+            {/* Box 1: ₹100 Stamp Paper Package */}
             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4">
               <div className="flex items-center justify-between border-b border-stone-200 pb-3">
                 <div>
-                  <h3 className="font-bold text-stone-900 text-sm">1. In Rs.100 Stamp Paper Package</h3>
+                  <h3 className="font-bold text-stone-900 text-sm">1. In ₹100 Stamp Paper Package</h3>
                   <p className="text-xs text-stone-500">Standard 11-month tenancy stamp paper with courier charges</p>
                 </div>
                 <span className="text-xs font-mono font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">₹100</span>
@@ -1132,50 +1142,60 @@ function AdminBody() {
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    Within Chennai (₹) — Courier Included
-                  </label>
+                  <label htmlFor="pricing-stamp100Chennai" className="block text-xs font-bold text-stone-700 mb-1">₹100 stamp paper - Chennai courier included</label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-stone-400 text-xs font-bold">₹</span>
                     <input
+                      id="pricing-stamp100Chennai"
+                      aria-invalid={!!pricingErrors.stamp100Chennai}
+                      aria-describedby={pricingErrors.stamp100Chennai ? 'pricing-stamp100Chennai-error' : undefined}
                       type="number"
-                      min="100"
-                      value={pricingConfig.stamp100Chennai}
+                      min={PRICING_MINIMUMS.stamp100Chennai}
+                      max={MAX_PRICING_AMOUNT}
+                      step="1"
+                      required
+                      value={Number.isFinite(pricingConfig.stamp100Chennai) ? pricingConfig.stamp100Chennai : ''}
                       onChange={(e) =>
-                        setPricingConfig({ ...pricingConfig, stamp100Chennai: Number(e.target.value) })
+                        setPricingConfig({ ...pricingConfig, stamp100Chennai: e.target.valueAsNumber })
                       }
                       className="w-full pl-7 pr-3 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
-                  <span className="text-xs text-stone-500">Default: Rs. 350/-</span>
+                  {pricingErrors.stamp100Chennai && <p id="pricing-stamp100Chennai-error" role="alert" className="mt-1 text-xs text-rose-700">{pricingErrors.stamp100Chennai}</p>}
+                  <span className="text-xs text-stone-500">Default: ₹350/-</span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    Within Tamilnadu (Other Districts) (₹) — Courier Included
-                  </label>
+                  <label htmlFor="pricing-stamp100TamilNadu" className="block text-xs font-bold text-stone-700 mb-1">₹100 stamp paper - rest of Tamil Nadu courier included</label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-stone-400 text-xs font-bold">₹</span>
                     <input
+                      id="pricing-stamp100TamilNadu"
+                      aria-invalid={!!pricingErrors.stamp100TamilNadu}
+                      aria-describedby={pricingErrors.stamp100TamilNadu ? 'pricing-stamp100TamilNadu-error' : undefined}
                       type="number"
-                      min="100"
-                      value={pricingConfig.stamp100TamilNadu}
+                      min={PRICING_MINIMUMS.stamp100TamilNadu}
+                      max={MAX_PRICING_AMOUNT}
+                      step="1"
+                      required
+                      value={Number.isFinite(pricingConfig.stamp100TamilNadu) ? pricingConfig.stamp100TamilNadu : ''}
                       onChange={(e) =>
-                        setPricingConfig({ ...pricingConfig, stamp100TamilNadu: Number(e.target.value) })
+                        setPricingConfig({ ...pricingConfig, stamp100TamilNadu: e.target.valueAsNumber })
                       }
                       className="w-full pl-7 pr-3 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
-                  <span className="text-xs text-stone-500">Default: Rs. 400/-</span>
+                  {pricingErrors.stamp100TamilNadu && <p id="pricing-stamp100TamilNadu-error" role="alert" className="mt-1 text-xs text-rose-700">{pricingErrors.stamp100TamilNadu}</p>}
+                  <span className="text-xs text-stone-500">Default: ₹400/-</span>
                 </div>
               </div>
             </div>
 
-            {/* Box 2: Rs. 200 Stamp Paper Package */}
+            {/* Box 2: ₹200 Stamp Paper Package */}
             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4">
               <div className="flex items-center justify-between border-b border-stone-200 pb-3">
                 <div>
-                  <h3 className="font-bold text-stone-900 text-sm">2. In Rs.200 Stamp Paper Package</h3>
+                  <h3 className="font-bold text-stone-900 text-sm">2. In ₹200 Stamp Paper Package</h3>
                   <p className="text-xs text-stone-500">Higher denomination stamp paper with courier charges</p>
                 </div>
                 <span className="text-xs font-mono font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">₹200</span>
@@ -1183,41 +1203,51 @@ function AdminBody() {
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    Within Chennai (₹) — Courier Included
-                  </label>
+                  <label htmlFor="pricing-stamp200Chennai" className="block text-xs font-bold text-stone-700 mb-1">₹200 stamp paper - Chennai courier included</label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-stone-400 text-xs font-bold">₹</span>
                     <input
+                      id="pricing-stamp200Chennai"
+                      aria-invalid={!!pricingErrors.stamp200Chennai}
+                      aria-describedby={pricingErrors.stamp200Chennai ? 'pricing-stamp200Chennai-error' : undefined}
                       type="number"
-                      min="200"
-                      value={pricingConfig.stamp200Chennai}
+                      min={PRICING_MINIMUMS.stamp200Chennai}
+                      max={MAX_PRICING_AMOUNT}
+                      step="1"
+                      required
+                      value={Number.isFinite(pricingConfig.stamp200Chennai) ? pricingConfig.stamp200Chennai : ''}
                       onChange={(e) =>
-                        setPricingConfig({ ...pricingConfig, stamp200Chennai: Number(e.target.value) })
+                        setPricingConfig({ ...pricingConfig, stamp200Chennai: e.target.valueAsNumber })
                       }
                       className="w-full pl-7 pr-3 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
-                  <span className="text-xs text-stone-500">Default: Rs. 450/-</span>
+                  {pricingErrors.stamp200Chennai && <p id="pricing-stamp200Chennai-error" role="alert" className="mt-1 text-xs text-rose-700">{pricingErrors.stamp200Chennai}</p>}
+                  <span className="text-xs text-stone-500">Default: ₹450/-</span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    Within Tamilnadu (Other Districts) (₹) — Courier Included
-                  </label>
+                  <label htmlFor="pricing-stamp200TamilNadu" className="block text-xs font-bold text-stone-700 mb-1">₹200 stamp paper - rest of Tamil Nadu courier included</label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-stone-400 text-xs font-bold">₹</span>
                     <input
+                      id="pricing-stamp200TamilNadu"
+                      aria-invalid={!!pricingErrors.stamp200TamilNadu}
+                      aria-describedby={pricingErrors.stamp200TamilNadu ? 'pricing-stamp200TamilNadu-error' : undefined}
                       type="number"
-                      min="200"
-                      value={pricingConfig.stamp200TamilNadu}
+                      min={PRICING_MINIMUMS.stamp200TamilNadu}
+                      max={MAX_PRICING_AMOUNT}
+                      step="1"
+                      required
+                      value={Number.isFinite(pricingConfig.stamp200TamilNadu) ? pricingConfig.stamp200TamilNadu : ''}
                       onChange={(e) =>
-                        setPricingConfig({ ...pricingConfig, stamp200TamilNadu: Number(e.target.value) })
+                        setPricingConfig({ ...pricingConfig, stamp200TamilNadu: e.target.valueAsNumber })
                       }
                       className="w-full pl-7 pr-3 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
-                  <span className="text-xs text-stone-500">Default: Rs. 500/-</span>
+                  {pricingErrors.stamp200TamilNadu && <p id="pricing-stamp200TamilNadu-error" role="alert" className="mt-1 text-xs text-rose-700">{pricingErrors.stamp200TamilNadu}</p>}
+                  <span className="text-xs text-stone-500">Default: ₹500/-</span>
                 </div>
               </div>
             </div>
@@ -1233,22 +1263,27 @@ function AdminBody() {
               </div>
 
               <div className="max-w-md">
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Notary Attestation Additional Charge (₹)
-                </label>
+                <label htmlFor="pricing-notaryExtraFee" className="block text-xs font-bold text-stone-700 mb-1">Notary attestation additional charge (rupees)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-stone-400 text-xs font-bold">₹</span>
                   <input
+                      id="pricing-notaryExtraFee"
+                      aria-invalid={!!pricingErrors.notaryExtraFee}
+                      aria-describedby={pricingErrors.notaryExtraFee ? 'pricing-notaryExtraFee-error' : undefined}
                     type="number"
-                    min="0"
-                    value={pricingConfig.notaryExtraFee}
+                    min={PRICING_MINIMUMS.notaryExtraFee}
+                      max={MAX_PRICING_AMOUNT}
+                      step="1"
+                      required
+                    value={Number.isFinite(pricingConfig.notaryExtraFee) ? pricingConfig.notaryExtraFee : ''}
                     onChange={(e) =>
-                      setPricingConfig({ ...pricingConfig, notaryExtraFee: Number(e.target.value) })
+                      setPricingConfig({ ...pricingConfig, notaryExtraFee: e.target.valueAsNumber })
                     }
                     className="w-full pl-7 pr-3 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
-                <span className="text-xs text-stone-500">Default: Rs. 200/- extra</span>
+                  {pricingErrors.notaryExtraFee && <p id="pricing-notaryExtraFee-error" role="alert" className="mt-1 text-xs text-rose-700">{pricingErrors.notaryExtraFee}</p>}
+                <span className="text-xs text-stone-500">Default: ₹200/- extra</span>
               </div>
             </div>
           </div>
@@ -1258,6 +1293,7 @@ function AdminBody() {
             <h4 className="font-bold text-stone-900 text-xs uppercase tracking-wider text-amber-900">
               Customer Package Matrix (Live Rate Calculator)
             </h4>
+            {pricingInvalid ? <p role="status" className="text-sm text-rose-700">Correct the highlighted rates to preview package totals.</p> : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
               <div className="p-3 bg-white rounded-xl border border-amber-200 shadow-2xs space-y-1">
                 <span className="text-stone-500 block">₹100 Paper • Chennai</span>
@@ -1283,16 +1319,19 @@ function AdminBody() {
                 <span className="text-xs text-amber-800 block">With Notary: ₹{pricingConfig.stamp200TamilNadu + pricingConfig.notaryExtraFee}/-</span>
               </div>
             </div>
+            )}
           </div>
         </div>
       ) : (
         /* ORDERS FULFILLMENT QUEUE VIEW */
         <>
+      <header className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-2xl font-bold tracking-tight text-stone-900">Order desk</h2><p className="mt-1 text-sm text-stone-500">Review active work, payment status and order history.</p></div><span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-semibold text-stone-600">{orders.length} records</span></header>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[{ label: 'New orders', status: 'Submitted', count: submittedCount, hint: 'Ready for review', tone: 'sky', icon: FileText }, { label: 'Under review', status: 'Under verification', count: pendingVerificationCount, hint: 'Details being checked', tone: 'violet', icon: ShieldCheck }, { label: 'Waiting for customer', status: 'Documents needed', count: documentsNeededCount, hint: 'Corrections requested', tone: 'amber', icon: Clock }, { label: 'Being prepared', status: 'Drafting', count: draftingCount, hint: 'Preparation and printing', tone: 'pink', icon: Printer }, { label: 'Sent by courier', status: 'Dispatched', count: dispatchedCount, hint: 'On the way to customers', tone: 'teal', icon: Truck }].map((item) => <button key={item.status} type="button" data-tone={item.tone} aria-pressed={statusFilter === item.status} onClick={() => { setStatusFilter(statusFilter === item.status ? 'ALL' : item.status); setSearchQuery(''); }} className="admin-summary-card"><span className="admin-summary-top"><span className="admin-summary-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-summary-arrow" aria-hidden="true"><ChevronRight className="h-4 w-4" /></span></span><span className="admin-summary-number">{item.count}</span><span className="admin-summary-label">{item.label}</span><span className="admin-summary-hint">{item.hint}</span></button>)}
       </div>
       {ordersError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{ordersError}<button type="button" onClick={fetchOrderList} className="ml-3 font-semibold underline">Retry</button></div>}
+
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -1340,74 +1379,18 @@ function AdminBody() {
         ) : (
           <>
           <div className="grid gap-3 p-4 md:hidden">
-            {filteredOrders.map((order) => <article key={order.orderId} className="space-y-3 rounded-xl border border-stone-200 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="break-all font-mono text-sm font-bold text-stone-900">{order.orderId}</h3><span className="rounded-full bg-stone-100 px-2.5 py-1 text-sm font-semibold text-stone-700">{order.status}</span></div><dl className="space-y-2 text-sm"><div><dt className="inline font-semibold text-stone-700">Owner: </dt><dd className="inline text-stone-600">{order.ownerDetails.fullName}</dd></div><div><dt className="inline font-semibold text-stone-700">Tenant: </dt><dd className="inline text-stone-600">{order.tenantDetails.fullName}</dd></div><div><dt className="inline font-semibold text-stone-700">Location: </dt><dd className="inline text-stone-600">{order.propertyDetails.city}</dd></div><div><dt className="inline font-semibold text-stone-700">Payment: </dt><dd className={`inline font-semibold ${order.payment?.status === 'Paid' ? 'text-emerald-800' : 'text-amber-800'}`}>{order.payment?.status || 'Pending'}</dd></div></dl><button type="button" aria-label={`Review order ${order.orderId}`} onClick={() => setSelectedOrder(order)} className="w-full rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-stone-800">Review Order</button></article>)}
+            {filteredOrders.map(order => <article key={order.orderId} className="space-y-4 rounded-xl border border-stone-200 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold text-stone-500">{order.agreementTerms.agreementType || 'Rental'} agreement</p><h3 className="mt-1 break-all font-mono text-xs font-bold leading-relaxed text-stone-800"><OrderReference reference={order.orderId} /></h3></div><span className="shrink-0 rounded-lg bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-600">{order.replacedByOrderId ? 'Replaced' : order.status}</span></div><div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs text-stone-500">Owner</p><p className="mt-1 break-words font-semibold">{order.ownerDetails.fullName}</p></div><div><p className="text-xs text-stone-500">Tenant</p><p className="mt-1 break-words font-semibold">{order.tenantDetails.fullName}</p></div><div><p className="text-xs text-stone-500">Property</p><p className="mt-1">{order.propertyDetails.city}</p></div><div><p className="text-xs text-stone-500">Payment</p><p className={`mt-1 font-semibold ${order.payment.status === 'Paid' ? 'text-emerald-700' : 'text-stone-700'}`}>{order.payment.status}{order.payment.amount !== undefined ? ` / ₹${order.payment.amount.toLocaleString('en-IN')}` : ''}</p></div></div><button type="button" aria-label={`Review order ${order.orderId}`} onClick={() => setSelectedOrder(order)} className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700">Review Order</button></article>)}
           </div>
-          <div className="hidden overflow-x-auto md:block" tabIndex={0} role="region" aria-label="Rental order table, scroll to see all columns">
-            <table className="min-w-[760px] w-full text-left text-sm text-stone-700">
-              <thead className="bg-stone-50 border-b border-stone-200 text-xs uppercase tracking-wider text-stone-500 font-semibold">
-                <tr>
-                  <th scope="col" className="py-3 px-4">Order ID & Date</th>
-                  <th scope="col" className="py-3 px-4">Landlord & Tenant</th>
-                  <th scope="col" className="py-3 px-4">Premises City</th>
-                  <th scope="col" className="py-3 px-4">Monthly Rent</th>
-                  <th scope="col" className="py-3 px-4">Current Status</th>
-                  <th scope="col" className="py-3 px-4">Payment</th>
-                  <th scope="col" className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filteredOrders.map((ord) => (
-                  <tr key={ord.orderId} className="hover:bg-stone-50/60 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <strong className="font-mono text-stone-900">{ord.orderId}</strong>
-                      <span className="block text-xs text-stone-400">
-                        {new Date(ord.createdAt).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="font-semibold text-stone-900">{ord.ownerDetails.fullName}</span>
-                      <span className="block text-stone-500">T: {ord.tenantDetails.fullName}</span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span>{ord.propertyDetails.city}</span>
-                      <span className="block text-stone-400 text-xs">{ord.propertyDetails.propertyType}</span>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-semibold text-stone-800">
-                      ₹{ord.agreementTerms.monthlyRent?.toLocaleString('en-IN')}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-stone-100 text-stone-800">
-                        {ord.status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`px-2 py-0.5 rounded text-xs font-bold ${
-                          ord.payment?.status === 'Paid'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {ord.payment?.status || 'Pending'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        aria-label={`Review order ${ord.orderId}`}
-                        onClick={() => setSelectedOrder(ord)}
-                        className="bg-stone-900 hover:bg-stone-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
-                      >
-                        Review
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+          <div className="hidden overflow-x-auto md:block" tabIndex={0} role="region" aria-label="Agreement order table, scroll to see all columns">
+            <table className="admin-order-records w-full min-w-[760px] table-fixed text-left text-sm text-stone-700">
+              <thead className="border-b border-stone-200 bg-stone-50 text-xs font-semibold text-stone-500"><tr><th scope="col" className="w-[28%] px-5 py-4">Order record</th><th scope="col" className="w-[27%] px-5 py-4">Customer &amp; property</th><th scope="col" className="w-[20%] px-5 py-4">Progress</th><th scope="col" className="w-[15%] px-5 py-4">Payment</th><th scope="col" className="w-[10%] px-4 py-4 text-right"><span className="sr-only">Actions</span></th></tr></thead>
+              <tbody className="divide-y divide-stone-100">{filteredOrders.map(ord => <tr key={ord.orderId} className="align-top transition-colors hover:bg-stone-50">
+                <td className="px-5 py-5"><p className="text-xs font-semibold text-stone-500">{ord.agreementTerms.agreementType || 'Rental'} agreement</p><p className="mt-1 break-all font-mono text-xs font-semibold leading-relaxed text-stone-800"><OrderReference reference={ord.orderId} /></p><p className="mt-2 text-xs text-stone-500">{new Date(ord.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p></td>
+                <td className="px-5 py-5"><p className="break-words font-semibold text-stone-900">{ord.ownerDetails.fullName}</p><p className="mt-1 break-words text-xs text-stone-500">Tenant: {ord.tenantDetails.fullName}</p><p className="mt-3 text-xs text-stone-600">{ord.propertyDetails.city} / {ord.propertyDetails.propertyType}</p></td>
+                <td className="px-5 py-5"><span className="inline-flex rounded-lg bg-stone-100 px-2.5 py-1.5 text-xs font-semibold text-stone-700">{ord.replacedByOrderId ? 'Replaced' : ord.status}</span>{ord.correctionStatus === 'Submitted' && <p className="mt-2 text-xs font-semibold text-sky-800">Customer corrections submitted</p>}{ord.replacementPendingId && <p className="mt-2 text-xs font-medium text-amber-800">Replacement on hold</p>}{ord.cancellationRefundStatus && <p className="mt-2 text-xs text-stone-500">Refund: {ord.cancellationRefundStatus}</p>}</td>
+                <td className="px-5 py-5"><span className={`inline-flex rounded-lg px-2.5 py-1.5 text-xs font-semibold ${ord.payment.status === 'Paid' ? 'bg-emerald-50 text-emerald-800' : ord.payment.status === 'Failed' ? 'bg-rose-50 text-rose-800' : 'bg-stone-100 text-stone-600'}`}>{ord.payment.status}</span>{ord.payment.amount !== undefined && <p className="mt-2 font-semibold tabular-nums text-stone-800">₹{ord.payment.amount.toLocaleString('en-IN')}</p>}</td>
+                <td className="px-4 py-5 text-right"><button type="button" aria-label={`Review order ${ord.orderId}`} onClick={() => setSelectedOrder(ord)} className="min-h-11 rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100">Review</button></td>
+              </tr>)}</tbody>
             </table>
           </div>
           </>
@@ -1416,12 +1399,19 @@ function AdminBody() {
         </>
       )}
 
+      {activeTab === 'orders' && <details className="rounded-2xl border border-stone-200 bg-white p-5"><summary className="cursor-pointer text-sm font-semibold text-stone-600">Visitor activity &amp; analytics</summary><div className="mt-5"><AdminVisitorStats /></div></details>}
+
+      {activeTab === 'orders' && (
+      <section className="space-y-3"><h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">Reviews &amp; refunds</h3><div className="grid items-start gap-3 lg:grid-cols-2"><CustomerReviewModeration /><CreditRefundRequests /><OrderReplacementRequests /></div></section>
+      )}
+
       {/* Order Detail Modal */}
       {selectedOrder && (
-        <div ref={orderDialogRef} role="dialog" aria-modal="true" aria-label={showAgreementPrint ? 'Agreement print preview' : 'Rental order details'} tabIndex={-1} className={`fixed inset-0 z-[60] bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto ${showAgreementPrint ? 'agreement-print-modal' : ''}`}>
+        <div ref={orderDialogRef} role="dialog" aria-modal="true" aria-label={showAgreementPrint ? 'Agreement print preview' : 'Agreement order details'} tabIndex={-1} className={`fixed inset-0 z-[60] bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto ${showAgreementPrint ? 'agreement-print-modal' : ''}`}>
           {showAgreementPrint ? (
             <div className="bg-white rounded-3xl max-w-5xl w-full p-6 sm:p-8 shadow-xl max-h-[95vh] overflow-y-auto space-y-4">
               <RentalAgreementDocument
+                blankStampSpace
                 data={{
                   ownerDetails: selectedOrder.ownerDetails,
                   tenantDetails: selectedOrder.tenantDetails,
@@ -1431,7 +1421,7 @@ function AdminBody() {
                   createdAt: selectedOrder.createdAt,
                 }}
                 onBack={() => setShowAgreementPrint(false)}
-                title={`Rental Agreement for Stamping (Order #${selectedOrder.orderId})`}
+                title={`${selectedOrder.agreementTerms.agreementType === 'Lease' ? 'Lease' : 'Rental'} Agreement for Stamping (Order #${selectedOrder.orderId})`}
               />
               <div className="flex justify-center pt-4 border-t border-stone-200 no-print">
                 <button
@@ -1451,7 +1441,7 @@ function AdminBody() {
                   <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                     Order Management
                   </span>
-                  <h2 className="text-xl font-black font-mono text-stone-900">{selectedOrder.orderId}</h2>
+                  <h2 className="mt-1 break-all font-mono text-base font-bold leading-relaxed text-stone-900"><OrderReference reference={selectedOrder.orderId} /></h2>
                   <p className="text-xs text-stone-500">
                     Customer Email: {selectedOrder.customerEmail} • Created: {new Date(selectedOrder.createdAt).toLocaleString()}
                   </p>
@@ -1480,15 +1470,16 @@ function AdminBody() {
                 </div>
               </div>
 
+            {selectedOrder.payment.status === 'Paid' && selectedOrder.status !== 'Cancelled' && !selectedOrder.replacedByOrderId && <EnvelopePrint key={`${selectedOrder.orderId}-${selectedOrder.updatedAt}`} order={selectedOrder} />}
             {/* Application Data Tabs/Sections */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               {/* Landlord */}
               <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-1">
                 <strong className="block font-bold text-stone-900">Landlord (Owner)</strong>
                 <p>Name: {selectedOrder.ownerDetails.fullName}</p>
-                <p>Father/Spouse: {selectedOrder.ownerDetails.relativeName}</p>
+                <p>{selectedOrder.ownerDetails.relationship || 'Parent / spouse'}: {selectedOrder.ownerDetails.relativeName}</p>
                 <p>Age: {selectedOrder.ownerDetails.age} yrs • Phone: {selectedOrder.ownerDetails.phone}</p>
-                <p className="font-mono text-emerald-800">Aadhaar Last 4: XXXX-XXXX-{selectedOrder.ownerDetails.aadhaarLast4}</p>
+                <p className="font-mono text-emerald-800">Aadhaar Last 4: {maskedAadhaar(selectedOrder.ownerDetails.aadhaarLast4)}</p>
                 {selectedOrder.ownerDetails.pan && <p className="font-mono">PAN: {selectedOrder.ownerDetails.pan}</p>}
                 <p className="text-stone-500">Address: {selectedOrder.ownerDetails.address}{selectedOrder.ownerDetails.pincode ? ` - ${selectedOrder.ownerDetails.pincode}` : ''}</p>
               </div>
@@ -1497,9 +1488,9 @@ function AdminBody() {
               <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-1">
                 <strong className="block font-bold text-stone-900">Tenant</strong>
                 <p>Name: {selectedOrder.tenantDetails.fullName}</p>
-                <p>Father/Spouse: {selectedOrder.tenantDetails.relativeName}</p>
+                <p>{selectedOrder.tenantDetails.relationship || 'Parent / spouse'}: {selectedOrder.tenantDetails.relativeName}</p>
                 <p>Age: {selectedOrder.tenantDetails.age} yrs • Phone: {selectedOrder.tenantDetails.phone}</p>
-                <p className="font-mono text-emerald-800">Aadhaar Last 4: XXXX-XXXX-{selectedOrder.tenantDetails.aadhaarLast4}</p>
+                <p className="font-mono text-emerald-800">Aadhaar Last 4: {maskedAadhaar(selectedOrder.tenantDetails.aadhaarLast4)}</p>
                 {selectedOrder.tenantDetails.pan && <p className="font-mono">PAN: {selectedOrder.tenantDetails.pan}</p>}
                 <p className="text-stone-500">Address: {selectedOrder.tenantDetails.address}{selectedOrder.tenantDetails.pincode ? ` - ${selectedOrder.tenantDetails.pincode}` : ''}</p>
               </div>
@@ -1524,11 +1515,15 @@ function AdminBody() {
                     <div>Referral credit: <strong>−₹{selectedOrder.payment.referralCreditApplied?.toLocaleString('en-IN')}</strong></div>
                   )}
                   {(selectedOrder.payment?.couponDiscount ?? 0) > 0 && <div className="col-span-2">Coupon ({selectedOrder.payment.couponCode}): <strong>−₹{selectedOrder.payment.couponDiscount?.toLocaleString('en-IN')}</strong></div>}
-                  <div>Rent: <strong>₹{selectedOrder.agreementTerms.monthlyRent?.toLocaleString('en-IN')}</strong></div>
-                  <div>Advance: <strong>₹{selectedOrder.agreementTerms.securityDeposit?.toLocaleString('en-IN')}</strong></div>
+                  <div>Agreement type: <strong>{selectedOrder.agreementTerms.agreementType || 'Rental'}</strong></div>
+                  <div>Rent: <strong>{selectedOrder.agreementTerms.agreementType === 'Lease' ? 'No separate monthly rent' : `₹${selectedOrder.agreementTerms.monthlyRent?.toLocaleString('en-IN')}`}</strong></div>
+                  <div>{selectedOrder.agreementTerms.agreementType === 'Lease' ? 'Refundable lease advance' : 'Advance'}: <strong>₹{selectedOrder.agreementTerms.securityDeposit?.toLocaleString('en-IN')}</strong></div>
                   <div>Tenure: <strong>{selectedOrder.agreementTerms.tenureMonths} Months</strong></div>
+                  <div>Agreement language: <strong>{selectedOrder.agreementTerms.language || 'English'}</strong></div>
+                  {selectedOrder.agreementTerms.language === 'Tamil' && selectedOrder.propertyDetails.propertyType !== 'Commercial Shop' && <div>Painting deduction: <strong>₹{selectedOrder.agreementTerms.paintingDeduction?.toLocaleString('en-IN')}</strong></div>}
+                  {selectedOrder.agreementTerms.language === 'Tamil' && selectedOrder.propertyDetails.propertyType === 'Commercial Shop' && <div>Template: <strong>Tamil shop rental agreement</strong></div>}
                   <div>Notice: <strong>{selectedOrder.agreementTerms.noticePeriodDays} Days</strong></div>
-                  <div>Stamp Paper: <strong>In Rs.{selectedOrder.agreementTerms.stampPaperDenomination || 100} Stamp Paper</strong></div>
+                  <div>Stamp Paper: <strong>In ₹{selectedOrder.agreementTerms.stampPaperDenomination || 100} Stamp Paper</strong></div>
                   <div>Courier Delivery: <strong>{selectedOrder.agreementTerms.deliveryLocation || 'Within Chennai'}</strong></div>
                   <div className="col-span-2 sm:col-span-4">
                     Delivery Address:{' '}
@@ -1555,6 +1550,9 @@ function AdminBody() {
             </div>
 
             {/* Status Change & Workflow Action Box */}
+            {selectedOrder.correctionStatus === 'Submitted' && <div className="rounded-xl border border-sky-200 bg-sky-50 p-4"><h3 className="font-bold text-sky-900">Customer corrections submitted</h3><p className="mt-2 text-sm text-sky-800">{selectedOrder.correctionChangedFields?.map(field => field.replaceAll('.', ' / ').replace(/([A-Z])/g, ' $1')).join(', ')}</p><p className="mt-1 text-xs text-sky-700">Review the changes below before continuing preparation.</p></div>}
+            <p className="rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-900">Print {1 + (selectedOrder.agreementTerms.extraCopies ?? 0)} copies total ({selectedOrder.agreementTerms.extraCopies ?? 0} extra), each on the selected ₹{selectedOrder.agreementTerms.stampPaperDenomination ?? 100} stamp paper.</p>
+            {(selectedOrder.correctionRequestId || selectedOrder.correctionMessage) && <OrderCorrectionHistory orderId={selectedOrder.orderId} updatedAt={selectedOrder.updatedAt} />}
             {selectedOrder.customerClarification && (
               <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">
                 <h3 className="font-bold text-sky-900">Customer clarification</h3>
@@ -1563,29 +1561,31 @@ function AdminBody() {
             )}
             <div className="border-t border-stone-200 pt-4 space-y-4">
               <h3 className="font-bold text-stone-900 text-xs">Fulfillment Workflow Actions</h3>
+              {(selectedOrder.replacementPendingId || selectedOrder.replacedByOrderId) && <p className="text-sm text-amber-800">{selectedOrder.replacedByOrderId ? <>Replaced by <OrderReference reference={selectedOrder.replacedByOrderId} />. This record is retained for history.</> : 'Preparation is on hold until replacement payment is resolved.'}</p>}
+              {selectedOrder.payment?.status !== 'Paid' && <p className="text-sm text-amber-800">Payment must be confirmed before drafting, dispatch or delivery.</p>}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  <label htmlFor="admin-order-status" className="block text-xs font-semibold text-stone-700 mb-1">
                     Transition Order Status
                   </label>
-                  <select
+                  <select id="admin-order-status"
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value as OrderStatus)}
                     className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs text-stone-900 bg-white"
                   >
                     <option value="Under verification">Under verification</option>
-                    <option value="Drafting">Drafting on Stamp Paper</option>
-                    <option value="Delivered">Delivered</option>
+                    {selectedOrder.payment?.status === 'Paid' && <option value="Drafting">Drafting on Stamp Paper</option>}
+                    {selectedOrder.payment?.status === 'Paid' && <option value="Delivered">Delivered</option>}
                     <option value="Cancelled">Cancelled</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  <label htmlFor="admin-order-note" className="block text-xs font-semibold text-stone-700 mb-1">
                     Administrative Note (Logged into audit trail)
                   </label>
-                  <input
+                  <input id="admin-order-note"
                     type="text"
                     value={statusNotes}
                     onChange={(e) => setStatusNotes(e.target.value)}
@@ -1598,7 +1598,7 @@ function AdminBody() {
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   type="button"
-                  disabled={updatingStatus}
+                  disabled={updatingStatus || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId}
                   onClick={handleUpdateStatus}
                   className="bg-stone-900 hover:bg-stone-800 text-white font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer"
                 >
@@ -1618,6 +1618,7 @@ function AdminBody() {
 
                 <button
                   type="button"
+                  disabled={selectedOrder.payment?.status !== 'Paid' || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId}
                   onClick={() => {
                     setShowCourierForm(!showCourierForm);
                     setShowCorrectionForm(false);
@@ -1641,7 +1642,7 @@ function AdminBody() {
                   />
                   <button
                     type="button"
-                    disabled={updatingStatus}
+                    disabled={updatingStatus || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId}
                     onClick={handleSendCorrectionRequest}
                     className="bg-rose-700 hover:bg-rose-800 text-white font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer"
                   >
@@ -1651,7 +1652,7 @@ function AdminBody() {
               )}
 
               {/* Courier Form */}
-              {showCourierForm && (
+              {showCourierForm && selectedOrder.payment?.status === 'Paid' && (
                 <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl space-y-3">
                   <h4 className="font-bold text-sky-900 text-xs">Consignment Courier Details</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1682,7 +1683,7 @@ function AdminBody() {
 
                   <button
                     type="button"
-                    disabled={updatingStatus}
+                    disabled={updatingStatus || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId}
                     onClick={handleDispatchCourier}
                     className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer"
                   >

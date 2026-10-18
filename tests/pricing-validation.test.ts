@@ -5,6 +5,19 @@ import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import * as pricing from '../src/config/pricing.ts';
 
+test('Extra stamped copies cost 150 each for both stamp denominations and reject invalid quantities', () => {
+  for (const stamp of [100, 200] as const) for (const location of ['Within Chennai', 'Within Tamil Nadu'] as const) for (const notary of [true, false]) {
+    const original = pricing.calculateOrderPrice(pricing.DEFAULT_PRICING, stamp, location, notary);
+    for (const count of [0, 1, 3, 100]) {
+      const price = pricing.calculateOrderPrice(pricing.DEFAULT_PRICING, stamp, location, notary, count);
+      assert.equal(price.extraCopies, count);
+      assert.equal(price.extraCopyFee, count * 150);
+      assert.equal(price.totalPayable, original.totalPayable + count * 150);
+    }
+  }
+  for (const count of [-1, 0.5, 101, NaN, Infinity, '2', null]) assert.throws(() => pricing.calculateOrderPrice(pricing.DEFAULT_PRICING, 100, 'Within Chennai', false, count as number));
+});
+
 test('Pricing rejects zero, negative, fractional, non-finite and unsafe package amounts', () => {
   for (const key of ['stamp100Chennai', 'stamp100TamilNadu', 'stamp200Chennai', 'stamp200TamilNadu']) {
     for (const amount of [0, -1, 200.5, NaN, Infinity, -Infinity, '350', Number.MAX_SAFE_INTEGER, null]) {

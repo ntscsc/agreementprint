@@ -205,12 +205,12 @@ export async function confirmPaidOrderAndGrantReferral(
           if (!snapshot.exists) throw new Error('Referral credit account is missing.');
           const balance = Number(snapshot.data()?.balance ?? 0);
           if (!Number.isSafeInteger(balance) || balance < 0 || !Number.isSafeInteger(balance + amount)) throw new Error('Invalid referral credit balance.');
-          if (amount > 0) transaction.update(account, { balance: balance + amount, updatedAt: now });
+          if (amount > 0) transaction.update(account, { balance: balance + amount, creditSequence: Number(snapshot.data()?.creditSequence || 0) + 1, updatedAt: now });
         };
         if (customerReferral && referrerAccountRef && referrerAccountSnapshot) {
           credit(referrerAccountRef, referrerAccountSnapshot, rewardAmount);
           if (rewardAmount > 0) transaction.create(db.collection('referralLedger').doc(`reward_${order.ownerUid}`), {
-            ownerUid: referrerUid, type: 'reward', amount: rewardAmount, referredUid: order.ownerUid, orderId, createdAt: now,
+            ownerUid: referrerUid, type: 'reward', amount: rewardAmount, sequence: Number(referrerAccountSnapshot.data()?.creditSequence || 0) + 1, referredUid: order.ownerUid, orderId, createdAt: now,
           });
         }
         transaction.create(rewardRef, {
@@ -333,7 +333,7 @@ export async function reserveReferralCreditForOrder(
     }
     if (options && !firstPaid?.exists) transaction.set(couponRef, { ...(options.coupon ?? { code: '', subtotal: options.totalBeforeCredits, couponDiscount: 0, total: options.totalBeforeCredits }), orderId, merchantOrderId: options.merchantOrderId, state: 'reserved', updatedAt: now });
     if (amount === 0) return { balance: currentBalance, reserved: 0 };
-    transaction.update(accountRef, { balance: currentBalance - amount, updatedAt: now });
+    transaction.update(accountRef, { balance: currentBalance - amount, creditSequence: Number(accountSnapshot.data()?.creditSequence || 0) + 1, updatedAt: now });
     const attempt = Number(reservationSnapshot.data()?.attempt || 0) + 1;
     transaction.set(reservationRef, {
       ownerUid: uid,
@@ -348,6 +348,7 @@ export async function reserveReferralCreditForOrder(
     transaction.create(db.collection('referralLedger').doc(`reserve_${orderId}_${attempt}`), {
       ownerUid: uid,
       type: 'reserve',
+      sequence: Number(accountSnapshot.data()?.creditSequence || 0) + 1,
       amount,
       orderId,
       createdAt: now,
@@ -398,12 +399,14 @@ export async function releaseReferralReservation(orderId: string, merchantOrderI
     if (!Number.isSafeInteger(amount) || amount <= 0 || !Number.isSafeInteger(balance) || balance < 0 || !Number.isSafeInteger(balance + amount)) throw new Error('Invalid referral balance.');
     transaction.update(accountRef, {
       balance: balance + amount,
+      creditSequence: Number(accountSnapshot?.data()?.creditSequence || 0) + 1,
       updatedAt: now,
     });
     transaction.update(reservationRef, { status: 'released', updatedAt: now });
     transaction.create(db.collection('referralLedger').doc(`release_${orderId}_${reservation?.attempt || 1}`), {
       ownerUid: order.ownerUid,
       type: 'release',
+      sequence: Number(accountSnapshot?.data()?.creditSequence || 0) + 1,
       amount,
       orderId,
       createdAt: now,

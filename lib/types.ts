@@ -12,6 +12,7 @@ export type PaymentStatus = 'Pending' | 'Paid' | 'Failed' | 'Refunded';
 export interface PersonDetails {
   fullName: string;
   relativeName: string; // Father's or spouse's name
+  relationship?: 'Son of' | 'Daughter of' | 'Wife of' | 'Husband of' | 'Child of' | 'Spouse of';
   age: number | string;
   address: string;
   pincode?: string; // Separate permanent-address PIN; older orders may embed it in address.
@@ -31,6 +32,10 @@ export interface PropertyDetails {
 }
 
 export interface AgreementTerms {
+  /** Missing on older orders means Rental. */
+  agreementType?: 'Rental' | 'Lease';
+  language?: 'English' | 'Tamil'; // Missing on legacy orders means English.
+  paintingDeduction?: number; // Tamil residential template only; not used in the shop template.
   monthlyRent: number;
   securityDeposit: number;
   maintenanceCharges: number;
@@ -43,6 +48,7 @@ export interface AgreementTerms {
   deliveryRecipient?: 'Owner' | 'Tenant';
   deliveryLocation?: 'Within Chennai' | 'Within Tamil Nadu';
   includeNotary?: boolean;
+  extraCopies?: number; // Additional copies on the same stamp denomination; legacy orders default to zero.
 }
 
 export type { PricingConfig } from '@/src/config/pricing';
@@ -57,6 +63,10 @@ export interface ProofUploads {
 }
 
 export interface OrderPayment {
+  carriedFromOrderId?: string;
+  carriedCash?: number;
+  carriedCredit?: number;
+  additionalPayment?: number;
   status: PaymentStatus;
   amount?: number;
   totalBeforeCredits?: number;
@@ -90,6 +100,19 @@ export interface OrderCourier {
 }
 
 export interface Order {
+  cancellationRefundId?: string;
+  cancellationRefundAmount?: number;
+  cancellationRefundStatus?: string;
+  cancellationRefundNote?: string;
+  cancellationRewardCreditsReturned?: number;
+  replacementPendingId?: string | null;
+  replacesOrderId?: string;
+  replacedByOrderId?: string;
+  replacementRequestId?: string;
+  replacementAdjustment?: { additionalPayment: number; creditReturned: number; refundAmount: number; refundStatus: string };
+  modificationReviewOutcome?: string;
+  modificationReviewId?: string;
+  preparationStartedAt?: string;
   orderId: string;
   ownerUid: string;
   referralCode?: string;
@@ -104,6 +127,10 @@ export interface Order {
   payment: OrderPayment;
   courier?: OrderCourier;
   correctionMessage?: string;
+  correctionRequestId?: string;
+  correctionStatus?: 'Requested' | 'Submitted';
+  correctionSubmittedAt?: string | null;
+  correctionChangedFields?: string[];
   customerClarification?: string;
   notes?: string;
   createdAt: string;

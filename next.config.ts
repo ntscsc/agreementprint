@@ -5,6 +5,7 @@ const nextConfig = (phase: string): NextConfig => ({
   // Allow release checks alongside a running development server.
   distDir: process.env.NEXT_BUILD_DIR || (phase === PHASE_DEVELOPMENT_SERVER ? '.next-dev' : '.next'),
   reactStrictMode: true,
+  devIndicators: false,
   eslint: {
     ignoreDuringBuilds: false,
   },

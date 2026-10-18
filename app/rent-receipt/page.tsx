@@ -1,7 +1,9 @@
+import { canonicalUrl } from '@/lib/seo';
 import type { Metadata } from 'next';
 import { RentReceiptGenerator } from '@/components/rent-receipt/RentReceiptGenerator';
 
 export const metadata: Metadata = {
+  alternates: { canonical: canonicalUrl('/rent-receipt') },
   title: 'Free Rent Receipt Generator | AgreementPrint',
   description:
     'Create and print monthly rent receipts for your tenants. Generate receipts locally and save them as a PDF.',

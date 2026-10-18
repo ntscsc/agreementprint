@@ -1,11 +1,14 @@
+import { canonicalUrl, socialImage } from '@/lib/seo';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { FileText, CreditCard, Printer, Truck, ArrowRight, Gift, ReceiptText } from 'lucide-react';
 
 export const metadata: Metadata = {
+  alternates: { canonical: canonicalUrl('/how-it-works') },
   title: 'How It Works | AgreementPrint',
   description: 'Get your agreement prepared, printed and delivered with AgreementPrint. See how to order, request a custom agreement and earn rewards.',
   openGraph: {
+    images: [socialImage],
     title: 'How It Works | AgreementPrint',
     description: 'Share your details, check the price and let AgreementPrint prepare and deliver your agreement.',
   },

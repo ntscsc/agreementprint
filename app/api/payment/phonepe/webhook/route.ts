@@ -1,3 +1,6 @@
+import { settleCustomPayment } from '@/lib/custom-payment';
+import { settleReplacement } from '@/lib/order-replacement';
+import { reconcileCreditRefund } from '@/lib/credit-refunds';
 import { readJsonObject, inputErrorStatus } from '@/lib/api-input';
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
@@ -26,6 +29,13 @@ export async function POST(req: NextRequest) {
     }
 
     const eventBody = await readJsonObject(req);
+    if (typeof eventBody.event === 'string' && /refund/i.test(eventBody.event)) {
+      const refundId = eventBody.payload?.merchantRefundId;
+      if (typeof refundId === 'string' && /^CREF[a-f0-9]{32}_\d+$/.test(refundId)) {
+        await reconcileCreditRefund(refundId.replace(/_\d+$/, ''));
+        return NextResponse.json({ status: 'success' });
+      }
+    }
     if (eventBody.event !== 'checkout.order.completed' && eventBody.event !== 'checkout.order.failed') {
       return NextResponse.json({ status: 'ignored' });
     }
@@ -38,6 +48,17 @@ export async function POST(req: NextRequest) {
       ? payload.merchantOrderId
       : '';
     if (!/^[A-Za-z0-9_-]+$/.test(merchantOrderId)) return NextResponse.json({ error: 'Missing merchant order reference.' }, { status: 400 });
+
+    if (/^REPLPAY[a-f0-9]{32}$/.test(merchantOrderId)) {
+      const payment = Array.isArray(payload.paymentDetails) ? payload.paymentDetails.find((p: { state?: string }) => p.state === 'COMPLETED') : undefined;
+      await settleReplacement(merchantOrderId, payload.state, payload.amount, payment?.transactionId);
+      return NextResponse.json({ status: 'success' });
+    }
+    if (/^CUSTOMPAY[a-f0-9]{32}$/.test(merchantOrderId)) {
+      const payment = Array.isArray(payload.paymentDetails) ? payload.paymentDetails.find((p: { state?: string }) => p.state === 'COMPLETED') : undefined;
+      await settleCustomPayment(merchantOrderId, payload.amount, payload.state, payment?.transactionId);
+      return NextResponse.json({ status: 'success' });
+    }
 
     if (/^TEST[A-Fa-f0-9]{32}$/.test(merchantOrderId)) {
       const completedPayment = Array.isArray(payload.paymentDetails) ? payload.paymentDetails.find((p: { state?: string }) => p.state === 'COMPLETED') : undefined;

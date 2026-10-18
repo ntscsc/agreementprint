@@ -1,11 +1,14 @@
+import { canonicalUrl, socialImage } from '@/lib/seo';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PolicyPage, PolicySection } from '@/components/PolicyPage';
 
 export const metadata: Metadata = {
+  alternates: { canonical: canonicalUrl('/disclaimer') },
   title: 'Disclaimer | AgreementPrint',
   description: 'Service scope, customer responsibilities and legal advice limitations for AgreementPrint.',
   openGraph: {
+    images: [socialImage],
     title: 'Disclaimer | AgreementPrint',
     description: 'Understand the scope of our agreement preparation, stamp paper procurement, printing and delivery service.',
   },

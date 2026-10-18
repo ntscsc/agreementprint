@@ -9,17 +9,21 @@ import { getPricingConfig } from '@/lib/pricing-service';
 interface PriceBreakdownCardProps {
   onStartOrder?: () => void;
   showCta?: boolean;
+  initialStampPaper?: 100 | 200;
+  initialLocation?: 'Within Chennai' | 'Within Tamil Nadu';
 }
 
 export const PriceBreakdownCard: React.FC<PriceBreakdownCardProps> = ({
   onStartOrder,
   showCta = true,
+  initialStampPaper = 100,
+  initialLocation = 'Within Chennai',
 }) => {
   const [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING);
   const [pricingReady, setPricingReady] = useState(false);
   const [pricingError, setPricingError] = useState(false);
-  const [stampPaper, setStampPaper] = useState<100 | 200>(100);
-  const [location, setLocation] = useState<'Within Chennai' | 'Within Tamil Nadu'>('Within Chennai');
+  const [stampPaper, setStampPaper] = useState<100 | 200>(initialStampPaper);
+  const [location, setLocation] = useState<'Within Chennai' | 'Within Tamil Nadu'>(initialLocation);
   const [includeNotary, setIncludeNotary] = useState<boolean>(false);
 
   useEffect(() => {

@@ -87,7 +87,7 @@ Configure these in `.env.local` for local development and in the hosting environ
 | `PHONEPE_WEBHOOK_PASSWORD` | Basic-auth password configured for the PhonePe webhook |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Optional Firebase service account JSON for server-side token verification and payment updates; production can use Application Default Credentials |
 | `GEMINI_API_KEY` | Gemini API access where Gemini features are used |
-| `APP_URL` | Public application URL used for production integration redirects, including the PhonePe payment return URL (for example, `https://your-domain.example`). Local development uses the current request origin instead. |
+| `APP_URL` | Public HTTPS application URL used for production integration redirects, including the PhonePe payment return URL (for example, `https://agreementprint.in`). Required for custom agreement checkout in production. Custom agreement checkout returns to `http://localhost:3000/my-requests` locally; other local payment flows use the current request origin with wildcard hosts normalized to localhost. |
 
 Configure the PhonePe webhook in the PhonePe Business dashboard to call `https://<your-domain>/api/payment/phonepe/webhook` and use the same webhook username and password configured above. Checkout uses the server-calculated saved order total; credentials are never exposed to the browser. Missing PhonePe or Firebase Admin credentials prevent online checkout and payment confirmation.
 
@@ -327,3 +327,56 @@ Dashboard count correction: sign-in attribution is shown separately as Awaiting 
 Latest validation after authorization to run tests: all 121 application/regression tests and all 15 Firebase Firestore/Storage emulator tests passed. ESLint, TypeScript, and the isolated .next-review production build passed. Regression coverage includes unpaid dashboard counts (0 paid, 1 awaiting, 0 due), matching confirmed payment ownership, agent manual payout eligibility, zero-rate rewards, shared customer and individual agent discounts, first-paid-order rewards, concurrent duplicate callbacks, and failed/returning-customer payment exclusion. No live payment was submitted and changes have not been deployed.
 
 Customer referral settings screen corrections: both rates load before editing is enabled; unavailable totals are shown as a dash, not zero. Empty fields are not coerced to zero. Both amounts and their audit entry save together in a server transaction. Errors are displayed inline and settings/totals can be refreshed. Totals exclude malformed, self-referring, unmatched and unpaid reward rows. Regression cases have been updated for a future test run.
+
+### Tamil rental agreement
+
+English Rs.100 stamp-paper orders use `RENTAL AGREEMENT BLANK website.doc`; Rs.200 orders use `RENTAL AGREEMENT BLANK website 200-0.docx`. Both have 13 clauses, including the two-consecutive-months unpaid-rent clause, and owner/tenant signatures on all three pages. The Rs.100 layout has the property recital and clauses 1–6 on page 2. The Rs.200 layout places the property recital on page 1, clauses 1–3 on page 2, and clauses 4–13 with witnesses on page 3; stamp margins remain on its first two pages. Notice periods use the selected form value without rounding partial months. The shared renderer is used for customer previews, confirmations and administrator printing.
+
+Step 4 offers English or Tamil agreement language. Tamil residential orders use the supplied residential template; Commercial Office / Shop + Tamil automatically uses `கடை வாடகை ஒப்பந்தப் பத்திரம் for website.docx` and the business name from Step 3. Both fill names/addresses as entered and use the selected rent, deposit, tenure, due date, notice period, maintenance and renewal increase. The shop template includes the electricity-consumption deposit, interest-free advance, no-subletting and advance-refund clauses. Painting deduction is residential-only and editable (the source's Rs.5,000 is the initial suggestion; enter zero for none); it is not shown or applied to the shop template. Language and property details select the matching customer/admin preview and print layout. Existing orders without a language retain English. Deploy updated Firestore rules with the app to allow Tamil shop orders. Shop/residential regression cases have been updated for a future authorized test run; no tests or production build were run for this addition.
+
+The shared preview/print component handles both templates, including customer sample watermarks and stamp-paper margins. The supplied Rs.100 stamp reference image replaces the blank margin on page 1 for Rs.100 orders and pages 1 and 2 for Rs.200 orders, in English and Tamil residential/shop templates. The image is included in printing and preserves its original proportions. The Stamp Image & Top Margin toggle controls the image and reserved space together. A bundled OFL-licensed Noto Sans Tamil font avoids relying on installed Tamil fonts. Long entries can expand onto additional printed sheets rather than being clipped; review the print preview for the actual order. Deploy updated Firestore rules with the app. Tamil wording was adapted from the supplied document, not newly certified as legally valid.
+
+### Admin visitor counts
+
+The Rental Orders admin dashboard shows unique browser visitors for today, the current calendar month and all time, using Asia/Kolkata dates. Counts begin with the first recorded production visit; historical traffic is not imported. Refreshing or visiting other pages does not increase the same browser's count within that period. Browser storage provides a random identifier; only its SHA-256 hash and last counted day/month are stored in `visitorRegistry`. No IP address, name, email or browsing history is stored by this counter.
+
+`POST /api/visitors` validates origin, visitor ID and allowed page, skips recognised bot user agents/Do Not Track, and updates deduplication and aggregate records in one server transaction. A global 300-new-visits/minute guard bounds burst writes. Local development and Netlify/Vercel preview contexts are excluded. `GET /api/admin/visitors` requires a verified allowlisted administrator and returns uncached totals. The Firestore collections `visitorAnalytics`, `visitorRegistry` and `visitorAnalyticsLimits` deny direct client access; deploy the updated rules with the app. Existing Firebase Admin credentials are required. Do not TTL/delete visitorRegistry records if all-time browser deduplication is to be retained.
+
+The counters are estimates of browsers, not verified people: cleared storage, multiple devices and undetected bots can affect totals; users with unavailable storage or Do Not Track are excluded. Tracking failure never blocks normal website use. The admin display was manually reviewed with clearly labelled sample values; production collection, API/regression tests and builds were not run for this addition, per the user's test preference.
+
+### Canonical URL configuration
+
+Public pages have self-referencing canonical links and are listed at `/sitemap.xml`. Both use the origin of `APP_URL`, falling back to `https://agreementprint.in`. Set `APP_URL` to the preferred production domain, including `https://`, before building. Keep `publicPagePaths` in `lib/seo.ts` aligned with public page metadata when adding routes. Account, tracking, admin, payment and redirect routes are excluded from the sitemap.
+
+
+### Residential lease agreements
+
+Step 4 now offers Rental or Residential Lease Agreement. Lease uses `LEASE AGREEMENT BLANK for website.doc` in English for House/Flat properties, with both Rs.100 and Rs.200 stamp choices. The existing package pricing, courier selection, notary option and checkout apply to both agreement types. `agreementTerms.agreementType` persists in drafts and orders; missing values on older orders mean Rental.
+
+Lease collects a positive refundable advance (stored as `securityDeposit`), maintenance, commencement date, duration (default 11 months) and notice (default 90 days). Monthly rent and escalation are zero and their controls are hidden. Server validation and Firestore rules enforce the English/residential/no-monthly-rent restrictions. The shared renderer chooses the lease draft for customer preview, confirmation, order history and admin printing. The 15 source clauses remain, with form values replacing dates, amounts, duration and notice. Clause 1 is clarified as no separate monthly rent consistently with clause 2's interest-as-rent wording. Clause 15's replacement-tenant provision is retained and flagged in review alongside the no-subletting clause.
+
+Rs.100 reserves the stamp image on page 1; Rs.200 reserves it on pages 1 and 2. Rs.200 moves clauses 7-12 to page 3 to allow space for the second stamp image. Long entries may expand when printed. Lease labels appear in order history, admin details and paid bills. Deploy the updated Firestore rules with the app before accepting lease orders. No tests, typecheck, lint or build were run for this change, per the user's instruction; print layout and checkout await an authorized verification run.
+
+Lease verification (authorized subsequent run): 133 existing tests and two lease regression tests passed; ESLint passed. The lease regressions exercise both stamp options, all 15 clauses, selected values, invalid combinations, and checkout change detection. Firebase emulator checks require Java, which is not installed/on PATH in this environment.
+
+
+### Agreement QA corrections (17 October 2026)
+
+English Rs.100/Rs.200 rental contracts now render monthly maintenance and annual rent escalation explicitly (including zero). Clause 10 holds the annual increase instead of duplicating unlawful-use restrictions. Execution wording and rent-receipt grammar are corrected. Tamil residential/shop contracts describe escalation as annual and retain explicit maintenance, due day, notice, duration and painting where applicable. All rental languages and lease documents identify property type/furnishing, including Unfurnished.
+
+Owner and tenant forms collect relationship wording separately from the relative name. Rental/lease print and customer previews use Son of, Daughter of, Wife of, Husband of, Child of or Spouse of; Tamil uses the corresponding parent/spouse labels. Missing legacy relationships remain neutral, without assuming S/o. The selection is retained in person details and participates in checkout detail comparisons. Firestore validates provided relationship values.
+
+Property PIN validation uses a bundled Department of Posts directory snapshot in `src/content/tamil-nadu-postcodes.json`, both before the review step and at server checkout. See the adjacent SOURCE.md for provenance, refresh requirements and limitations. Permanent-address PINs remain India-wide; delivery validation is separate. Firestore rejects property PINs outside Tamil Nadu's broad prefix range; the application/server enforce the full directory checks. Deploy the updated rules with the app.
+
+Custom Agreement and My Requests use the root layout's single main landmark. `devIndicators: false` disables Next's development indicator after restarting the development server. Public launch still requires `npm run build` and production hosting/start (never `next dev`). These local changes do not deploy the site or establish that the public host uses a production build.
+
+Focused agreement regression tests cover maintenance Rs.1,500, escalation 15%, both stamp options, English/Tamil house/shop and shared customer/final output, all relationship choices, invalid property PINs, and permanent addresses outside Tamil Nadu. The full suite, production build, payment calls and emulator checks were not run for these corrections.
+
+
+### Admin display corrections (17 October 2026)
+
+A shared `maskedAadhaar` formatter masks legacy full-length values at display time and shows only their last four normalized digits. Missing/unusable values show Not provided. It is used in admin order review, customer review and confirmation; records are not rewritten or migrated.
+
+Pricing inputs have unique label associations covering stamp denomination and delivery region. The order-status selector and audit-note input have associated labels. Inline pricing errors use the same whole-rupee/minimum/maximum checks as save validation; blank number inputs stay blank and invalid rather than coercing to zero. Any invalid rate suppresses the live matrix and disables/guards Save All Rates. Notary may validly be zero. No live pricing settings or customer records were edited during verification.
+
+Property PIN policy updated: exactly six digits, starting with 6, and membership in the bundled Tamil Nadu directory. City spelling and address text are not cross-checked against postal locality names. City and address remain required form fields.

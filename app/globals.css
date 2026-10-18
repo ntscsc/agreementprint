@@ -1,6 +1,27 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Noto+Sans+Tamil:wght@400;600;700&display=swap');
 
+@font-face {
+  font-family: 'Agreement Tamil';
+  src: url('/fonts/NotoSansTamil.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+.tamil-agreement-page {
+  font-family: 'Agreement Tamil', 'Noto Sans Tamil', sans-serif;
+}
+
+@media print {
+  .agreement-page.tamil-agreement-page,
+  .agreement-page.lease-agreement-page {
+    height: auto !important;
+  }
+  .tamil-agreement-page p {
+    break-inside: avoid;
+  }
+}
+
 @theme {
   --color-brand-50: #eff6ff;
   --color-brand-100: #dbeafe;
@@ -290,3 +311,9 @@
 .admin-portal .text-stone-400 { color: #57534e; }
 .admin-portal table th { white-space: nowrap; }
 .admin-portal table tbody tr:hover { background-color: #fffbeb; }
+
+/* Keep prefilled order corrections and replacements easy to read. */
+.order-edit-form label { font-size: 14px; font-weight: 600; color: #44403c; }
+.order-edit-form .text-xs { font-size: 14px; line-height: 1.5; }
+.order-edit-form .text-stone-500 { color: #57534e; }
+.order-edit-form :is(input, select, textarea):disabled { opacity: 1; color: #57534e; background: #f5f5f4; }

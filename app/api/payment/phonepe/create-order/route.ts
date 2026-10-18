@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     try { pricing = resolvePricingConfig(pricingData); }
     catch { return NextResponse.json({ error: 'The pricing configuration is invalid. Contact support.' }, { status: 503 }); }
     const terms = (details.agreementTerms ?? order.agreementTerms ?? {}) as Record<string, unknown>;
-    const price = calculateOrderPrice(pricing, terms.stampPaperDenomination === 200 ? 200 : 100, terms.deliveryLocation === 'Within Tamil Nadu' ? 'Within Tamil Nadu' : 'Within Chennai', Boolean(terms.includeNotary));
+    const price = calculateOrderPrice(pricing, terms.stampPaperDenomination === 200 ? 200 : 100, terms.deliveryLocation === 'Within Tamil Nadu' ? 'Within Tamil Nadu' : 'Within Chennai', Boolean(terms.includeNotary), terms.extraCopies as number | undefined);
     if (!Number.isSafeInteger(price.totalPayable) || price.totalPayable <= 0) return NextResponse.json({ error: 'The pricing configuration is invalid. Contact support.' }, { status: 503 });
     const coupon = await getCouponQuote(db, decoded.uid, String(details.referralCode ?? order.referralCode ?? ''), price.totalPayable, orderId);
     if (requested > coupon.total) return NextResponse.json({ error: 'Available credits cannot exceed the order total.' }, { status: 409 });

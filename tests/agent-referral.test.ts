@@ -39,6 +39,7 @@ function harness() {
     };
     if (name === '@/src/config/admin') return { ADMIN_EMAILS: ['admin@example.test'] };
     if (!name.startsWith('@/')) return require(name);
+    if (name.endsWith('.json')) return { default: JSON.parse(readFileSync(new URL(`../${name.slice(2)}`, import.meta.url), 'utf8')) };
     if (cache[name]) return cache[name];
     const source = readFileSync(new URL(`../${name.slice(2)}.ts`, import.meta.url), 'utf8');
     const target = { exports: {} };

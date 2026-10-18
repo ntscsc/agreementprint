@@ -1,7 +1,7 @@
 import { readJsonObject, inputErrorStatus, ApiInputError } from '@/lib/api-input';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerPricing } from '@/lib/server-pricing';
-import { calculateOrderPrice } from '@/src/config/pricing';
+import { calculateOrderPrice, extraCopiesError } from '@/src/config/pricing';
 
 export interface FeeCalculationRequest {
   monthlyRent?: number;
@@ -10,9 +10,12 @@ export interface FeeCalculationRequest {
   stampPaperDenomination?: 100 | 200;
   deliveryLocation?: 'Within Chennai' | 'Within Tamil Nadu';
   includeNotary?: boolean;
+  extraCopies?: number;
 }
 
 export interface FeeBreakdownResponse {
+  extraCopies: number;
+  extraCopyFee: number;
   feesConfigured: boolean;
   stampPaperDenomination: 100 | 200;
   deliveryLocation: 'Within Chennai' | 'Within Tamil Nadu';
@@ -34,10 +37,12 @@ export async function POST(req: NextRequest) {
     const { 
       stampPaperDenomination = 100, 
       deliveryLocation = 'Within Chennai', 
-      includeNotary = false 
+      includeNotary = false, extraCopies = 0
     } = body;
 
     if (![100, 200].includes(stampPaperDenomination) || !['Within Chennai', 'Within Tamil Nadu'].includes(deliveryLocation) || typeof includeNotary !== 'boolean') throw new ApiInputError('Invalid package options.');
+    const copyError = extraCopiesError(extraCopies);
+    if (copyError) throw new ApiInputError(copyError);
     // Load active pricing config from Firestore (or defaults)
     const pricing = await getServerPricing();
 
@@ -45,7 +50,7 @@ export async function POST(req: NextRequest) {
       pricing,
       stampPaperDenomination === 200 ? 200 : 100,
       deliveryLocation === 'Within Tamil Nadu' ? 'Within Tamil Nadu' : 'Within Chennai',
-      Boolean(includeNotary)
+      Boolean(includeNotary), extraCopies
     );
 
     // Approximate component allocation for itemized accounting
@@ -57,6 +62,8 @@ export async function POST(req: NextRequest) {
     const vendorDraftingService = Math.max(0, priceBreakdown.basePackagePrice - stampFaceValue - estimatedCourier);
 
     return NextResponse.json<FeeBreakdownResponse>({
+      extraCopies: priceBreakdown.extraCopies,
+      extraCopyFee: priceBreakdown.extraCopyFee,
       feesConfigured: true,
       stampPaperDenomination: priceBreakdown.stampPaperDenomination,
       deliveryLocation: priceBreakdown.deliveryLocation,

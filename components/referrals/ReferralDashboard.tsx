@@ -127,12 +127,8 @@ function ReferralDashboardBody() {
             <div className="rounded-2xl border border-stone-200 bg-white p-5"><h2 className="text-sm font-semibold text-stone-600">You earn</h2><p className="mt-2 text-2xl font-bold text-stone-900">₹{data.rewardAmount.toLocaleString('en-IN')} credit</p><p className="mt-2 text-sm text-stone-600">After your friend pays for their first order. Use the credit on a future order.</p></div>
             <div className="rounded-2xl border border-stone-200 bg-white p-5"><h2 className="text-sm font-semibold text-stone-600">Your friend saves</h2><p className="mt-2 text-2xl font-bold text-stone-900">₹{data.couponDiscount.toLocaleString('en-IN')}</p><p className="mt-2 text-sm text-stone-600">Taken off their first order when using your coupon, up to the order total.</p></div>
           </section>
-          <section className="grid gap-5 sm:grid-cols-2">
-            <div className="rounded-2xl bg-stone-900 p-6 text-white">
-              <p className="text-xs font-semibold uppercase tracking-wide text-stone-300">Available credits</p>
-              <p className="mt-2 text-3xl font-black">₹{data.balance.toLocaleString('en-IN')}</p>
-              <p className="mt-2 text-xs text-stone-300">No expiry. Apply credits to any part of a future order total.</p>
-            </div>
+          <section className="rounded-2xl bg-stone-900 p-6 text-white"><h2 className="text-sm font-semibold text-stone-300">Available credits for orders</h2><p className="mt-2 text-3xl font-bold">Rs.{data.balance.toLocaleString('en-IN')}</p><p className="mt-2 text-sm text-stone-300">Referral rewards can be used for orders. Order cancellation refunds return to the original payment method.</p></section>
+          <section>
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Your coupon code</p>
               <p className="mt-2 font-mono text-3xl font-black tracking-[0.15em] text-stone-900">{data.code}</p>
@@ -179,9 +175,9 @@ function ReferralDashboardBody() {
               <ul className="mt-4 divide-y divide-stone-100">
                 {data.ledger.map((entry, index) => (
                   <li key={`${entry.orderId}-${entry.type}-${index}`} className="flex items-center justify-between gap-3 py-3 text-sm">
-                    <span className="capitalize text-stone-700">{entry.type.replaceAll('_', ' ')}</span>
-                    <span className={`font-mono font-semibold ${entry.type === 'reward' || entry.type === 'release' ? 'text-emerald-700' : 'text-stone-800'}`}>
-                      {entry.type === 'reward' || entry.type === 'release' ? '+' : '−'}₹{Number(entry.amount).toLocaleString('en-IN')}
+                    <span className="capitalize text-stone-700">{entry.type === 'refund_completed' ? 'Refund confirmed' : entry.type === 'redeem' ? 'Used on order' : entry.type.replaceAll('_', ' ')}</span>
+                    <span className={`font-mono font-semibold ${['reward', 'release', 'replacement_credit', 'refund_release', 'cancellation_credit', 'cancellation_reward_return'].includes(entry.type) ? 'text-emerald-700' : 'text-stone-800'}`}>
+                      {['refund_completed', 'redeem'].includes(entry.type) ? '' : ['reward', 'release', 'replacement_credit', 'refund_release', 'cancellation_credit', 'cancellation_reward_return'].includes(entry.type) ? '+' : '−'}₹{Number(entry.amount).toLocaleString('en-IN')}
                     </span>
                   </li>
                 ))}

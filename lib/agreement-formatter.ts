@@ -9,6 +9,25 @@ export function getOrdinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+/** Append missing location fields without repeating a city already in the address. */
+export function formatPropertyAddress(fullAddress?: string, city?: string, pincode?: string): string {
+  if (!fullAddress?.trim()) return '';
+  let result = fullAddress.trim();
+  const normalize = (text: string) => text.normalize('NFKC').toLocaleLowerCase('en-IN').replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+  const cityText = city?.trim();
+  if (cityText) {
+    const aliases = ['chennai', 'சென்னை'].includes(normalize(cityText)) ? ['chennai', 'சென்னை'] : [normalize(cityText)];
+    const parts = result.split(/[,;\n]/).map(normalize);
+    const alreadyPresent = parts.some(part => aliases.some(alias => {
+      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`(^| )${escaped}( (tamil nadu|tamilnadu|தமிழ்நாடு|india|இந்தியா|[0-9]{6}))*$`, 'u').test(part);
+    }));
+    if (!alreadyPresent) result += `, ${cityText}`;
+  }
+  if (pincode?.trim() && !new RegExp(`(^|\\D)${pincode.trim().replace(/[^0-9]/g, '')}(\\D|$)`).test(result)) result += ` - ${pincode.trim()}`;
+  return result;
+}
+
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -90,7 +109,7 @@ export function formatNoticePeriodMonths(days?: number): string {
  */
 export function formatPropertyDescription(type?: string, furnishing?: string, businessName?: string): string {
   if (!type) return 'Residential premises';
-  const furn = furnishing && furnishing !== 'Unfurnished' ? `${furnishing} ` : '';
+  const furn = furnishing ? `${furnishing} ` : '';
   switch (type) {
     case 'Flat':
       return `${furn}Residential Flat / Apartment premises`;

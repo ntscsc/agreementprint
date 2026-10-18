@@ -1,5 +1,7 @@
 'use client';
 
+import { maskedAadhaar } from '@/lib/identity-display';
+
 import { readApiResponse } from '@/lib/api-response';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -67,6 +69,8 @@ interface FeeState {
   includeNotary?: boolean;
   basePackagePrice?: number;
   notaryFee?: number;
+  extraCopies?: number;
+  extraCopyFee?: number;
   totalPayable: number | null;
   statusMessage: string;
   paymentAllowed: boolean;
@@ -106,7 +110,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
   const [feeReload, setFeeReload] = useState(0);
   const [couponQuote, setCouponQuote] = useState<{ code: string; key: string; total: number; couponDiscount: number } | null>(null);
   const [couponBusy, setCouponBusy] = useState(false), [couponError, setCouponError] = useState('');
-  const quoteKey = JSON.stringify([termsData.stampPaperDenomination, termsData.deliveryLocation, termsData.includeNotary, submissionError, feeReload]);
+  const quoteKey = JSON.stringify([termsData.stampPaperDenomination, termsData.deliveryLocation, termsData.includeNotary, termsData.extraCopies, submissionError, feeReload]);
   const normalizedCoupon = referralCode.trim().toUpperCase().replace(/[\s-]/g, '');
   const couponApplied = canApplyReferralCode && couponQuote?.code === normalizedCoupon && couponQuote?.key === quoteKey;
   const totalAfterCoupon = couponApplied ? couponQuote.total : null;
@@ -128,7 +132,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
     setCouponBusy(true); setCouponError('');
     const key = quoteKey, code = normalizedCoupon;
     try {
-      const response = await fetch('/api/referrals/validate', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ code, orderId: paymentOrderId, packageOptions: { stampPaperDenomination: termsData.stampPaperDenomination, deliveryLocation: termsData.deliveryLocation, includeNotary: termsData.includeNotary === true } }) });
+      const response = await fetch('/api/referrals/validate', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ code, orderId: paymentOrderId, packageOptions: { stampPaperDenomination: termsData.stampPaperDenomination, deliveryLocation: termsData.deliveryLocation, extraCopies: termsData.extraCopies ?? 0, includeNotary: termsData.includeNotary === true } }) });
       const quote = await readApiResponse(response);
       if (quote.subtotal !== feeState.totalPayable) { setFeeReload(value => value + 1); throw new Error('The package price changed. Review the refreshed price and apply your coupon again.'); }
       setCouponQuote({ code, key, total: quote.total, couponDiscount: quote.couponDiscount });
@@ -185,6 +189,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             stampPaperDenomination: termsData.stampPaperDenomination || 100,
             deliveryLocation: termsData.deliveryLocation || 'Within Chennai',
             includeNotary: Boolean(termsData.includeNotary),
+            extraCopies: termsData.extraCopies ?? 0,
           }),
         });
 
@@ -203,6 +208,8 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             includeNotary: data.includeNotary,
             basePackagePrice: data.basePackagePrice,
             notaryFee: data.notaryFee,
+            extraCopies: data.extraCopies,
+            extraCopyFee: data.extraCopyFee,
             totalPayable: data.totalPayable,
             statusMessage: data.statusMessage,
             paymentAllowed: data.paymentAllowed,
@@ -233,7 +240,8 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
     termsData.tenureMonths,
     termsData.stampPaperDenomination,
     termsData.deliveryLocation,
-    termsData.includeNotary
+    termsData.includeNotary,
+    termsData.extraCopies
   ]);
 
   useEffect(() => {
@@ -299,7 +307,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             agreementTerms: termsData,
           }}
           onBack={() => setShowAgreementPreview(false)}
-          title="Rental Agreement Draft (Official 3-Page Format)"
+          title={`${termsData.agreementType === 'Lease' ? 'Lease' : 'Rental'} Agreement Draft`}
           customerPreview
         />
         <div className="mt-6 flex justify-center no-print">
@@ -368,8 +376,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <div>
             <h4 className="text-xs font-bold text-stone-900">Official Non-Judicial Stamping Format</h4>
             <p className="text-[11px] text-stone-600 mt-0.5">
-              Your inputs will be drafted into the exact 3-page Tamil Nadu stamping template (with stamp margin, rent in words, tenure, and witness clauses).
+              Agreement type: {termsData.agreementType || 'Rental'}. Agreement language: {termsData.language || 'English'}. Your inputs will be drafted into the selected template with stamp margins, amounts in words, tenure and witness clauses.
             </p>
+            {termsData.language === 'Tamil' && <p className="mt-2 text-xs font-semibold text-amber-900">{propertyData.propertyType === 'Commercial Shop' ? `Tamil shop rental agreement for ${propertyData.businessName || 'your business'}.` : `Tamil residential template: ₹${termsData.paintingDeduction?.toLocaleString('en-IN')} painting deduction from the deposit on vacating.`} Notice period: {termsData.noticePeriodDays} days. Review the draft before payment.</p>}
+            {termsData.agreementType === 'Lease' && <p className="mt-2 text-xs font-semibold text-amber-900">Lease template: refundable advance with interest treated as rent, and no separate monthly rent. Clause 15 retains the supplied document&apos;s replacement-tenant provision if the advance is not refunded. Review this alongside the no-subletting clause before payment.</p>}
           </div>
         </div>
       </div>
@@ -445,12 +455,12 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-stone-700">
             <div><span className="text-stone-400">Full Name:</span> <strong className="text-stone-900">{ownerData.fullName}</strong></div>
-            <div><span className="text-stone-400">Father/Spouse:</span> {ownerData.relativeName}</div>
+            {ownerData.relativeName?.trim() && <div><span className="text-stone-400">{ownerData.relationship || 'Parent / spouse'}:</span> {ownerData.relativeName}</div>}
             <div><span className="text-stone-400">Age:</span> {ownerData.age} Years</div>
             <div><span className="text-stone-400">Phone:</span> {ownerData.phone}</div>
             {ownerData.email && <div><span className="text-stone-400">Email:</span> {ownerData.email}</div>}
             {ownerData.aadhaarLast4 && (
-              <div><span className="text-stone-400">Aadhaar:</span> <strong className="font-mono text-stone-900">{ownerData.aadhaarLast4}</strong></div>
+              <div><span className="text-stone-400">Aadhaar:</span> <strong className="font-mono text-stone-900">{maskedAadhaar(ownerData.aadhaarLast4)}</strong></div>
             )}
             {ownerData.pan && <div><span className="text-stone-400">PAN:</span> <span className="font-mono">{ownerData.pan}</span></div>}
             <div className="sm:col-span-2"><span className="text-stone-400">Permanent Address:</span> {ownerData.address}{ownerData.pincode ? ` - ${ownerData.pincode}` : ''}</div>
@@ -472,12 +482,12 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-stone-700">
             <div><span className="text-stone-400">Full Name:</span> <strong className="text-stone-900">{tenantData.fullName}</strong></div>
-            <div><span className="text-stone-400">Father/Spouse:</span> {tenantData.relativeName}</div>
+            {tenantData.relativeName?.trim() && <div><span className="text-stone-400">{tenantData.relationship || 'Parent / spouse'}:</span> {tenantData.relativeName}</div>}
             <div><span className="text-stone-400">Age:</span> {tenantData.age} Years</div>
             <div><span className="text-stone-400">Phone:</span> {tenantData.phone}</div>
             {tenantData.email && <div><span className="text-stone-400">Email:</span> {tenantData.email}</div>}
             {tenantData.aadhaarLast4 && (
-              <div><span className="text-stone-400">Aadhaar:</span> <strong className="font-mono text-stone-900">{tenantData.aadhaarLast4}</strong></div>
+              <div><span className="text-stone-400">Aadhaar:</span> <strong className="font-mono text-stone-900">{maskedAadhaar(tenantData.aadhaarLast4)}</strong></div>
             )}
             {tenantData.pan && <div><span className="text-stone-400">PAN:</span> <span className="font-mono">{tenantData.pan}</span></div>}
             <div className="sm:col-span-2"><span className="text-stone-400">Permanent Address:</span> {tenantData.address}{tenantData.pincode ? ` - ${tenantData.pincode}` : ''}</div>
@@ -526,14 +536,14 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-stone-700">
-            <div><span className="text-stone-400">Monthly Rent:</span> <strong className="text-stone-900">₹{termsData.monthlyRent?.toLocaleString('en-IN')}</strong></div>
-            <div><span className="text-stone-400">Security Advance:</span> <strong className="text-stone-900">₹{termsData.securityDeposit?.toLocaleString('en-IN')}</strong></div>
+            {termsData.agreementType !== 'Lease' && <div><span className="text-stone-400">Monthly Rent:</span> <strong className="text-stone-900">₹{termsData.monthlyRent?.toLocaleString('en-IN')}</strong></div>}
+            <div><span className="text-stone-400">{termsData.agreementType === 'Lease' ? 'Refundable Lease Advance:' : 'Security Advance:'}</span> <strong className="text-stone-900">₹{termsData.securityDeposit?.toLocaleString('en-IN')}</strong></div>
             <div><span className="text-stone-400">Maintenance Charges:</span> ₹{(termsData.maintenanceCharges || 0).toLocaleString('en-IN')} / mo</div>
             <div><span className="text-stone-400">Commencement Date:</span> {termsData.startDate}</div>
             <div><span className="text-stone-400">Tenure:</span> {termsData.tenureMonths} Months</div>
             <div><span className="text-stone-400">Notice Period:</span> {termsData.noticePeriodDays} Days</div>
-            <div><span className="text-stone-400">Rent Increase %:</span> {termsData.rentIncreasePct}% per annum</div>
-            <div><span className="text-stone-400">Stamp Paper:</span> <strong>In Rs.{termsData.stampPaperDenomination || 100} Stamp Paper</strong></div>
+            {termsData.agreementType !== 'Lease' && <div><span className="text-stone-400">Rent Increase %:</span> {termsData.rentIncreasePct}% per annum</div>}
+            <div><span className="text-stone-400">Stamp Paper:</span> <strong>In ₹{termsData.stampPaperDenomination || 100} Stamp Paper</strong></div>
             <div><span className="text-stone-400">Courier Region:</span> <strong>{termsData.deliveryLocation || 'Within Chennai'}</strong></div>
             <div><span className="text-stone-400">Delivery Recipient:</span> <strong>{termsData.deliveryRecipient || 'Not selected'}</strong></div>
             {termsData.deliveryRecipient && (
@@ -588,6 +598,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
                 {feeState.includeNotary ? `+₹${(feeState.notaryFee ?? 200).toLocaleString('en-IN')}` : 'Not selected (₹0)'}
               </span>
             </div>
+            {!!feeState.extraCopies && <div className="flex justify-between gap-3 text-stone-300"><span>Extra stamped copies ({feeState.extraCopies} × ₹150):</span><span className="font-mono text-white">₹{(feeState.extraCopyFee ?? 0).toLocaleString('en-IN')}</span></div>}
             {couponApplied && <div className="flex justify-between gap-3 text-emerald-300"><span>First-order discount:</span><span className="font-mono">−₹{couponQuote.couponDiscount.toLocaleString('en-IN')}</span></div>}
             <div className="border-t border-stone-800 pt-3 flex justify-between text-sm font-bold text-amber-400">
               <span>Total Payable Amount:</span>

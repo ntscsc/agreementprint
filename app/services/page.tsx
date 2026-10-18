@@ -1,3 +1,4 @@
+import { canonicalUrl } from '@/lib/seo';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
@@ -5,6 +6,7 @@ import { VENDOR_SERVICE_TITLE } from '@/src/config/vendor';
 import { VENDOR_SERVICES } from '@/src/config/vendor-services';
 
 export const metadata: Metadata = {
+  alternates: { canonical: canonicalUrl('/services') },
   title: 'Our Services | AgreementPrint',
   description: 'Explore stamp paper, e-Stamp and other services: rental agreements, notary services, card printing and application assistance.',
 };

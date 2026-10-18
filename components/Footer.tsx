@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { BrandMark } from '@/components/BrandMark';
 import { Mail, Truck } from 'lucide-react';
 import { SupportEmailLink } from '@/components/SupportEmailLink';
 import { VENDOR_SERVICE_TITLE } from '@/src/config/vendor';
@@ -17,6 +18,7 @@ const help = [
   { label: 'Pricing', href: '/pricing' },
   { label: 'How It Works', href: '/how-it-works' },
   { label: 'Common Questions', href: '/faq' },
+  { label: 'Customer Reviews', href: '/reviews' },
   { label: 'Contact Us', href: '/contact' },
 ];
 const policies = [
@@ -44,7 +46,7 @@ export const Footer: React.FC = () => {
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-5 py-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] lg:gap-8">
           <div className="space-y-2">
-            <Link href="/" className={`${focus} inline-flex items-center gap-2.5`}><span className="flex h-11 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white"><svg aria-hidden="true" viewBox="245 106 208 179" className="h-full w-full"><image href="/agreementprint-logo.png" width="677" height="369" /></svg></span><span className="text-lg font-extrabold tracking-tight text-[#ffffff]">AgreementPrint</span></Link>
+            <Link href="/" className={`${focus} inline-flex items-center gap-2.5`}><span className="flex h-11 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white"><BrandMark className="h-full w-full" /></span><span className="text-lg font-extrabold tracking-tight text-[#ffffff]">AgreementPrint</span></Link>
             <p className="max-w-md text-sm font-semibold leading-relaxed text-[#f1f5f9]">{VENDOR_SERVICE_TITLE}</p>
             <p className="max-w-md text-sm leading-relaxed text-blue-50">Stamp paper, e-Stamps and agreements made simple. Get your rental agreement prepared, printed and delivered across Tamil Nadu.</p>
             <div className="flex items-start gap-2 text-sm text-blue-50"><Truck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[#dcfce7]" /><span>Courier delivery with tracking</span></div>

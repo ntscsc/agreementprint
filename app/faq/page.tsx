@@ -1,11 +1,14 @@
+import { canonicalUrl, socialImage } from '@/lib/seo';
 import type { Metadata } from 'next';
 import { FaqClient } from './FaqClient';
 import { faqData } from './faq-data';
 
 export const metadata: Metadata = {
+  alternates: { canonical: canonicalUrl('/faq') },
   title: 'FAQs | AgreementPrint',
   description: 'Simple answers about stamp paper, rental and custom agreements, notary signatures, delivery, payments, referral rewards and free rent receipts.',
   openGraph: {
+    images: [socialImage],
     title: 'FAQs | AgreementPrint',
     description: 'Simple answers about stamp paper, rental and custom agreements, notary signatures, delivery, payments, referral rewards and free rent receipts.',
   },

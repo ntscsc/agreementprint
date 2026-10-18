@@ -59,6 +59,7 @@ function loader(db: ReturnType<typeof database>, extra: Data = {}) {
     if (name === '@/lib/firebase-admin') return { getAdminDb: () => db };
     if (name === 'firebase-admin/firestore') return {};
     if (!name.startsWith('@/')) return require(name);
+    if (name.endsWith('.json')) return { default: JSON.parse(readFileSync(new URL(`../${name.slice(2)}`, import.meta.url), 'utf8')) };
     if (cache[name]) return cache[name];
     const source = readFileSync(new URL(`../${name.slice(2)}.ts`, import.meta.url), 'utf8');
     const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017 } }).outputText;

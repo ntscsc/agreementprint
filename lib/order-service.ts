@@ -87,7 +87,7 @@ export async function createOrder(
     delete (orderDoc as { correctionMessage?: unknown }).correctionMessage;
 
     const orderRef = doc(db, 'orders', orderPayload.orderId);
-    await setDoc(orderRef, orderDoc);
+    await setDoc(orderRef, omitUndefinedValues(orderDoc));
 
     // Clean up draft after order creation
     if (auth.currentUser?.uid) {
@@ -126,12 +126,12 @@ export async function submitDocumentCorrection(
       corrections.customerClarification.length > 3000
     )) throw new Error('Enter a clarification between 5 and 3000 characters.');
     const orderRef = doc(db, 'orders', orderId);
-    await updateDoc(orderRef, {
+    await updateDoc(orderRef, omitUndefinedValues({
       ...corrections,
       ...(corrections.customerClarification !== undefined ? { customerClarification: corrections.customerClarification.trim() } : {}),
       status: 'Under verification' as OrderStatus,
       updatedAt: new Date().toISOString(),
-    });
+    }));
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, path, auth.currentUser);
   }

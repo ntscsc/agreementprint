@@ -25,7 +25,8 @@ service cloud.firestore {
     function validPerson(data) {
       return data is map
         && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 100
-        && data.relativeName is string && data.relativeName.size() >= 2 && data.relativeName.size() <= 100
+        && (!('relativeName' in data) || (data.relativeName is string && data.relativeName.size() <= 100 && (data.relativeName.size() == 0 || data.relativeName.size() >= 2)))
+        && (!('relationship' in data) || data.relationship == '' || data.relationship in ['Son of', 'Daughter of', 'Wife of', 'Husband of', 'Child of', 'Spouse of'])
         && (data.age is int || data.age is string)
         && data.address is string && data.address.size() >= 10 && data.address.size() <= 2000
         && data.phone is string && data.phone.matches('^[6-9][0-9]{9}$');
@@ -35,7 +36,7 @@ service cloud.firestore {
       return data is map
         && data.fullAddress is string && data.fullAddress.size() >= 12 && data.fullAddress.size() <= 2000
         && data.city is string && data.city.size() >= 2 && data.city.size() <= 100
-        && data.pincode is string && data.pincode.matches('^[1-9][0-9]{5}$')
+        && data.pincode is string && data.pincode.matches('^6[0-4][0-9]{4}$')
         && data.propertyType in ['House', 'Flat', 'Commercial Shop']
         && data.furnishing in ['Unfurnished', 'Semi-Furnished', 'Fully Furnished'];
     }
@@ -44,7 +45,18 @@ service cloud.firestore {
       return validPerson(data.ownerDetails) && validPerson(data.tenantDetails)
         && validProperty(data.propertyDetails)
         && data.agreementTerms is map
-        && data.agreementTerms.monthlyRent is number && data.agreementTerms.monthlyRent > 0 && data.agreementTerms.monthlyRent <= 1000000000
+        && (!('language' in data.agreementTerms) || data.agreementTerms.language in ['English', 'Tamil'])
+        && (!('paintingDeduction' in data.agreementTerms) || (data.agreementTerms.paintingDeduction is number && data.agreementTerms.paintingDeduction >= 0 && data.agreementTerms.paintingDeduction <= 1000000000))
+        && (!('language' in data.agreementTerms) || data.agreementTerms.language != 'Tamil' || data.propertyDetails.propertyType == 'Commercial Shop' || 'paintingDeduction' in data.agreementTerms)
+        && (!('agreementType' in data.agreementTerms) || data.agreementTerms.agreementType in ['Rental', 'Lease'])
+        && (('agreementType' in data.agreementTerms && data.agreementTerms.agreementType == 'Lease')
+          ? (data.agreementTerms.language == 'English'
+            && data.propertyDetails.propertyType in ['House', 'Flat']
+            && data.agreementTerms.monthlyRent == 0
+            && data.agreementTerms.rentIncreasePct == 0
+            && data.agreementTerms.securityDeposit > 0)
+          : data.agreementTerms.monthlyRent > 0)
+        && data.agreementTerms.monthlyRent is number && data.agreementTerms.monthlyRent <= 1000000000
         && data.agreementTerms.securityDeposit is number && data.agreementTerms.securityDeposit >= 0 && data.agreementTerms.securityDeposit <= 1000000000
         && data.agreementTerms.maintenanceCharges is number && data.agreementTerms.maintenanceCharges >= 0 && data.agreementTerms.maintenanceCharges <= 1000000000
         && data.agreementTerms.tenureMonths is int && data.agreementTerms.tenureMonths >= 1 && data.agreementTerms.tenureMonths <= 120
@@ -52,6 +64,7 @@ service cloud.firestore {
         && data.agreementTerms.stampPaperDenomination in [100, 200]
         && data.agreementTerms.deliveryRecipient in ['Owner', 'Tenant']
         && data.agreementTerms.deliveryLocation in ['Within Chennai', 'Within Tamil Nadu']
+        && (!('extraCopies' in data.agreementTerms) || (data.agreementTerms.extraCopies is int && data.agreementTerms.extraCopies >= 0 && data.agreementTerms.extraCopies <= 100))
         && data.agreementTerms.includeNotary is bool
         && data.proofUploads is map;
     }
@@ -59,34 +72,7 @@ service cloud.firestore {
     // Owner correction logic:
     // Can only be updated if existing status is 'Documents needed'
     // Can only transition status to 'Under verification'
-    // Can only affect detail and proof fields (never payment, courier, etc.)
-    function isOwnerCorrectionUpdate() {
-      return isOwner()
-        && resource.data.status == 'Documents needed'
-        && request.resource.data.status == 'Under verification'
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.orderId == resource.data.orderId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.payment == resource.data.payment
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['customerClarification'])
-          || (request.resource.data.customerClarification is string
-            && request.resource.data.customerClarification.size() >= 5
-            && request.resource.data.customerClarification.size() <= 3000))
-        && (!('courier' in resource.data) || request.resource.data.courier == resource.data.courier)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'ownerDetails',
-          'tenantDetails',
-          'propertyDetails',
-          'proofUploads',
-          'customerClarification',
-          'status',
-          'updatedAt'
-        ])
-        && validPerson(request.resource.data.ownerDetails)
-        && validPerson(request.resource.data.tenantDetails)
-        && validProperty(request.resource.data.propertyDetails)
-        && request.resource.data.proofUploads is map;
-    }
+    // Customer correction submissions are validated and audited by the server API.
 
     // Default deny for all unmatched documents
     match /{document=**} {
@@ -179,9 +165,27 @@ service cloud.firestore {
       allow read: if isAdmin() || isOwner();
 
       // Update access:
-      // - Admins can update orders (status, courier details, notes, correctionMessage, payment)
-      // - Owners can ONLY update when status is 'Documents needed', to set 'Under verification', affecting only detail/proof fields
-      allow update: if isAdmin() || isOwnerCorrectionUpdate();
+      // - Admins manage workflow; payment records are gateway/server-managed.
+      // - Customer corrections use the transactional server API; direct client edits are denied.
+      allow update: if (isAdmin()
+        && !('cancellationRefundId' in resource.data)
+        && !(resource.data.payment.status == 'Paid' && request.resource.data.status == 'Cancelled')
+        && (!('replacementPendingId' in resource.data) || resource.data.replacementPendingId == null)
+        && !('replacedByOrderId' in resource.data)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['payment', 'replacementPendingId', 'replacesOrderId', 'replacedByOrderId', 'replacementRequestId', 'replacementAdjustment', 'modificationReviewId', 'modificationReviewOutcome', 'cancellationRefundId', 'cancellationRefundAmount', 'cancellationRefundStatus', 'cancellationRefundNote', 'cancellationRewardCreditsReturned', 'correctionRequestId', 'correctionStatus', 'correctionSubmittedAt', 'correctionChangedFields', 'correctionMessage'])
+        && (!('preparationStartedAt' in resource.data)
+          || (request.resource.data.preparationStartedAt == resource.data.preparationStartedAt))
+        && (!(request.resource.data.status in ['Drafting', 'Dispatched', 'Delivered'])
+          && !(resource.data.status in ['Drafting', 'Dispatched', 'Delivered'])
+          || (request.resource.data.preparationStartedAt is string
+            && request.resource.data.preparationStartedAt.size() > 0))
+        && (!(resource.data.payment.status == 'Paid')
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerDetails', 'tenantDetails', 'propertyDetails', 'agreementTerms']))
+        && (
+          resource.data.payment.status == 'Paid'
+          || (!(request.resource.data.status in ['Drafting', 'Dispatched', 'Delivered'])
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['courier']))
+        ));
 
       // Deletions: completely forbidden
       allow delete: if false;
@@ -192,10 +196,25 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /orderEditHistory/{editId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Refund eligibility, reservations and gateway references are server-managed.
+    match /creditRefundRequests/{requestId} {
+      allow read, write: if false;
+    }
+
     // Agent assignments and manual rewards are accessible only through authenticated server APIs.
     match /agentReferralCustomers/{customerId} {
       allow read, write: if false;
     }
+
+    // Visitor counts and deduplication are accessed only through server APIs.
+    match /visitorAnalytics/{id} { allow read, write: if false; }
+    match /visitorRegistry/{id} { allow read, write: if false; }
+    match /visitorAnalyticsLimits/{id} { allow read, write: if false; }
 
     // Administrative activity audit logs: admin only
     match /adminLogs/{logId} {
@@ -204,7 +223,7 @@ service cloud.firestore {
 
     // System & Pricing Settings (accessible to all for checkout, updatable by admin only)
     function isValidPrice(amount, minimum) {
-      return amount is int && amount >= minimum && amount <= 45035996273704;
+      return amount is int && amount >= minimum && amount <= 100000;
     }
 
     function isValidPricing(data) {

@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const [ordersSnapshot, rewardsSnapshot, ledgerSnapshot, firstPaidOrder, customerOrders, coupon, legacyDiscounts] = await Promise.all([
       db.collection('orders').where('referralCode', '==', account.code).limit(100).get(),
       db.collection('referralRewards').where('referrerUid', '==', uid).limit(100).get(),
-      db.collection('referralLedger').where('ownerUid', '==', uid).limit(100).get(),
+      db.collection('referralLedger').where('ownerUid', '==', uid).get(),
       db.collection('referralFirstPaidOrders').doc(uid).get(),
       db.collection('orders').where('ownerUid', '==', uid).get(),
       db.collection('referralCodes').doc(account.code).get(),

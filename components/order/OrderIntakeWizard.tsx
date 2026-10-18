@@ -1,5 +1,6 @@
 'use client';
 
+import { propertyPostcodeError } from '@/lib/property-postcode';
 import { readApiResponse } from '@/lib/api-response';
 import { createOrderReference } from '@/lib/order-reference';
 
@@ -39,6 +40,7 @@ import {
 import { saveDraft, getDraft, deleteDraft, createOrder } from '@/lib/order-service';
 import { extractPincode } from '@/lib/pincode-utils';
 import { restoreAgreementTerms } from '@/lib/agreement-draft';
+import { isValidCalendarDate } from '@/lib/calendar-date';
 
 function getReferralCodeFromUrl() {
   if (typeof window === 'undefined') return '';
@@ -340,8 +342,8 @@ function OrderIntakeBody() {
     if (!ownerData.fullName?.trim() || ownerData.fullName.trim().length < 2) {
       errs.fullName = 'Owner full legal name is required (minimum 2 characters)';
     }
-    if (!ownerData.relativeName?.trim() || ownerData.relativeName.trim().length < 2) {
-      errs.relativeName = "Father's or spouse's name is required";
+    if (ownerData.relativeName?.trim() && (ownerData.relativeName.trim().length < 2 || ownerData.relativeName.length > 100)) {
+      errs.relativeName = "Enter a parent or spouse name between 2 and 100 characters";
     }
     if (!ownerData.age || Number(ownerData.age) < 18 || Number(ownerData.age) > 120) {
       errs.age = 'Owner must be at least 18 years of age';
@@ -378,8 +380,8 @@ function OrderIntakeBody() {
     if (!tenantData.fullName?.trim() || tenantData.fullName.trim().length < 2) {
       errs.fullName = 'Tenant full legal name is required (minimum 2 characters)';
     }
-    if (!tenantData.relativeName?.trim() || tenantData.relativeName.trim().length < 2) {
-      errs.relativeName = "Father's or spouse's name is required";
+    if (tenantData.relativeName?.trim() && (tenantData.relativeName.trim().length < 2 || tenantData.relativeName.length > 100)) {
+      errs.relativeName = "Enter a parent or spouse name between 2 and 100 characters";
     }
     if (!tenantData.age || Number(tenantData.age) < 18 || Number(tenantData.age) > 120) {
       errs.age = 'Tenant must be at least 18 years of age';
@@ -423,9 +425,8 @@ function OrderIntakeBody() {
     if (!propertyData.city?.trim() || propertyData.city.trim().length < 2) {
       errs.city = 'City or Taluk in Tamil Nadu is required';
     }
-    if (!propertyData.pincode || !/^[1-9]\d{5}$/.test(propertyData.pincode)) {
-      errs.pincode = 'Valid 6-digit Indian pincode required';
-    }
+    const postcodeError = propertyPostcodeError(propertyData.pincode);
+    if (postcodeError) errs.pincode = postcodeError;
     if (!propertyData.fullAddress?.trim() || propertyData.fullAddress.trim().length < 12) {
       errs.fullAddress = 'Complete premises address required (at least 12 characters)';
     }
@@ -437,14 +438,18 @@ function OrderIntakeBody() {
   // Step 4 Validation (Agreement Terms)
   const validateTerms = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!termsData.monthlyRent || Number(termsData.monthlyRent) <= 0) {
+    if (termsData.language === 'Tamil' && propertyData.propertyType !== 'Commercial Shop' && (typeof termsData.paintingDeduction !== 'number' || !Number.isFinite(termsData.paintingDeduction) || termsData.paintingDeduction < 0 || termsData.paintingDeduction > 1e9)) errs.paintingDeduction = 'Enter a painting deduction from ₹0 to ₹1,000,000,000.';
+    if (termsData.agreementType !== 'Lease' && (!termsData.monthlyRent || Number(termsData.monthlyRent) <= 0)) {
       errs.monthlyRent = 'Monthly rent must be a positive amount';
     }
-    if (termsData.securityDeposit === undefined || Number(termsData.securityDeposit) < 0) {
-      errs.securityDeposit = 'Security advance/deposit is required (enter 0 if none)';
+    if (termsData.securityDeposit === undefined || Number(termsData.securityDeposit) < 0 || (termsData.agreementType === 'Lease' && Number(termsData.securityDeposit) === 0)) {
+      errs.securityDeposit = termsData.agreementType === 'Lease' ? 'Enter a positive refundable lease advance' : 'Security advance/deposit is required (enter 0 if none)';
     }
-    if (!termsData.startDate) {
-      errs.startDate = 'Please select agreement commencement date';
+    if (termsData.agreementType === 'Lease' && propertyData.propertyType === 'Commercial Shop') {
+      errs.agreementType = 'Lease agreements are available for houses and flats. Change the property type in Step 3';
+    }
+    if (!isValidCalendarDate(termsData.startDate)) {
+      errs.startDate = 'Enter a valid commencement date in DD/MM/YYYY format or choose it from the calendar.';
     }
     if (!termsData.tenureMonths || Number(termsData.tenureMonths) < 1) {
       errs.tenureMonths = 'Select tenancy tenure';
@@ -615,7 +620,9 @@ function OrderIntakeBody() {
     } catch (err: unknown) {
       console.error('Order creation failed:', err);
       setSubmissionError(
-        err instanceof Error ? err.message : 'Unable to register order. Please verify details and retry.'
+        typeof (err as { code?: unknown } | null)?.code === 'string'
+          ? 'We could not complete your request. Please sign in again and retry.'
+          : err instanceof Error ? err.message : 'Unable to register order. Please verify details and retry.'
       );
     } finally {
       setSubmittingOrder(false);
@@ -658,7 +665,7 @@ function OrderIntakeBody() {
               Customer Sign-In
             </span>
             <h1 className="text-2xl font-black text-stone-900 tracking-tight">
-              Sign In to Start Your Rental Agreement
+              Sign In to Start Your Agreement
             </h1>
             <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
               Sign in with your Google account. Your application details are automatically autosaved to your private account so you never lose your progress.
@@ -728,7 +735,7 @@ function OrderIntakeBody() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black text-stone-900">
-            Rental Agreement Application
+            {termsData.agreementType === 'Lease' ? 'Lease' : 'Rental'} Agreement Application
           </h1>
         </div>
 
@@ -860,6 +867,8 @@ function OrderIntakeBody() {
             data={propertyData}
             onChange={(fields) => {
               setPropertyData((prev) => ({ ...prev, ...fields }));
+              if (fields.propertyType === 'Commercial Shop') setTermsData(prev => ({ ...prev, paintingDeduction: undefined }));
+              else if (fields.propertyType && propertyData.propertyType === 'Commercial Shop') setTermsData(prev => ({ ...prev, paintingDeduction: prev.paintingDeduction ?? 5000 }));
               setErrors({});
               scheduleAutosave();
             }}
@@ -871,6 +880,7 @@ function OrderIntakeBody() {
         {currentStep === 4 && (
           <AgreementTermsStep
             data={termsData}
+            propertyType={propertyData.propertyType}
             ownerAddress={ownerData.address}
             ownerPincode={ownerData.pincode}
             ownerName={ownerData.fullName}

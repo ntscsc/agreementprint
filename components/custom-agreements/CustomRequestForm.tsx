@@ -1,19 +1,23 @@
 'use client';
-import { useRef, useState } from 'react';
+import { ExtraCopiesField } from '@/components/order/ExtraCopiesField';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { readApiResponse } from '@/lib/api-response';
 import { CustomInput, SAMPLE_TYPES, validateCustomInput, validateSample } from '@/lib/custom-agreement';
 
 const field = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600';
-const blank: CustomInput = { agreementType: '', purpose: '', language: 'English', instructions: '', preferredDate: '', name: '', phone: '', email: '', contactMethod: 'Call', contactConsent: false, includeNotary: false };
+const blank: CustomInput = { agreementType: '', purpose: '', language: 'English', instructions: '', preferredDate: '', name: '', phone: '', email: '', extraCopies: 0, stampPaperDenomination: 100, contactConsent: false, includeNotary: false };
 export function CustomRequestForm() {
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading, signInWithGoogle, customerProfile } = useAuth();
   const [data, setData] = useState(blank), [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false), [progress, setProgress] = useState(''), [error, setError] = useState(''), [success, setSuccess] = useState('');
   const pending = useRef<{ requestId: string; ownerUid: string; uploaded: Set<string> } | null>(null);
   const sampleInput = useRef<HTMLInputElement>(null);
-  const update = (key: keyof CustomInput, value: string | boolean) => { setData((old) => ({ ...old, [key]: value })); pending.current = null; };
+  useEffect(() => {
+    if (customerProfile) setData(previous => ({ ...previous, name: previous.name || customerProfile.name, phone: previous.phone || customerProfile.phone, email: previous.email || user?.email || '' }));
+  }, [customerProfile, user?.email]);
+  const update = (key: keyof CustomInput, value: string | boolean | number) => { setData((old) => ({ ...old, [key]: value })); pending.current = null; };
   const removeSample = (index: number) => {
     setFiles((selected) => selected.filter((_, i) => i !== index));
     if (sampleInput.current) sampleInput.current.value = '';
@@ -98,9 +102,12 @@ export function CustomRequestForm() {
           ))}
         </ul>
       </div>
+      <label className="block text-sm font-semibold">Stamp paper<select className={field} value={data.stampPaperDenomination ?? 100} onChange={event => update('stampPaperDenomination', Number(event.target.value))}><option value={100}>₹100 stamp paper</option><option value={200}>₹200 stamp paper</option></select></label>
+      <ExtraCopiesField value={data.extraCopies} stamp={data.stampPaperDenomination} onChange={count => update('extraCopies', count)} />
+      <p className="text-sm text-stone-600">Extra copies will be added to the reviewed quote at ₹150 each.</p>
       <h2 className="text-lg font-bold pt-3">How can we contact you?</h2>
-      <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold">Name<input required minLength={2} maxLength={100} autoComplete="name" className={field} value={data.name} onChange={(e) => update('name', e.target.value)} /></label><label className="block text-sm font-semibold">Mobile number<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} autoComplete="tel-national" className={field} value={data.phone} onChange={(e) => update('phone', e.target.value)} placeholder="10-digit Indian mobile number" /></label></div>
-      <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold">Email (optional)<input type="email" required={data.contactMethod === 'Email'} maxLength={254} autoComplete="email" className={field} value={data.email} onChange={(e) => update('email', e.target.value)} /></label><label className="block text-sm font-semibold">Preferred contact method<select className={field} value={data.contactMethod} onChange={(e) => update('contactMethod', e.target.value)}>{['Call', 'WhatsApp', 'Email'].map((v) => <option key={v}>{v}</option>)}</select></label></div>
+      <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold">Name<input required minLength={2} maxLength={100} autoComplete="name" className={field} value={data.name} onChange={(e) => update('name', e.target.value)} /></label><label className="block text-sm font-semibold">Mobile number (required)<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} autoComplete="tel-national" className={field} value={data.phone} onChange={(e) => update('phone', e.target.value)} placeholder="10-digit Indian mobile number" /></label></div>
+      <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold">Email (optional)<input type="email" maxLength={254} autoComplete="email" className={field} value={data.email} onChange={(e) => update('email', e.target.value)} /></label></div>
       <label className="flex items-start gap-3 text-sm leading-6"><input required type="checkbox" checked={data.contactConsent} onChange={(e) => update('contactConsent', e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-amber-600" /><span>I agree to be contacted about this request and have permission to share these samples. This is not consent to marketing. <Link href="/privacy-policy" className="text-brand-700 underline">Privacy policy</Link></span></label>
     </fieldset>
     {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}

@@ -3,10 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, IndianRupee, Calendar, Truck, Stamp, CheckCircle2 } from 'lucide-react';
 import { AgreementTerms } from '@/lib/types';
+import { ExtraCopiesField } from './ExtraCopiesField';
 import { DEFAULT_PRICING, PricingConfig, calculateOrderPrice } from '@/src/config/pricing';
 import { getPricingConfig } from '@/lib/pricing-service';
 import { detectCourierRegion } from '@/lib/pincode-utils';
 import { amountInWords } from '@/lib/number-to-words';
+import { CalendarDateInput } from './CalendarDateInput';
 
 function AmountInWords({ id, amount }: { id: string; amount: number | undefined }) {
   const words = amount === 0 ? 'Zero Rupees' : amountInWords(amount);
@@ -23,6 +25,7 @@ interface AgreementTermsStepProps {
   tenantAddress?: string;
   tenantPincode?: string;
   tenantName?: string;
+  propertyType?: string;
 }
 
 export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
@@ -35,6 +38,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
   tenantAddress,
   tenantPincode,
   tenantName,
+  propertyType,
 }) => {
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
 
@@ -52,6 +56,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
     };
   }, []);
 
+  const isLease = data.agreementType === 'Lease';
   const stampPaper = data.stampPaperDenomination === 200 ? 200 : 100;
   const selectedDeliveryAddress = data.deliveryRecipient === 'Owner'
     ? ownerAddress
@@ -72,7 +77,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
     }
   }, [data.deliveryLocation, detectedDeliveryLocation, onChange]);
 
-  const priceBreakdown = calculateOrderPrice(pricingConfig, stampPaper, location, hasNotary);
+  const priceBreakdown = calculateOrderPrice(pricingConfig, stampPaper, location, hasNotary, data.extraCopies);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
@@ -90,9 +95,34 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
         </div>
       </div>
 
+      <div className="space-y-2">
+        <label htmlFor="terms-agreementType" className="block text-sm font-bold text-stone-700">Agreement type</label>
+        <select id="terms-agreementType" value={data.agreementType || 'Rental'} onChange={event => {
+          const agreementType = event.target.value as 'Rental' | 'Lease';
+          onChange({ agreementType, language: 'English', monthlyRent: agreementType === 'Lease' ? 0 : undefined, rentIncreasePct: agreementType === 'Lease' ? 0 : 5, noticePeriodDays: agreementType === 'Lease' ? 90 : 30 });
+        }} className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm">
+          <option value="Rental">Rental Agreement - monthly rent</option>
+          <option value="Lease">Residential Lease Agreement - refundable advance</option>
+        </select>
+        {isLease && <p className="text-sm text-stone-600">English lease for a house or flat. No separate monthly rent; interest on the refundable advance is treated as rent. Both ₹100 and ₹200 stamp options use the existing package prices. Review all clauses before payment.</p>}
+        {errors.agreementType && <p role="alert" className="text-xs text-rose-700">{errors.agreementType}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="terms-language" className="block text-sm font-bold text-stone-700">Agreement language / ஒப்பந்த மொழி</label>
+        <select id="terms-language" disabled={isLease} value={data.language || 'English'} onChange={event => onChange({ language: event.target.value as 'English' | 'Tamil', ...(event.target.value === 'Tamil' && propertyType !== 'Commercial Shop' ? { paintingDeduction: data.paintingDeduction ?? 5000 } : {}) })} aria-describedby="terms-language-help" className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm">
+          <option value="English">English</option>
+          <option value="Tamil">தமிழ் (Tamil)</option>
+        </select>
+        <p id="terms-language-help" className="text-xs leading-relaxed text-stone-600">{propertyType === 'Commercial Shop' ? 'Tamil uses the shop rental agreement and the business name entered in Step 3. ' : ''}Names and addresses appear exactly as entered. Enter them in Tamil if you want Tamil text; they are not automatically translated.</p>
+        {errors.language && <p role="alert" className="text-xs text-rose-700">{errors.language}</p>}
+        {data.language === 'Tamil' && propertyType !== 'Commercial Shop' && <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3"><label htmlFor="terms-paintingDeduction" className="block text-sm font-bold text-stone-700">Painting deduction on vacating (₹)</label><input id="terms-paintingDeduction" type="number" min="0" max="1000000000" step="0.01" required value={data.paintingDeduction ?? ''} onChange={event => onChange({ paintingDeduction: event.target.value === '' ? undefined : Number(event.target.value) })} className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm" aria-describedby="painting-deduction-help" /><p id="painting-deduction-help" className="text-xs leading-relaxed text-stone-600">Deducted from the deposit on vacating; enter 0 for none. All amounts, tenure, due date and notice period follow your form values. Review the draft before payment.</p>{errors.paintingDeduction && <p role="alert" className="text-xs text-rose-700">{errors.paintingDeduction}</p>}</div>}
+        {data.language === 'Tamil' && propertyType === 'Commercial Shop' && <p className="rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm text-brand-800">Selected template: கடை வாடகை ஒப்பந்தப் பத்திரம் (Tamil shop rental agreement). Rent, deposit, duration and notice period follow your form values.</p>}
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-x-5 gap-y-5">
         {/* Monthly Rent */}
-        <div>
+        {!isLease && <div>
           <label htmlFor="terms-monthlyRent" className="block text-xs font-bold text-stone-700 mb-1">
             Monthly Rent (₹) *
           </label>
@@ -124,12 +154,11 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
               {errors.monthlyRent}
             </p>
           )}
-        </div>
-
+        </div>}
         {/* Security Deposit */}
         <div>
           <label htmlFor="terms-securityDeposit" className="block text-xs font-bold text-stone-700 mb-1">
-            Security Advance / Deposit (₹) *
+            {isLease ? 'Refundable Lease Advance' : 'Security Advance / Deposit'} (₹) *
           </label>
           <div className="relative">
             <span className="absolute left-3.5 top-2.5 text-stone-400 text-sm font-semibold">₹</span>
@@ -190,25 +219,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
           <label htmlFor="terms-startDate" className="block text-xs font-bold text-stone-700 mb-1">
             Agreement Commencement Date *
           </label>
-          <input
-            id="terms-startDate"
-            type="date"
-            required
-            value={data.startDate || ''}
-            onChange={(e) => onChange({ startDate: e.target.value })}
-            aria-invalid={!!errors.startDate}
-            aria-describedby={errors.startDate ? 'terms-startDate-error' : undefined}
-            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-stone-900 focus:outline-none focus:ring-2 ${
-              errors.startDate
-                ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-400'
-                : 'border-stone-300 bg-white focus:ring-amber-500'
-            }`}
-          />
-          {errors.startDate && (
-            <p id="terms-startDate-error" className="text-xs text-rose-600 mt-1">
-              {errors.startDate}
-            </p>
-          )}
+          <CalendarDateInput id="terms-startDate" value={data.startDate || ''} onChange={startDate => onChange({ startDate })} error={errors.startDate} />
         </div>
 
         {/* Notice Period */}
@@ -230,7 +241,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
         </div>
 
         {/* Rent Payment Due Day */}
-        <div>
+        {!isLease && <div>
           <label htmlFor="terms-dueDay" className="block text-xs font-bold text-stone-700 mb-1">
             Monthly Rent Due Day *
           </label>
@@ -246,10 +257,9 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
             <option value={10}>On or before 10th of every month</option>
             <option value={15}>On or before 15th of every month</option>
           </select>
-        </div>
-
+        </div>}
         {/* Annual Rent Escalation % */}
-        <div className="sm:col-span-2">
+        {!isLease && <div className="sm:col-span-2">
           <label htmlFor="terms-escalation" className="block text-xs font-bold text-stone-700 mb-1">
             Annual Rent Increase Clause (%) *
           </label>
@@ -265,8 +275,8 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
             <option value={10}>10% standard annual increase</option>
             <option value={15}>15% annual increase</option>
           </select>
-        </div>
-
+        </div>}
+        <div><label htmlFor="terms-tenure" className="block text-xs font-bold text-stone-700 mb-1">Agreement duration (months) *</label><input id="terms-tenure" type="number" min="1" max="120" required value={data.tenureMonths ?? ''} onChange={event => onChange({ tenureMonths: event.target.value === '' ? undefined : Number(event.target.value) })} className="min-h-11 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm" />{errors.tenureMonths && <p role="alert" className="text-xs text-rose-700">{errors.tenureMonths}</p>}</div>
         {/* ================= PACKAGE AND DELIVERY OPTIONS ================= */}
         <div className="sm:col-span-2 pt-4 border-t border-stone-200">
           <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 sm:p-5 space-y-4">
@@ -339,8 +349,8 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
                   }
                   className="w-full min-h-11 px-3 py-2.5 rounded-xl border border-stone-300 bg-white text-xs font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
                 >
-                  <option value={100}>In Rs.100 Stamp Paper</option>
-                  <option value={200}>In Rs.200 Stamp Paper</option>
+                  <option value={100}>In ₹100 Stamp Paper</option>
+                  <option value={200}>In ₹200 Stamp Paper</option>
                 </select>
               </div>
 
@@ -379,10 +389,11 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
               </div>
             </div>
 
+            <ExtraCopiesField value={data.extraCopies} stamp={stampPaper} onChange={extraCopies => onChange({ extraCopies })} />
             {/* Price Transparency Live Summary */}
             <div className="bg-white rounded-xl p-3 border border-amber-200/90 text-xs flex flex-wrap items-center justify-between gap-2 shadow-2xs">
               <div className="text-stone-700">
-                Package: <strong>In Rs.{stampPaper} stamp paper</strong> ({location})
+                Package: <strong>In ₹{stampPaper} stamp paper</strong> ({location})
                 {hasNotary ? (
                   <span className="text-amber-800 font-semibold"> + With notary signature</span>
                 ) : (

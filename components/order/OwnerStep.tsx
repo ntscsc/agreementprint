@@ -51,15 +51,23 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
           {errors.fullName && <p id="owner-fullName-error" className="text-xs text-rose-600 mt-1">{errors.fullName}</p>}
         </div>
 
+        <div>
+          <label htmlFor="owner-relationship" className="mb-1 block text-xs font-bold text-stone-700">Relationship wording (optional)</label>
+          <select id="owner-relationship" value={data.relationship || ''} onChange={event => onChange({ relationship: (event.target.value || undefined) as PersonDetails['relationship'] })} aria-invalid={!!errors.relationship} aria-describedby={errors.relationship ? 'owner-relationship-error' : undefined} className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-amber-500">
+            <option value="">Select relationship</option>
+            {['Son of', 'Daughter of', 'Wife of', 'Husband of', 'Child of', 'Spouse of'].map(value => <option key={value} value={value}>{value}</option>)}
+          </select>
+          {errors.relationship && <p id="owner-relationship-error" className="mt-1 text-xs text-rose-600">{errors.relationship}</p>}
+        </div>
         {/* Father's or Spouse's Name */}
         <div>
           <label htmlFor="owner-relativeName" className="block text-xs font-bold text-stone-700 mb-1">
-            Father&apos;s or Spouse&apos;s Name *
+            Parent / Spouse Full Name (optional)
           </label>
           <input
             id="owner-relativeName"
             type="text"
-            required
+            maxLength={100}
             value={data.relativeName || ''}
             onChange={(e) => onChange({ relativeName: e.target.value })}
             placeholder="e.g. K. Sundaram"

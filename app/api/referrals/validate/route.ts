@@ -5,7 +5,7 @@ import { normalizeReferralCode } from '@/lib/referral-utils';
 import { recordAgentReferral } from '@/lib/agent-referral';
 import { getCouponQuote } from '@/lib/coupon-server';
 import { getServerPricing } from '@/lib/server-pricing';
-import { calculateOrderPrice } from '@/src/config/pricing';
+import { calculateOrderPrice, extraCopiesError } from '@/src/config/pricing';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +18,9 @@ export async function POST(request: NextRequest) {
     if (body.packageOptions !== undefined) {
       const terms = body.packageOptions;
       if (!terms || ![100, 200].includes(terms.stampPaperDenomination) || !['Within Chennai', 'Within Tamil Nadu'].includes(terms.deliveryLocation) || typeof terms.includeNotary !== 'boolean') throw new ApiInputError('Select valid package options.');
-      subtotal = calculateOrderPrice(await getServerPricing(), terms.stampPaperDenomination, terms.deliveryLocation, terms.includeNotary).totalPayable;
+      const copyError = extraCopiesError(terms.extraCopies === undefined ? 0 : terms.extraCopies);
+      if (copyError) throw new ApiInputError(copyError);
+      subtotal = calculateOrderPrice(await getServerPricing(), terms.stampPaperDenomination, terms.deliveryLocation, terms.includeNotary, terms.extraCopies).totalPayable;
     }
     const db = getAdminDb();
     const quote = await getCouponQuote(db, user.uid, code, subtotal, typeof body.orderId === 'string' ? body.orderId : undefined);

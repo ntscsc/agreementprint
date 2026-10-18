@@ -54,5 +54,9 @@ export function handleFirestoreError(
     path,
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  const code = (error as { code?: string } | null)?.code;
+  if (code === 'permission-denied' || code === 'unauthenticated' || code?.startsWith('auth/')) {
+    throw new Error('We could not access your account. Please sign in again and retry.');
+  }
+  throw new Error('We could not complete your request. Please check your connection and try again. If this continues, contact support.');
 }

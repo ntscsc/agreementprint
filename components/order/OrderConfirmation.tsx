@@ -1,5 +1,7 @@
 'use client';
 
+import { maskedAadhaar } from '@/lib/identity-display';
+
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { 
@@ -42,7 +44,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
             createdAt: order.createdAt,
           }}
           onBack={() => setShowAgreementPreview(false)}
-          title={`Rental Agreement Draft (Order #${order.orderId})`}
+          title={`${order.agreementTerms.agreementType === 'Lease' ? 'Lease' : 'Rental'} Agreement Draft (Order #${order.orderId})`}
           customerPreview
         />
         <div className="flex justify-center no-print">
@@ -100,6 +102,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
               <span className="block text-xs font-bold text-emerald-900">Payment summary</span>
               <div className="flex flex-wrap gap-x-6 gap-y-1 text-stone-700">
                 <span>Package total: ₹{(order.payment.subtotal ?? order.payment.totalBeforeCredits ?? order.payment.amount ?? 0).toLocaleString('en-IN')}</span>
+                {!!order.agreementTerms.extraCopies && <span>Includes {order.agreementTerms.extraCopies} extra copies at ₹150 each, on ₹{order.agreementTerms.stampPaperDenomination ?? 100} stamp paper.</span>}
                 {(order.payment.couponDiscount ?? 0) > 0 && <span>Coupon discount ({order.payment.couponCode}): −₹{order.payment.couponDiscount?.toLocaleString('en-IN')}</span>}
                 {(order.payment.referralCreditApplied ?? 0) > 0 && (
                   <span>Referral credit: −₹{order.payment.referralCreditApplied?.toLocaleString('en-IN')}</span>
@@ -113,7 +116,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
             <span className="font-bold text-stone-800 block text-xs">Landlord (Owner)</span>
             <p className="text-stone-600">{order.ownerDetails.fullName}</p>
             {order.ownerDetails.aadhaarLast4 && (
-              <p className="text-stone-500 font-mono">Aadhaar: {order.ownerDetails.aadhaarLast4}</p>
+              <p className="text-stone-500 font-mono">Aadhaar: {maskedAadhaar(order.ownerDetails.aadhaarLast4)}</p>
             )}
             <p className="text-stone-500">{order.ownerDetails.phone}</p>
           </div>
@@ -122,7 +125,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
             <span className="font-bold text-stone-800 block text-xs">Tenant (Occupant)</span>
             <p className="text-stone-600">{order.tenantDetails.fullName}</p>
             {order.tenantDetails.aadhaarLast4 && (
-              <p className="text-stone-500 font-mono">Aadhaar: {order.tenantDetails.aadhaarLast4}</p>
+              <p className="text-stone-500 font-mono">Aadhaar: {maskedAadhaar(order.tenantDetails.aadhaarLast4)}</p>
             )}
             <p className="text-stone-500">{order.tenantDetails.phone}</p>
           </div>
@@ -136,7 +139,8 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
           <div className="space-y-1 bg-stone-50 p-4 rounded-xl border border-stone-200/80 sm:col-span-2">
             <span className="font-bold text-stone-800 block text-xs">Tenancy Terms</span>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-stone-600 pt-1">
-              <div>Monthly Rent: <strong>₹{order.agreementTerms.monthlyRent?.toLocaleString('en-IN')}</strong></div>
+              <div>Agreement type: <strong>{order.agreementTerms.agreementType || 'Rental'}</strong></div>
+              <div>Monthly Rent: <strong>{order.agreementTerms.agreementType === 'Lease' ? 'No separate monthly rent' : `₹${order.agreementTerms.monthlyRent?.toLocaleString('en-IN')}`}</strong></div>
               <div>Advance: <strong>₹{order.agreementTerms.securityDeposit?.toLocaleString('en-IN')}</strong></div>
               <div>Tenure: <strong>{order.agreementTerms.tenureMonths} Months</strong></div>
               {order.agreementTerms.deliveryRecipient && (

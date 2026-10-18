@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { readApiResponse } from '@/lib/api-response';
 import { summarizeAgentReferrals } from '@/lib/referral-summary';
+import { normalizeReferralCode } from '@/lib/referral-utils';
 
 interface Agent { code: string; name: string; contact: string; rewardAmount?: number; customerDiscountAmount?: number; active?: boolean; deletedAt?: string }
 interface Referral { uid: string; code: string; name: string; email: string; joinedAt: string; rewardStatus: string; rewardAmount?: number; rewardPaidAmount?: number; rewardNotes?: string; rewardedAt?: string; eligiblePaidOrderId?: string; hasPaidOrder: boolean; customerDiscountAmount?: number }
@@ -38,7 +39,9 @@ export function AgentReferralAdmin() {
     if (!user) return;
     const response = await fetch('/api/admin/agents', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
     const data = await readApiResponse(response);
-    setAgents(data.agents); setReferrals(data.customers); setLoaded(true);
+    setAgents(data.agents.map((agent: Agent) => ({ ...agent, code: normalizeReferralCode(agent.code) })));
+    setReferrals(data.customers.map((referral: Referral) => ({ ...referral, code: normalizeReferralCode(referral.code) })));
+    setLoaded(true);
   }, [user]);
   useEffect(() => { const timer = window.setTimeout(() => void load().catch(err => setError(err.message)), 0); return () => window.clearTimeout(timer); }, [load]);
 
@@ -75,7 +78,10 @@ export function AgentReferralAdmin() {
   const selectedReferrals = referrals.filter(referral => referral.code === selectedCode).sort((a, b) => b.joinedAt.localeCompare(a.joinedAt));
   const visibleReferrals = selectedReferrals.filter(referral => referralFilter === 'all' || (referralFilter === 'paid' ? referral.rewardStatus === 'Rewarded' : referralFilter === 'waiting' ? !referral.hasPaidOrder && referral.rewardStatus !== 'Rewarded' : referral.hasPaidOrder && referral.rewardStatus !== 'Rewarded' && (referral.rewardAmount ?? 0) > 0));
   const paid = referrals.filter(referral => referral.rewardStatus === 'Rewarded');
-  const summary = summarizeAgentReferrals(referrals);
+  const visibleCodes = new Set(visibleAgents.map(agent => agent.code));
+  const summary = summarizeAgentReferrals(referrals.filter(referral => visibleCodes.has(referral.code)));
+  const knownCodes = new Set(agents.map(agent => agent.code));
+  const unassignedReferrals = referrals.filter(referral => !knownCodes.has(referral.code));
   const link = selected && typeof window !== 'undefined' ? `${window.location.origin}/order?coupon=${encodeURIComponent(selected.code)}` : '';
 
   return <section className="space-y-6">
@@ -86,13 +92,14 @@ export function AgentReferralAdmin() {
     {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">{[
-      { label: 'Active agents', value: agents.filter(agent => !agent.deletedAt && agent.active !== false).length },
+      { label: 'Active agents', value: visibleAgents.filter(agent => !agent.deletedAt && agent.active !== false).length },
       { label: 'Customers who paid', value: summary.paidCustomers },
       { label: 'Awaiting customer payment', value: summary.awaitingCustomerPayment },
       { label: 'Agent payments due', value: summary.paymentsDue },
       { label: 'Agent rewards paid', value: money(summary.recordedPaymentTotal) },
     ].map(stat => <div key={stat.label} className="admin-agent-metric rounded-2xl border border-stone-200 bg-stone-50 p-4"><p className="text-xs font-semibold text-stone-600">{stat.label}</p><p className="mt-2 break-words text-2xl font-bold text-stone-900">{loaded ? stat.value : '...'}</p></div>)}</div>
-    <p className="text-xs text-stone-500">Customers who paid counts confirmed successful payments only. Customers who have only signed in appear under Awaiting customer payment.</p>
+    <p className="text-xs text-stone-500">Totals cover the agents displayed below and follow the search and removed-agent filter. Customers who paid counts confirmed successful payments only. Customers who have only signed in appear under Awaiting customer payment.</p>
+    {loaded && unassignedReferrals.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p>{unassignedReferrals.length} referral records have no matching agent and are excluded from these totals. {summarizeAgentReferrals(unassignedReferrals).awaitingCustomerPayment} are awaiting customer payment.</p><p className="mt-1 break-words">Unmatched codes: {[...new Set(unassignedReferrals.map(referral => referral.code || '(missing code)'))].join(', ')}</p></div>}
     {editor && <div ref={editorRef} className="scroll-mt-6 rounded-2xl border border-brand-200 bg-stone-50 p-5 sm:p-6">
       <h3 className="text-lg font-bold">{editor === 'new' ? 'Add an agent' : `Edit ${selected?.name || 'agent'}`}</h3>
       <form onSubmit={event => { event.preventDefault(); void save({ action: editor === 'new' ? 'create' : 'update', ...form, rewardAmount: Number(form.rewardAmount), customerDiscountAmount: Number(form.customerDiscountAmount) }); }}>

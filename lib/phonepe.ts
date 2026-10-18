@@ -10,6 +10,15 @@ interface PhonePeTokenResponse {
   expires_at: number;
 }
 
+export interface PhonePeRefundResponse {
+  merchantRefundId?: string;
+  originalMerchantOrderId?: string;
+  refundId?: string;
+  amount?: number;
+  state?: string;
+  emptyResponse?: boolean;
+}
+
 let cachedToken: string | null = null;
 let cachedTokenExpiry = 0;
 
@@ -81,7 +90,7 @@ export async function fetchPhonePeOrderStatus(
 
   if (!response.ok) {
     console.error('PhonePe order status request failed:', response.status);
-    throw new Error('Could not verify payment status with PhonePe.');
+    throw Object.assign(new Error('Could not verify payment status with PhonePe.'), { status: response.status });
   }
   return response.json() as Promise<{
     state?: string;
@@ -89,4 +98,34 @@ export async function fetchPhonePeOrderStatus(
     expireAt?: number;
     paymentDetails?: Array<{ state?: string; transactionId?: string }>;
   }>;
+}
+
+export async function phonePeRefundRequest(merchantRefundId: string, originalMerchantOrderId?: string, amount?: number): Promise<PhonePeRefundResponse> {
+  const credentials = getPhonePeCredentials();
+  if (!credentials) throw new Error('Online refunds are temporarily unavailable.');
+  const token = await getPhonePeAccessToken(credentials);
+  const response = await fetch(`${getPhonePeApiBase(credentials.production)}/payments/v2/refund${originalMerchantOrderId ? '' : `/${encodeURIComponent(merchantRefundId)}/status`}`, {
+    method: originalMerchantOrderId ? 'POST' : 'GET',
+    headers: { Authorization: `O-Bearer ${token}`, 'Content-Type': 'application/json' },
+    ...(originalMerchantOrderId ? { body: JSON.stringify({ merchantRefundId, originalMerchantOrderId, amount }) } : {}),
+    cache: 'no-store', signal: AbortSignal.timeout(15000),
+  });
+  const body = await response.text();
+  let result: Record<string, unknown> = {};
+  if (body.trim()) {
+    try { result = JSON.parse(body); }
+    catch { throw new Error('PhonePe returned an unreadable refund response. The refund remains unconfirmed; check its status before retrying.'); }
+    if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('PhonePe returned an invalid refund response. The refund remains unconfirmed.');
+  }
+  if (!response.ok) {
+    const code = typeof result.code === 'string' && /^[A-Z0-9_]{1,80}$/.test(result.code) ? result.code : undefined;
+    console.error('PhonePe refund request failed:', { operation: originalMerchantOrderId ? 'submit' : 'status', httpStatus: response.status, code });
+    const message = response.status === 401 || response.status === 403
+      ? 'PhonePe did not authorise this refund request. Check the configured payment credentials and refund access. The refund remains unconfirmed.'
+      : `PhonePe could not ${originalMerchantOrderId ? 'submit' : 'check'} the refund (HTTP ${response.status}${code ? `, ${code}` : ''}). The refund remains unconfirmed; check its status before retrying.`;
+    throw Object.assign(new Error(message), { status: response.status, code });
+  }
+  // Empty sandbox responses are unconfirmed, never evidence of success or failure.
+  if (!body.trim()) return { state: 'UNKNOWN', emptyResponse: true };
+  return result as PhonePeRefundResponse;
 }

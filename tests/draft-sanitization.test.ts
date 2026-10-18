@@ -12,8 +12,8 @@ test('Customer clarification is validated and written with the correction status
   const source = readFileSync(new URL('../lib/order-service.ts', import.meta.url), 'utf8');
   const target = { exports: {} as any };
   const dependencies: Record<string, unknown> = {
-    '@/lib/agreement-validation': {},
-    'firebase/firestore': { doc: (_db: unknown, collection: string, id: string) => `${collection}/${id}`, updateDoc: async (path: string, data: unknown) => { writes.push({ path, data }); } },
+    '@/lib/agreement-validation': { validateAgreement: () => {} },
+    'firebase/firestore': { doc: (_db: unknown, collection: string, id: string) => `${collection}/${id}`, updateDoc: async (path: string, data: unknown) => { writes.push({ path, data }); }, setDoc: async (path: string, data: unknown) => { writes.push({ path, data }); }, deleteDoc: async () => {} },
     './firebase': { db: {}, auth: { currentUser: { uid: 'customer' } } },
     './firestore-errors': { OperationType: { UPDATE: 'update' }, handleFirestoreError: (error: unknown) => { throw error; } },
     './firestore-data': { omitUndefinedValues },
@@ -33,6 +33,37 @@ test('Customer clarification is validated and written with the correction status
     await assert.rejects(target.exports.submitDocumentCorrection('order-1', { customerClarification }), /between 5 and 3000/);
   }
   assert.equal(writes.length, 1);
+  await target.exports.submitDocumentCorrection('order-1', { ownerDetails: { fullName: 'Owner', email: undefined }, proofUploads: undefined });
+  assert.equal('email' in writes[1].data.ownerDetails, false);
+  assert.equal('proofUploads' in writes[1].data, false);
+  assert.equal(await target.exports.createOrder({ orderId: 'order-2', ownerUid: 'customer', agreementTerms: { paintingDeduction: undefined, includeNotary: false, monthlyRent: 0 }, proofUploads: { owner: undefined }, referralCode: undefined }), 'order-2');
+  const saved = writes[2];
+  assert.equal(saved.path, 'orders/order-2');
+  assert.equal('paintingDeduction' in saved.data.agreementTerms, false);
+  assert.equal('owner' in saved.data.proofUploads, false);
+  assert.equal('referralCode' in saved.data, false);
+  assert.equal(saved.data.agreementTerms.includeNotary, false);
+  assert.equal(saved.data.agreementTerms.monthlyRent, 0);
+  assert.equal(saved.data.status, 'Submitted');
+  assert.equal(saved.data.payment.status, 'Pending');
+});
+
+test('Database failures show friendly messages without exposing diagnostics or account details', () => {
+  const require = createRequire(import.meta.url), ts = require('typescript');
+  const source = readFileSync(new URL('../lib/firestore-errors.ts', import.meta.url), 'utf8');
+  const target = { exports: {} as any };
+  const logs: unknown[] = [];
+  runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, {
+    module: target, exports: target.exports, console: { error: (...args: unknown[]) => logs.push(args) },
+  });
+  for (const code of ['invalid-argument', 'permission-denied', 'unauthenticated', 'auth/user-token-expired']) {
+    assert.throws(() => target.exports.handleFirestoreError({ code, message: 'secret database diagnostic' }, 'create', 'orders/private-order', { uid: 'private-user', email: 'private@example.com' }), (error: any) => {
+      assert.match(error.message, /Please/);
+      assert.doesNotMatch(error.message, /secret|private|auth\/|permission-denied|authInfo|operationType/);
+      return true;
+    });
+  }
+  assert.equal(logs.length, 4);
 });
 
 test('New/reset forms and legacy drafts retain an explicit boolean notary selection', () => {

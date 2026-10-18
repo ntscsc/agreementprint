@@ -132,3 +132,44 @@
   .admin-nav-item, .admin-summary-card, .admin-website-link, .admin-refresh { transition: none; }
   .admin-nav-item:hover, .admin-summary-card:hover { transform: none; }
 }
+
+/* Compact order desk: consistent surfaces and quieter navigation. */
+.admin-tidy .admin-hero { padding: 24px; border: 1px solid #e7e5e4; border-radius: 18px; background: #fff; color: #1c1917; box-shadow: none; }
+.admin-tidy .admin-hero::before, .admin-tidy .admin-hero::after { display: none; }
+.admin-tidy .admin-hero h1 { margin-top: 8px; color: #1c1917; font-size: 30px; letter-spacing: -.035em; }
+.admin-tidy .admin-eyebrow { color: #78716c; font-size: 11px; }
+.admin-tidy .admin-hero-copy > p { margin-top: 8px; color: #57534e; line-height: 1.5; }
+.admin-tidy .admin-account { margin-top: 12px; color: #78716c; }
+.admin-tidy .admin-account > span { background: #059669; }
+.admin-tidy .admin-hero-actions { flex-direction: row; flex-wrap: wrap; }
+.admin-tidy .admin-website-link { color: #57534e; background: #fff; border-color: #d6d3d1; }
+.admin-tidy .admin-refresh { color: #fff; background: #292524; border-color: #292524; box-shadow: none; }
+.admin-tidy .admin-refresh:hover { background: #44403c; }
+.admin-tidy .admin-navigation { padding: 18px; border-color: #e7e5e4; border-radius: 18px; box-shadow: none; }
+.admin-tidy .admin-nav-heading { margin-bottom: 8px; color: #78716c; letter-spacing: .08em; }
+.admin-tidy .admin-nav-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-tidy .admin-nav-item { min-height: 44px; flex-direction: row; align-items: center; gap: 8px; padding: 8px 10px; border-color: transparent; background: #fafaf9; }
+.admin-tidy .admin-nav-item:hover { transform: none; background: #f5f5f4; border-color: #e7e5e4; }
+.admin-tidy .admin-nav-item[aria-pressed='true'] { color: #1c1917; background: #e7e5e4; border-color: #d6d3d1; box-shadow: none; }
+.admin-tidy .admin-nav-icon { width: 25px; height: 25px; border-radius: 7px; background: transparent; color: #78716c; }
+.admin-tidy .admin-nav-item[aria-pressed='true'] .admin-nav-icon { background: transparent; color: #1c1917; }
+.admin-tidy .admin-nav-count { position: static; color: #57534e; background: #fff; }
+.admin-tidy .admin-summary-card { padding: 16px; border-color: #e7e5e4; border-radius: 16px; background: #fff; box-shadow: none; }
+.admin-tidy .admin-summary-card:hover { transform: none; background: #fafaf9; box-shadow: none; }
+.admin-tidy .admin-summary-number { margin-top: 12px; font-size: 28px; }
+.admin-tidy .admin-summary-hint { font-size: 11px; }
+.admin-tidy .admin-order-records tbody tr:hover { background: #fafaf9; }
+.admin-tidy .admin-order-records .text-xs { font-size: 12px; line-height: 1.5; }
+@media (max-width: 640px) {
+  .admin-tidy .admin-hero { padding: 20px; gap: 16px; }
+  .admin-tidy .admin-hero h1 { font-size: 26px; }
+  .admin-tidy .admin-navigation { padding: 14px; }
+}
+
+/* Strong selected navigation and readable order desk labels. */
+.admin-tidy .admin-nav-item[aria-pressed='true'] { color: #fff; background: #292524; border-color: #292524; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #57534e; }
+.admin-tidy .admin-nav-item[aria-pressed='true'] .admin-nav-icon { color: #fff; }
+.admin-tidy .admin-nav-item[aria-pressed='true'] .admin-nav-count { color: #fff; background: #57534e; }
+.admin-tidy .text-xs, .admin-tidy .admin-order-records .text-xs, .admin-tidy .admin-summary-hint, .admin-tidy .admin-nav-label { font-size: 14px; line-height: 1.5; }
+.admin-tidy .text-stone-500, .admin-tidy .admin-summary-hint { color: #57534e; }
+.admin-tidy label { font-size: 14px; font-weight: 600; color: #44403c; }

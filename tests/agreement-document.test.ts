@@ -19,6 +19,7 @@ test('Rendered agreement keeps currency units accurate and spells out a zero dep
   function load(name: string): any {
     if (!name.startsWith('@/')) return require(name);
     if (cache.has(name)) return cache.get(name);
+    if (name.endsWith('.json')) return JSON.parse(readFileSync(new URL(`../${name.slice(2)}`, import.meta.url), 'utf8'));
     const extension = name.includes('/components/') ? 'tsx' : 'ts';
     const source = readFileSync(new URL(`../${name.slice(2)}.${extension}`, import.meta.url), 'utf8');
     const target = { exports: {} };
@@ -111,7 +112,7 @@ test('Agreement Formatter: Notice Period & Property Descriptions', () => {
   assert.equal(formatNoticePeriodMonths(90), '3');
 
   assert.equal(formatPropertyDescription('Flat', 'Semi-Furnished'), 'Semi-Furnished Residential Flat / Apartment premises');
-  assert.equal(formatPropertyDescription('House', 'Unfurnished'), 'Independent Residential House premises');
+  assert.equal(formatPropertyDescription('House', 'Unfurnished'), 'Unfurnished Independent Residential House premises');
   assert.equal(formatPropertyDescription('Commercial Shop'), 'Commercial Shop / Office premises');
-  assert.equal(formatPropertyDescription('Commercial Shop', 'Unfurnished', 'Sri Balaji Traders'), 'Commercial Shop / Office premises (for "Sri Balaji Traders")');
+  assert.equal(formatPropertyDescription('Commercial Shop', 'Unfurnished', 'Sri Balaji Traders'), 'Unfurnished Commercial Shop / Office premises (for "Sri Balaji Traders")');
 });

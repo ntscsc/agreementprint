@@ -1,8 +1,9 @@
+import { EXTRA_COPY_PRICE } from '@/src/config/pricing';
 import { createHash, randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { ApiInputError } from '@/lib/api-input';
-import { CustomRequest, CustomStatus, validateCustomInput, validateSample, canTransition, validDate } from '@/lib/custom-agreement';
+import { CustomRequest, CustomStatus, validateCustomInput, validateSample, canTransition, validDate, customQuoteStatus } from '@/lib/custom-agreement';
 import { customIdentity, customBody, customError, requestReference } from '@/lib/custom-request-server';
 import { readPrivateFile } from '@/lib/file-storage';
 import { validateSampleBytes } from '@/lib/sample-validation';
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
     const snapshot = await (scope === 'admin' ? base.orderBy('createdAt', 'desc') : base.where('ownerUid', '==', identity.uid).orderBy('createdAt', 'desc')).limit(100).get();
     const requests = snapshot.docs.map((doc) => {
       const data = doc.data();
+      data.status = customQuoteStatus(data);
       delete data.scanLeaseId; delete data.scanLeaseUntil;
       if (scope !== 'admin') { delete data.internalNotes; delete data.assignedTo; delete data.ownerUid; delete data.ownerEmail; delete data.scanHashes; delete data.sampleHashes; }
       return data;
@@ -108,9 +110,11 @@ export async function PATCH(req: NextRequest) {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref), current = snap.data();
       if (!current || (!identity.admin && current.ownerUid !== identity.uid)) throw new ApiInputError('Request not found.', 404);
+      current.status = customQuoteStatus(current);
       const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+      if (current.payment?.status === 'Pending') throw new ApiInputError('A payment is pending. Check its status before changing this request.', 409);
       if (!identity.admin) {
-        if (body.action === 'cancel' && ['Uploading', 'Submitted', 'Under Review', 'Clarification Required', 'Quote Sent'].includes(current.status)) updates.status = 'Cancelled';
+        if (body.action === 'cancel' && ['Uploading', 'Submitted', 'Under Review', 'Clarification Required', 'Quote Sent', 'Quoted / Awaiting Payment'].includes(current.status)) updates.status = 'Cancelled';
         else if (body.action === 'reply' && current.status === 'Clarification Required') {
           if (typeof body.customerReply !== 'string' || body.customerReply.trim().length < 5 || body.customerReply.length > 3000) throw new ApiInputError('Enter a clarification between 5 and 3000 characters.');
           updates.customerReply = body.customerReply.trim(); updates.status = 'Under Review';
@@ -118,8 +122,10 @@ export async function PATCH(req: NextRequest) {
       } else {
         if (current.status === 'Uploading') throw new ApiInputError('Samples must finish verification before review.', 409);
         const status = body.status as CustomStatus;
+        if (['In Progress', 'Completed'].includes(status) && current.payment?.status !== 'Paid') throw new ApiInputError('Payment must be confirmed before preparing or completing this request.', 409);
+        if (current.payment?.status === 'Paid' && ['Submitted', 'Under Review', 'Quote Sent', 'Quoted / Awaiting Payment'].includes(status)) throw new ApiInputError('A paid request cannot be returned to awaiting payment.', 409);
         if (!canTransition(current.status, status)) throw new ApiInputError('Invalid status transition.', 409);
-        updates.status = status;
+        updates.status = status === 'Quote Sent' ? 'Quoted / Awaiting Payment' : status;
         for (const [key, max] of [['internalNotes', 5000], ['assignedTo', 100], ['customerMessage', 3000]] as const) {
           if (body[key] !== undefined) {
             if (typeof body[key] !== 'string' || body[key].length > max) throw new ApiInputError(`Invalid ${key}.`);
@@ -128,17 +134,24 @@ export async function PATCH(req: NextRequest) {
         }
         if (body.quoteAmount !== undefined) {
           if (typeof body.quoteAmount !== 'number' || !Number.isSafeInteger(body.quoteAmount) || body.quoteAmount < 1 || body.quoteAmount > 1_000_000) throw new ApiInputError('Quote must be a whole-rupee amount between 1 and 1,000,000.');
-          if (['Accepted', 'In Progress', 'Completed'].includes(current.status) && body.quoteAmount !== current.quoteAmount) throw new ApiInputError('An accepted quote cannot be changed.', 409);
-          updates.quoteAmount = body.quoteAmount;
+          const extraCopyFee = (current.extraCopies ?? 0) * EXTRA_COPY_PRICE;
+          const baseAmount = current.quoteBaseAmount ?? current.quoteAmount;
+          if ((current.payment?.status === 'Paid' || ['Accepted', 'In Progress', 'Completed'].includes(current.status)) && body.quoteAmount !== baseAmount) throw new ApiInputError('An accepted quote cannot be changed.', 409);
+          const total = body.quoteAmount + extraCopyFee;
+          if (total > 1_000_000) throw new ApiInputError('Quote including extra copies must not exceed 1,000,000 rupees.');
+          updates.quoteBaseAmount = body.quoteAmount;
+          updates.extraCopyFee = extraCopyFee;
+          updates.quoteAmount = total;
+          if (['Submitted', 'Under Review'].includes(status)) updates.status = 'Quoted / Awaiting Payment';
         }
         if (body.expectedDate !== undefined) {
           if (body.expectedDate !== '' && !validDate(body.expectedDate)) throw new ApiInputError('Invalid expected completion date.');
           updates.expectedDate = body.expectedDate;
         }
-        if (status === 'Quote Sent' && !(updates.quoteAmount ?? current.quoteAmount)) throw new ApiInputError('Enter the quote before marking it sent.');
+        if (['Quote Sent', 'Quoted / Awaiting Payment'].includes(status) && !(updates.quoteAmount ?? current.quoteAmount)) throw new ApiInputError('Enter the quote before marking it sent.');
         if (status === 'Clarification Required' && !(updates.customerMessage ?? current.customerMessage)) throw new ApiInputError('Explain the clarification needed.');
-        if (current.status === 'Quote Sent' && status === 'Accepted' && body.acceptanceConfirmed !== true) throw new ApiInputError('Confirm that the customer accepted the quote by contact.');
-        if (current.status === 'Quote Sent' && status === 'Accepted') { updates.acceptedAt = new Date().toISOString(); updates.acceptanceRecordedBy = identity.uid; }
+        if (['Quote Sent', 'Quoted / Awaiting Payment'].includes(current.status) && status === 'Accepted' && body.acceptanceConfirmed !== true) throw new ApiInputError('Confirm that the customer accepted the quote by contact.');
+        if (['Quote Sent', 'Quoted / Awaiting Payment'].includes(current.status) && status === 'Accepted') { updates.acceptedAt = new Date().toISOString(); updates.acceptanceRecordedBy = identity.uid; }
       }
       tx.update(ref, updates);
       tx.create(logRef, { requestId, actorUid: identity.uid, fromStatus: current.status, toStatus: updates.status ?? current.status, action: body.action ?? 'admin-update', createdAt: updates.updatedAt });

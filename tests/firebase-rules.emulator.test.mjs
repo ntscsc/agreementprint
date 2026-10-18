@@ -29,6 +29,22 @@ const db = (uid = 'customer', claims = {}) => env.authenticatedContext(uid, clai
 const admin = () => db('admin', { email: 'pradeep1992official@gmail.com', email_verified: true });
 const seed = async (path, data) => env.withSecurityRulesDisabled(async (context) => setDoc(doc(context.firestore(), path), data));
 
+test('Tamil order language and painting deduction are validated without breaking legacy orders', async () => {
+  const legacy = order();
+  const tamil = { ...legacy, agreementTerms: { ...legacy.agreementTerms, language: 'Tamil', paintingDeduction: 0 } };
+  let index = 0;
+  const create = (data) => { const orderId = `tamil-order-${index++}`; return setDoc(doc(db(), 'orders', orderId), { ...data, orderId }); };
+  await assertSucceeds(create(legacy));
+  await assertSucceeds(create(tamil));
+  for (const patch of [{ language: 'Other' }, { paintingDeduction: -1 }, { paintingDeduction: '5000' }]) {
+    await assertFails(create({ ...tamil, agreementTerms: { ...tamil.agreementTerms, ...patch } }));
+  }
+  const missing = { ...tamil.agreementTerms }; delete missing.paintingDeduction;
+  await assertFails(create({ ...tamil, agreementTerms: missing }));
+  await assertSucceeds(create({ ...tamil, agreementTerms: missing, propertyDetails: { ...tamil.propertyDetails, propertyType: 'Commercial Shop', businessName: 'Test shop' } }));
+  await assertFails(create({ ...tamil, agreementTerms: missing, propertyDetails: { ...tamil.propertyDetails, propertyType: 'Commercial Shop', businessName: '' } }));
+});
+
 test('agent attribution and rewards cannot be read or forged through client SDKs', async () => {
   await seed('agentReferralCustomers/customer', { code: 'AGRAVI', uid: 'customer', rewardStatus: 'Pending' });
   await seed('referralCodes/AGRAVI', { kind: 'agent', name: 'Ravi' });
@@ -38,6 +54,16 @@ test('agent attribution and rewards cannot be read or forged through client SDKs
     await assertFails(updateDoc(doc(client, 'agentReferralCustomers/customer'), { rewardStatus: 'Rewarded' }));
     await assertFails(getDoc(doc(client, 'referralCodes/AGRAVI')));
     await assertFails(setDoc(doc(client, 'referralCodes/AGFORGED'), { kind: 'agent' }));
+  }
+});
+
+test('Visitor counters and browser deduplication records stay private to server APIs', async () => {
+  for (const path of ['visitorAnalytics/total','visitorRegistry/example','visitorAnalyticsLimits/global']) {
+    await seed(path,{count:1});
+    for (const client of [db(),admin(),env.unauthenticatedContext().firestore()]) {
+      await assertFails(getDoc(doc(client,path)));
+      await assertFails(setDoc(doc(client,path),{count:999}));
+    }
   }
 });
 
