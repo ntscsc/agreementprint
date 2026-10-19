@@ -20,13 +20,25 @@ export async function POST(req: NextRequest) {
     if (!['start', 'status'].includes(body.action)) throw new ApiInputError('Invalid test payment action.');
     const credentials = gatewayCredentials('Razorpay');
     if (!credentials) throw new ApiInputError('Razorpay is not configured.', 503);
-    const db = getAdminDb(), pointer = db.collection('razorpayTestCustomers').doc(identity.uid);
-    const currentId = (await pointer.get()).data()?.merchantOrderId;
+    const db = getAdminDb();
+    const pointer = db.collection('razorpayTestCustomers').doc(`${identity.uid}_${credentials.production ? 'live' : 'test'}`);
+    const legacyPointer = db.collection('razorpayTestCustomers').doc(identity.uid);
+    let currentId = (await pointer.get()).data()?.merchantOrderId;
+    // Preserve an older same-mode checkout without treating a sandbox result as live.
+    if (!currentId) {
+      const legacyId = (await legacyPointer.get()).data()?.merchantOrderId;
+      if (typeof legacyId === 'string' && /^RZTEST[a-f0-9]{32}$/.test(legacyId)) {
+        const legacy = (await db.collection('razorpayTestPayments').doc(legacyId).get()).data();
+        if (legacy?.ownerUid === identity.uid && legacy.live === credentials.production) currentId = legacyId;
+      }
+    }
     const id = body.action === 'status' ? body.merchantOrderId ?? currentId : currentId;
     if (id !== undefined && (typeof id !== 'string' || !/^RZTEST[a-f0-9]{32}$/.test(id))) throw new ApiInputError('Invalid Razorpay test payment reference.');
     if (id) {
       const record = (await db.collection('razorpayTestPayments').doc(id).get()).data();
       if (!record || record.ownerUid !== identity.uid) throw new ApiInputError('Test payment not found.', 404);
+      const association = (await db.collection('razorpayCheckouts').doc(id).get()).data();
+      if (record.live !== credentials.production || association?.keyId !== credentials.keyId) throw new ApiInputError('This payment belongs to different Razorpay keys or test/live mode. Open the payment-test page without the old reference to use the current mode.', 409);
       if (record.state === 'COMPLETED') return json({ paid: true, state: 'COMPLETED', merchantOrderId: id, live: record.live });
       // Individual failed/cancelled payment attempts do not close a Razorpay order.
       // Reuse the same provider order until a full capture has been verified.
@@ -51,6 +63,11 @@ export async function POST(req: NextRequest) {
     await db.runTransaction(async tx => {
       const latestId = (await tx.get(pointer)).data()?.merchantOrderId;
       if (latestId) throw new ApiInputError('A Razorpay test checkout already exists. Check its status.', 409);
+      const legacyId = (await tx.get(legacyPointer)).data()?.merchantOrderId;
+      if (typeof legacyId === 'string' && /^RZTEST[a-f0-9]{32}$/.test(legacyId)) {
+        const legacy = (await tx.get(db.collection('razorpayTestPayments').doc(legacyId))).data();
+        if (legacy?.ownerUid === identity.uid && legacy.live === credentials.production) throw new ApiInputError('A test checkout for this mode already exists. Check its status.', 409);
+      }
       tx.create(ref, { merchantOrderId, ownerUid: identity.uid, gateway: 'Razorpay', amount: TEST_PAYMENT_PAISE, state: 'INITIALIZING', live: credentials.production, createdAt: new Date().toISOString() });
       tx.set(pointer, { merchantOrderId });
     });
