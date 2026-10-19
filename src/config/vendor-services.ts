@@ -7,6 +7,6 @@ export const VENDOR_SERVICES = [
   { title: 'Electricity Services (TNEB)', services: ['New connections', 'Name transfers', 'Tariff changes'] },
   { title: 'Property Documents', services: ['Encumbrance certificates (EC)', 'Copies of documents'] },
   { title: 'Food Licence Services', services: ['New applications', 'Renewals'] },
-  { title: 'PVC Card Printing', services: ['Aadhaar cards', 'PAN cards', 'Voter ID cards', 'School and college ID cards'] },
+  { title: 'PVC Card Printing', services: ['Aadhaar cards', 'PAN cards', 'Voter ID cards', 'Driving License', 'Ration Card', 'School and college ID cards'] },
   { title: 'Other Services', services: ['Life certificates'] },
 ];

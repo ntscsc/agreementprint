@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { BrandMark } from '@/components/BrandMark';
 import { Mail, Truck } from 'lucide-react';
 import { SupportEmailLink } from '@/components/SupportEmailLink';
-import { VENDOR_SERVICE_TITLE } from '@/src/config/vendor';
+import { VENDOR_CONFIG, VENDOR_SERVICE_TITLE, WHATSAPP_URL } from '@/src/config/vendor';
 import { useAuth } from '@/lib/auth-context';
 
 const services = [
@@ -31,7 +31,8 @@ const policies = [
 ];
 
 export const Footer: React.FC = () => {
-  const { isAdmin } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
+  const visibleHelp = help.filter(link => link.href !== '/pricing' || (!loading && !!user));
   const account = [
     { label: 'My Orders', href: '/my-orders' },
     { label: 'My Requests', href: '/my-requests' },
@@ -51,9 +52,10 @@ export const Footer: React.FC = () => {
             <p className="max-w-md text-sm leading-relaxed text-blue-50">Stamp paper, e-Stamps and agreements made simple. Get your rental agreement prepared, printed and delivered across Tamil Nadu.</p>
             <div className="flex items-start gap-2 text-sm text-blue-50"><Truck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[#dcfce7]" /><span>Courier delivery with tracking</span></div>
             <div className="flex items-start gap-2 text-sm text-blue-50"><Mail aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[#dcfce7]" /><SupportEmailLink className={`${focus} min-w-0 break-all hover:text-[#dcfce7] hover:underline`} /></div>
+            <p className="text-sm text-blue-50"><a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className={`${focus} hover:text-[#dcfce7] hover:underline`}>WhatsApp only: {VENDOR_CONFIG.whatsappNumber}</a></p>
           </div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-            {[{ title: 'Services', links: services }, { title: 'My Account', links: account }, { title: 'Help', links: help }].map((group) => <nav key={group.title} aria-label={`Footer ${group.title}`}><h2 className="text-sm font-bold text-[#ffffff]">{group.title}</h2><ul className="mt-2 space-y-0">{group.links.map((link) => <li key={link.href}><Link href={link.href} className={`${focus} inline-block py-1 text-sm leading-relaxed text-blue-50 transition hover:text-[#dcfce7] hover:underline`}>{link.label}</Link></li>)}</ul></nav>)}
+            {[{ title: 'Services', links: services }, { title: 'My Account', links: account }, { title: 'Help', links: visibleHelp }].map((group) => <nav key={group.title} aria-label={`Footer ${group.title}`}><h2 className="text-sm font-bold text-[#ffffff]">{group.title}</h2><ul className="mt-2 space-y-0">{group.links.map((link) => <li key={link.href}><Link href={link.href} className={`${focus} inline-block py-1 text-sm leading-relaxed text-blue-50 transition hover:text-[#dcfce7] hover:underline`}>{link.label}</Link></li>)}</ul></nav>)}
           </div>
         </div>
 

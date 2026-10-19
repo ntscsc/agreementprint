@@ -90,7 +90,7 @@ export function RentReceiptGenerator() {
         onSubmit={handleSubmit}
         className="no-print rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-8"
       >
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <fieldset><legend className="mb-4 text-lg font-bold text-stone-900">Rental details</legend><div className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2">
           <label className="block text-sm font-semibold text-stone-700">
             Monthly rent amount (₹)
             <input
@@ -105,17 +105,7 @@ export function RentReceiptGenerator() {
             />
           </label>
 
-          <label className="block text-sm font-semibold text-stone-700">
-            Property address
-            <textarea
-              required
-              rows={2}
-              value={formData.propertyAddress}
-              onChange={(event) => updateField('propertyAddress', event.target.value)}
-              placeholder="Full address of the rented property"
-              className="mt-1.5 w-full resize-y rounded-xl border border-stone-300 px-3.5 py-3 text-sm text-stone-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
-            />
-          </label>
+
 
           <label className="block text-sm font-semibold text-stone-700">
             Landlord name
@@ -143,6 +133,18 @@ export function RentReceiptGenerator() {
             />
           </label>
 
+          <label className="block text-sm font-semibold text-stone-700 sm:col-span-2">
+            Property address
+            <textarea
+              required
+              rows={2}
+              value={formData.propertyAddress}
+              onChange={(event) => updateField('propertyAddress', event.target.value)}
+              placeholder="Full address of the rented property"
+              className="mt-1.5 w-full resize-y rounded-xl border border-stone-300 px-3.5 py-3 text-sm text-stone-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+            />
+          </label>
+        </div></fieldset><fieldset className="mt-6 border-t border-stone-200 pt-5"><legend className="px-1 text-lg font-bold text-stone-900">Receipt period</legend><div className="mt-3 grid gap-5 sm:grid-cols-2">
           <label className="block text-sm font-semibold text-stone-700">
             First rent period start date
             <input
@@ -171,7 +173,7 @@ export function RentReceiptGenerator() {
             />
           </label>
 
-        </div>
+        </div></fieldset>
 
         <button
           type="submit"

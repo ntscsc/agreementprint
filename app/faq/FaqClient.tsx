@@ -27,7 +27,7 @@ export function FaqClient() {
   });
 
   return (
-    <div className="space-y-14 py-8 pb-16">
+    <div className="space-y-6 py-6 pb-12">
       {/* Header Banner */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-stone-900 text-white rounded-3xl p-8 sm:p-12 border border-stone-800 shadow-sm relative overflow-hidden">
@@ -55,7 +55,7 @@ export function FaqClient() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search questions (e.g. duration, Aadhaar, payment, refund, tracking)..."
+            placeholder="Search questions..."
             className="w-full pl-12 pr-4 py-3.5 bg-white border border-stone-200 rounded-2xl text-sm text-stone-800 placeholder-stone-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
           />
         </div>
@@ -64,7 +64,7 @@ export function FaqClient() {
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
           <button
             onClick={() => setActiveCategory('all')}
-            className={`px-3.5 py-1.5 rounded-full transition-colors ${
+            className={`px-3 py-1 rounded-full transition-colors ${
               activeCategory === 'all'
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
@@ -74,7 +74,7 @@ export function FaqClient() {
           </button>
           <button
             onClick={() => setActiveCategory('legality')}
-            className={`px-3.5 py-1.5 rounded-full transition-colors ${
+            className={`px-3 py-1 rounded-full transition-colors ${
               activeCategory === 'legality'
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
@@ -84,7 +84,7 @@ export function FaqClient() {
           </button>
           <button
             onClick={() => setActiveCategory('privacy')}
-            className={`px-3.5 py-1.5 rounded-full transition-colors ${
+            className={`px-3 py-1 rounded-full transition-colors ${
               activeCategory === 'privacy'
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
@@ -94,7 +94,7 @@ export function FaqClient() {
           </button>
           <button
             onClick={() => setActiveCategory('pricing')}
-            className={`px-3.5 py-1.5 rounded-full transition-colors ${
+            className={`px-3 py-1 rounded-full transition-colors ${
               activeCategory === 'pricing'
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
@@ -104,7 +104,7 @@ export function FaqClient() {
           </button>
           <button
             onClick={() => setActiveCategory('payment')}
-            className={`px-3.5 py-1.5 rounded-full transition-colors ${
+            className={`px-3 py-1 rounded-full transition-colors ${
               activeCategory === 'payment'
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
@@ -114,7 +114,7 @@ export function FaqClient() {
           </button>
           <button
             onClick={() => setActiveCategory('delivery')}
-            className={`px-3.5 py-1.5 rounded-full transition-colors ${
+            className={`px-3 py-1 rounded-full transition-colors ${
               activeCategory === 'delivery'
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
@@ -122,8 +122,8 @@ export function FaqClient() {
           >
             Courier & Tracking
           </button>
-          <button onClick={() => { setActiveCategory('custom'); setOpenIndex(0); }} className={`rounded-full px-3.5 py-1.5 transition-colors ${activeCategory === 'custom' ? 'bg-amber-600 text-white shadow-sm' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}>Custom Agreements</button>
-          <button onClick={() => { setActiveCategory('rewards'); setOpenIndex(0); }} className={`rounded-full px-3.5 py-1.5 transition-colors ${activeCategory === 'rewards' ? 'bg-amber-600 text-white shadow-sm' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}>Rewards & Rent Receipts</button>
+          <button onClick={() => { setActiveCategory('custom'); setOpenIndex(0); }} className={`rounded-full px-3 py-1 transition-colors ${activeCategory === 'custom' ? 'bg-amber-600 text-white shadow-sm' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}>Custom Agreements</button>
+          <button onClick={() => { setActiveCategory('rewards'); setOpenIndex(0); }} className={`rounded-full px-3 py-1 transition-colors ${activeCategory === 'rewards' ? 'bg-amber-600 text-white shadow-sm' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}>Rewards & Rent Receipts</button>
         </div>
 
         {/* Accordions */}
@@ -146,9 +146,9 @@ export function FaqClient() {
                   <button
                     aria-expanded={isOpen}
                     onClick={() => setOpenIndex(isOpen ? null : idx)}
-                    className="w-full p-5 text-left flex items-start justify-between gap-4 focus:outline-none"
+                    className="w-full p-4 text-left flex items-start justify-between gap-4 focus:outline-none"
                   >
-                    <span className="font-bold text-stone-900 text-sm sm:text-base leading-snug">
+                    <span className="min-w-0 flex-1 font-bold text-stone-900 text-sm sm:text-base leading-snug">
                       {faq.q}
                     </span>
                     <span className="p-1 rounded-lg bg-stone-100 text-stone-600 shrink-0 mt-0.5">

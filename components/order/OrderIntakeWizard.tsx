@@ -438,7 +438,7 @@ function OrderIntakeBody() {
   // Step 4 Validation (Agreement Terms)
   const validateTerms = (): boolean => {
     const errs: Record<string, string> = {};
-    if (termsData.language === 'Tamil' && propertyData.propertyType !== 'Commercial Shop' && (typeof termsData.paintingDeduction !== 'number' || !Number.isFinite(termsData.paintingDeduction) || termsData.paintingDeduction < 0 || termsData.paintingDeduction > 1e9)) errs.paintingDeduction = 'Enter a painting deduction from ₹0 to ₹1,000,000,000.';
+    if (termsData.agreementType !== 'Lease' && propertyData.propertyType !== 'Commercial Shop' && (typeof termsData.paintingDeduction !== 'number' || !Number.isFinite(termsData.paintingDeduction) || termsData.paintingDeduction < 0 || termsData.paintingDeduction > 1e9)) errs.paintingDeduction = 'Enter a painting deduction from ₹0 to ₹1,000,000,000.';
     if (termsData.agreementType !== 'Lease' && (!termsData.monthlyRent || Number(termsData.monthlyRent) <= 0)) {
       errs.monthlyRent = 'Monthly rent must be a positive amount';
     }
@@ -838,7 +838,7 @@ function OrderIntakeBody() {
       />
 
       {/* Main Step Body Card */}
-      <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm">
+      <div className="bg-white border border-stone-200 rounded-2xl p-3 sm:p-8 shadow-sm">
         {/* Step 1: Owner */}
         {currentStep === 1 && (
           <OwnerStep

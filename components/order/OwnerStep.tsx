@@ -19,13 +19,13 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
             <UserCheck className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-stone-900">Step 1: Property Owner (Landlord) Details</h2>
+            <h2 className="text-xl font-bold text-stone-900">Owner details</h2>
             <p className="text-xs text-stone-500">Provide the exact legal name and details as shown on official identity records.</p>
           </div>
         </div>
       </div>
 
-      <fieldset className="min-w-0 rounded-2xl border border-stone-200 p-4 sm:p-5">
+      <fieldset className="min-w-0 rounded-2xl border border-stone-200 p-3 sm:p-5">
         <legend className="px-2 text-sm font-bold text-stone-900">Personal & Contact Details</legend>
         <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-x-5 gap-y-5">
         {/* Full Name */}
@@ -136,9 +136,9 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
         </div>
       </fieldset>
 
-      <fieldset className="min-w-0 rounded-2xl border border-stone-200 p-4 sm:p-5">
-        <legend className="px-2 text-sm font-bold text-stone-900">Identity Details (Optional)</legend>
-        <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-x-5 gap-y-5">
+      <details open={Boolean(errors.aadhaarLast4 || errors.pan)} className="min-w-0 rounded-2xl border border-stone-200 p-3 sm:p-5">
+        <summary className="cursor-pointer text-sm font-semibold text-stone-700">Identity details (optional)</summary>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 items-start gap-x-5 gap-y-5">
         {/* Aadhaar Number (Optional) */}
         <div>
           <label htmlFor="owner-aadhaar" className="block text-xs font-bold text-stone-700 mb-1">
@@ -185,9 +185,9 @@ export const OwnerStep: React.FC<OwnerStepProps> = ({ data, onChange, errors }) 
         </div>
 
         </div>
-      </fieldset>
+      </details>
 
-      <fieldset className="min-w-0 rounded-2xl border border-stone-200 p-4 sm:p-5">
+      <fieldset className="min-w-0 rounded-2xl border border-stone-200 p-3 sm:p-5">
         <legend className="px-2 text-sm font-bold text-stone-900">Permanent Residential Address</legend>
         <div className="grid grid-cols-1 md:grid-cols-3 items-start gap-x-5 gap-y-5">
         {/* Permanent Address */}

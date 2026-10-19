@@ -87,7 +87,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
             <FileText className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-stone-900">Step 4: Tenancy Agreement Terms & Stamping</h2>
+            <h2 className="text-xl font-bold text-stone-900">Agreement terms</h2>
             <p className="text-xs text-stone-500">
               Provide financial terms and choose your stamp paper denomination, delivery zone, and notary preference.
             </p>
@@ -110,13 +110,13 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
 
       <div className="space-y-2">
         <label htmlFor="terms-language" className="block text-sm font-bold text-stone-700">Agreement language / ஒப்பந்த மொழி</label>
-        <select id="terms-language" disabled={isLease} value={data.language || 'English'} onChange={event => onChange({ language: event.target.value as 'English' | 'Tamil', ...(event.target.value === 'Tamil' && propertyType !== 'Commercial Shop' ? { paintingDeduction: data.paintingDeduction ?? 5000 } : {}) })} aria-describedby="terms-language-help" className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm">
+        <select id="terms-language" disabled={isLease} value={data.language || 'English'} onChange={event => onChange({ language: event.target.value as 'English' | 'Tamil', ...(event.target.value === 'Tamil' && propertyType === 'Commercial Shop' && data.language !== 'Tamil' && (data.noticePeriodDays === undefined || data.noticePeriodDays === 30) ? { noticePeriodDays: 90 } : {}), ...(event.target.value === 'Tamil' && propertyType !== 'Commercial Shop' ? { paintingDeduction: data.paintingDeduction ?? 5000 } : {}) })} aria-describedby="terms-language-help" className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm">
           <option value="English">English</option>
           <option value="Tamil">தமிழ் (Tamil)</option>
         </select>
-        <p id="terms-language-help" className="text-xs leading-relaxed text-stone-600">{propertyType === 'Commercial Shop' ? 'Tamil uses the shop rental agreement and the business name entered in Step 3. ' : ''}Names and addresses appear exactly as entered. Enter them in Tamil if you want Tamil text; they are not automatically translated.</p>
+        <p id="terms-language-help" className="text-xs leading-relaxed text-stone-600">{propertyType === 'Commercial Shop' ? 'Tamil uses your supplied shop rental template and the business name entered in Step 3. The sample notice period is 90 days; you can change it below. ' : ''}Names and addresses appear exactly as entered. Enter them in Tamil if you want Tamil text; they are not automatically translated.</p>
         {errors.language && <p role="alert" className="text-xs text-rose-700">{errors.language}</p>}
-        {data.language === 'Tamil' && propertyType !== 'Commercial Shop' && <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3"><label htmlFor="terms-paintingDeduction" className="block text-sm font-bold text-stone-700">Painting deduction on vacating (₹)</label><input id="terms-paintingDeduction" type="number" min="0" max="1000000000" step="0.01" required value={data.paintingDeduction ?? ''} onChange={event => onChange({ paintingDeduction: event.target.value === '' ? undefined : Number(event.target.value) })} className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm" aria-describedby="painting-deduction-help" /><p id="painting-deduction-help" className="text-xs leading-relaxed text-stone-600">Deducted from the deposit on vacating; enter 0 for none. All amounts, tenure, due date and notice period follow your form values. Review the draft before payment.</p>{errors.paintingDeduction && <p role="alert" className="text-xs text-rose-700">{errors.paintingDeduction}</p>}</div>}
+        {!isLease && propertyType !== 'Commercial Shop' && <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3"><label htmlFor="terms-paintingDeduction" className="block text-sm font-bold text-stone-700">Painting deduction on vacating (₹)</label><input id="terms-paintingDeduction" type="number" min="0" max="1000000000" step="0.01" required value={data.paintingDeduction ?? ''} onChange={event => onChange({ paintingDeduction: event.target.value === '' ? undefined : Number(event.target.value) })} className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm" aria-describedby="painting-deduction-help" /><p id="painting-deduction-help" className="text-xs leading-relaxed text-stone-600">Deducted from the deposit on vacating; enter 0 for none. All amounts, tenure, due date and notice period follow your form values. Review the draft before payment.</p>{errors.paintingDeduction && <p role="alert" className="text-xs text-rose-700">{errors.paintingDeduction}</p>}</div>}
         {data.language === 'Tamil' && propertyType === 'Commercial Shop' && <p className="rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm text-brand-800">Selected template: கடை வாடகை ஒப்பந்தப் பத்திரம் (Tamil shop rental agreement). Rent, deposit, duration and notice period follow your form values.</p>}
       </div>
 
@@ -279,7 +279,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
         <div><label htmlFor="terms-tenure" className="block text-xs font-bold text-stone-700 mb-1">Agreement duration (months) *</label><input id="terms-tenure" type="number" min="1" max="120" required value={data.tenureMonths ?? ''} onChange={event => onChange({ tenureMonths: event.target.value === '' ? undefined : Number(event.target.value) })} className="min-h-11 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm" />{errors.tenureMonths && <p role="alert" className="text-xs text-rose-700">{errors.tenureMonths}</p>}</div>
         {/* ================= PACKAGE AND DELIVERY OPTIONS ================= */}
         <div className="sm:col-span-2 pt-4 border-t border-stone-200">
-          <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 sm:p-5 space-y-4">
+          <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3 sm:p-5 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/70 pb-3">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-200/60 px-2.5 py-0.5 rounded-full">

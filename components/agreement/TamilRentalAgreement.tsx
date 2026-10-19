@@ -25,7 +25,7 @@ export function TamilRentalAgreement({ data, stampPaperSpace, customerPreview, w
 }) {
   const owner = data.ownerDetails ?? {}, tenant = data.tenantDetails ?? {}, property = data.propertyDetails ?? {}, terms = data.agreementTerms ?? {};
   const p = source.paragraphs;
-  const period = terms.noticePeriodDays ?? 30;
+  const period = terms.noticePeriodDays ?? (property.propertyType === 'Commercial Shop' ? 90 : 30);
   const notice = period > 0 && period % 30 === 0 ? `${period / 30} மாத` : `${period} நாள்`;
   const isShop = property.propertyType === 'Commercial Shop';
   const propertyTypes: Record<string, string> = { House: 'தனி வீடு', Flat: 'அடுக்குமாடிக் குடியிருப்பு', 'Commercial Shop': 'வணிகக் கடை / அலுவலகம்' };
@@ -54,9 +54,9 @@ export function TamilRentalAgreement({ data, stampPaperSpace, customerPreview, w
   const shopPages: string[][] = [
     [
       ...residentialPages[0].slice(0, 2),
-      `${formatPropertyAddress(property.fullAddress, property.city, property.pincode) || blank}, என்ற முகவரியில் அமைந்துள்ள கடை முதல் தரப்பினருக்குச் சொந்தமானதாகும். மேற்படி கடையை இரண்டாம் தரப்பினர் “${property.businessName || blank}” என்ற பெயரில் கடை நடத்துவதற்கு வாடகைக்குக் கேட்டதற்கு முதல் தரப்பினர் சம்மதித்துக் கீழ்க்கண்ட நிபந்தனைகளின் பேரில் இந்த வாடகை ஒப்பந்தத்தைச் செய்துகொள்கிறோம். வாடகைக் காலம் ${tamilDate(formatLegalDate(terms.startDate)) || blank} முதல் ${tamilDate(calculateAgreementEndDate(terms.startDate, terms.tenureMonths || 11)) || blank} வரை ${terms.tenureMonths || 11} மாதம்.`,
     ],
     [
+      `${formatPropertyAddress(property.fullAddress, property.city, property.pincode) || blank}, என்ற முகவரியில் அமைந்துள்ள கடை முதல் தரப்பினருக்குச் சொந்தமானதாகும். மேற்படி கடையை இரண்டாம் தரப்பினர் “${property.businessName || blank}” என்ற பெயரில் கடை நடத்துவதற்கு வாடகைக்குக் கேட்டதற்கு முதல் தரப்பினர் சம்மதித்துக் கீழ்க்கண்ட நிபந்தனைகளின் பேரில் இந்த வாடகை ஒப்பந்தத்தைச் செய்துகொள்கிறோம். வாடகைக் காலம் ${tamilDate(formatLegalDate(terms.startDate)) || blank} முதல் ${tamilDate(calculateAgreementEndDate(terms.startDate, terms.tenureMonths || 11)) || blank} வரை ${terms.tenureMonths || 11} மாதம்.`,
       `கடைக்கு அட்வான்ஸ் தொகை ரூ.${money(terms.securityDeposit)}/- (எழுத்தால் ${tamilAmountInWords(terms.securityDeposit) || blank} மட்டும்) பெற்றுக்கொண்டதற்கு இதுவே ரசீதாகும். இதற்கு வட்டி ஏதும் கிடையாது.`,
       `கடையின் மாத வாடகையாக வாடகைதாரர் உரிமையாளருக்கு ரூ.${money(terms.monthlyRent)}/- (எழுத்தால் ${tamilAmountInWords(terms.monthlyRent) || blank} மட்டும்) ஒவ்வொரு மாதமும் வரும் ஆங்கில தேதி ${terms.paymentDueDay || 5}-க்குள் கடையின் உரிமையாளரிடம் செலுத்த வேண்டும்.`,
       shop.electricity, shop.propertyTax, shop.permittedUse, shop.handover, shop.alterations,

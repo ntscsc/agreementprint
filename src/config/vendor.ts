@@ -59,8 +59,8 @@ export const VENDOR_CONFIG: VendorConfig = {
   pincode: '600061',
   state: 'Tamil Nadu, India',
   phone: '',
-  whatsappNumber: '',
-  whatsappPrefilledMessage: '',
+  whatsappNumber: '+91 9444051575',
+  whatsappPrefilledMessage: 'Hello AgreementPrint, I need help with an agreement.',
   email: 'pradeep1992@official.com',
   workingHours: 'Monday to Friday, 9:00 AM to 6:00 PM IST',
   courierPartner: 'Courier Partner',
@@ -85,6 +85,8 @@ export const VENDOR_CONFIG: VendorConfig = {
 };
 
 export const VENDOR_SERVICE_TITLE = 'Authorised Non-Judicial Stamp Paper & e-Stamp Vendor';
+
+export const WHATSAPP_URL = `https://wa.me/${VENDOR_CONFIG.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(VENDOR_CONFIG.whatsappPrefilledMessage)}`;
 
 // Used only in grievance-officer sections, separate from general support.
 export const GRIEVANCE_PHONE = '8248555629';

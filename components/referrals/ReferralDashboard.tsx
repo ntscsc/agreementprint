@@ -100,7 +100,7 @@ function ReferralDashboardBody() {
   }
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-5">
       <header className="text-center">
         <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-900">
           Customer rewards
@@ -127,11 +127,11 @@ function ReferralDashboardBody() {
             <div className="rounded-2xl border border-stone-200 bg-white p-5"><h2 className="text-sm font-semibold text-stone-600">You earn</h2><p className="mt-2 text-2xl font-bold text-stone-900">₹{data.rewardAmount.toLocaleString('en-IN')} credit</p><p className="mt-2 text-sm text-stone-600">After your friend pays for their first order. Use the credit on a future order.</p></div>
             <div className="rounded-2xl border border-stone-200 bg-white p-5"><h2 className="text-sm font-semibold text-stone-600">Your friend saves</h2><p className="mt-2 text-2xl font-bold text-stone-900">₹{data.couponDiscount.toLocaleString('en-IN')}</p><p className="mt-2 text-sm text-stone-600">Taken off their first order when using your coupon, up to the order total.</p></div>
           </section>
-          <section className="rounded-2xl bg-stone-900 p-6 text-white"><h2 className="text-sm font-semibold text-stone-300">Available credits for orders</h2><p className="mt-2 text-3xl font-bold">Rs.{data.balance.toLocaleString('en-IN')}</p><p className="mt-2 text-sm text-stone-300">Referral rewards can be used for orders. Order cancellation refunds return to the original payment method.</p></section>
+          <div className="grid items-stretch gap-4 lg:grid-cols-[1fr_1.5fr]"><section className="rounded-2xl bg-stone-900 p-5 text-white"><h2 className="text-sm font-semibold text-stone-300">Available credits for orders</h2><p className="mt-2 text-3xl font-bold">₹{data.balance.toLocaleString('en-IN')}</p><p className="mt-2 text-sm text-stone-300">Referral rewards can be used for orders. Order cancellation refunds return to the original payment method.</p></section>
           <section>
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Your coupon code</p>
-              <p className="mt-2 font-mono text-3xl font-black tracking-[0.15em] text-stone-900">{data.code}</p>
+              <p className="mt-2 font-mono text-3xl font-black tracking-wide text-stone-900">{data.code}</p>
               <label className="mt-4 block text-xs font-semibold text-stone-700">Your share link<input readOnly value={typeof window === 'undefined' ? '' : `${window.location.origin}/order?coupon=${encodeURIComponent(data.code)}`} onFocus={event => event.target.select()} className="mt-2 min-h-11 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-normal" /></label>
               <button
                 type="button"
@@ -145,6 +145,7 @@ function ReferralDashboardBody() {
             </div>
           </section>
 
+          </div>
           <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="flex items-center gap-2">
               <Gift className="h-5 w-5 text-amber-600" />

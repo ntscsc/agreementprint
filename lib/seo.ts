@@ -11,8 +11,6 @@ export const publicPagePaths = [
   '/faq',
   '/pricing',
   '/rent-receipt',
-  '/order',
-  '/custom-agreement',
   '/reviews',
   '/terms',
   '/disclaimer',
@@ -30,5 +28,5 @@ export const socialImage = {
   url: '/images/social-share.png',
   width: 1200,
   height: 630,
-  alt: 'AgreementPrint ? Online rental agreements in Tamil Nadu. Prepared, printed on stamp paper and delivered.',
+  alt: 'AgreementPrint. Online rental agreements in Tamil Nadu. Prepared, printed on stamp paper and delivered.',
 };

@@ -35,7 +35,7 @@ export interface AgreementTerms {
   /** Missing on older orders means Rental. */
   agreementType?: 'Rental' | 'Lease';
   language?: 'English' | 'Tamil'; // Missing on legacy orders means English.
-  paintingDeduction?: number; // Tamil residential template only; not used in the shop template.
+  paintingDeduction?: number; // Residential rental painting deduction; not used in shop or lease templates.
   monthlyRent: number;
   securityDeposit: number;
   maintenanceCharges: number;

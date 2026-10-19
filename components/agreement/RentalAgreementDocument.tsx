@@ -350,6 +350,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
               ({' '}
               {renderBlank(depositWords, !!depositWords, 'w-64')}{' '}
               only) as an interest-free security deposit and advance to the OWNER. When the TENANT vacates the premises, the OWNER shall refund the balance after deducting the cost of any damage and any other amounts due from the TENANT.
+              {prop.propertyType !== 'Commercial Shop' && typeof terms.paintingDeduction === 'number' && terms.paintingDeduction > 0 && <>{' '}The TENANT agrees that ₹ {renderBlank(terms.paintingDeduction.toLocaleString('en-IN'), true)}/- towards painting charges shall be deducted from the security deposit when vacating the premises.</>}
             </p>
 
             {/* Clause 3: Structural maintenance */}
@@ -386,27 +387,22 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
 
             {/* Clause 9 */}
             <p className="leading-loose">
-              <strong>9.</strong> The OWNER shall issue a receipt for rent received from the TENANT.
+              <strong>9.</strong> The annual rent increase shall be {renderBlank(`${terms.rentIncreasePct ?? 0}%`, true)}.
             </p>
 
             {/* Clause 10 */}
             <p className="leading-loose">
-              <strong>10.</strong> The annual rent increase shall be {renderBlank(`${terms.rentIncreasePct ?? 0}%`, true)}.
+              <strong>10.</strong> The TENANT shall not tamper with or remove any fittings or fixtures in the premises.
             </p>
 
             {/* Clause 11 */}
             <p className="leading-loose">
-              <strong>11.</strong> The TENANT shall not tamper with or remove any fittings or fixtures in the premises.
-            </p>
-
-            {/* Clause 12 */}
-            <p className="leading-loose">
-              <strong>12.</strong> The portion let out shall be kept in good and tenantable condition.
+              <strong>11.</strong> The portion let out shall be kept in good and tenantable condition.
             </p>
 
             {/* In Witness Whereof */}
             <p className="leading-loose">
-              <strong>13.</strong> If the TENANT fails to pay rent for two consecutive months, the OWNER may ask the TENANT to vacate the premises immediately and deduct the unpaid rent from the advance.
+              <strong>12.</strong> If the TENANT fails to pay rent for two consecutive months, the OWNER may ask the TENANT to vacate the premises immediately and deduct the unpaid rent from the advance.
             </p>
 
             <div className="pt-6">

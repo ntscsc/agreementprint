@@ -141,7 +141,7 @@ export function TrackClient() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
       {/* Title Banner */}
       <div className="text-center max-w-xl mx-auto space-y-2">
         <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-3 py-1 rounded-full">
@@ -156,7 +156,7 @@ export function TrackClient() {
       </div>
 
       {/* Lookup Card */}
-      <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm max-w-2xl mx-auto">
+      <div className="bg-white border border-stone-200 rounded-2xl p-5 sm:p-6 shadow-sm max-w-2xl mx-auto">
         <form onSubmit={handleLookup} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -169,9 +169,10 @@ export function TrackClient() {
                 required
                 value={orderId}
                 onChange={(e) => setOrderId(e.target.value.toUpperCase())}
-                placeholder="e.g. 7264918053726084"
+                placeholder="Enter your order reference" aria-describedby="track-reference-example"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs font-mono text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 uppercase"
               />
+              <p id="track-reference-example" className="mt-2 text-xs text-stone-600">Example: <code className="rounded bg-stone-100 px-1.5 py-0.5">7264918053726084</code></p>
             </div>
 
             <div>
@@ -202,7 +203,7 @@ export function TrackClient() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-stone-900 hover:bg-stone-800 disabled:bg-stone-400 text-white font-semibold py-3 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            className="w-full bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             {loading ? (
               <>
@@ -221,7 +222,7 @@ export function TrackClient() {
 
       {/* Result Section */}
       {orderData && (
-        <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 max-w-2xl mx-auto animate-in fade-in">
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 sm:p-6 shadow-sm space-y-6 max-w-2xl mx-auto animate-in fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-4">
             <div>
               <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Order Reference</span>

@@ -74,7 +74,7 @@ export const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
 
                 {/* Label */}
                 <span
-                  className={`mt-1.5 text-[11px] sm:text-xs text-center hidden xs:block transition-colors ${
+                  className={`mt-1.5 text-[11px] sm:text-xs text-center hidden sm:block transition-colors ${
                     isCurrent
                       ? 'font-bold text-stone-900'
                       : isCompleted

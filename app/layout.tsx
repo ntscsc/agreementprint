@@ -3,10 +3,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { I18nProvider } from '@/lib/i18n/context';
 import { AuthProvider } from '@/lib/auth-context';
-import { Header } from '@/components/Header';
-import { Footer } from '@/components/Footer';
-import { DisclaimerBanner } from '@/components/DisclaimerBanner';
-import { WhatsAppButton } from '@/components/WhatsAppButton';
+import { SiteShell } from '@/components/SiteShell';
 import { VisitorTracker } from '@/components/VisitorTracker';
 
 export const metadata: Metadata = {
@@ -38,13 +35,7 @@ export default function RootLayout({
         <AuthProvider>
           <VisitorTracker />
           <I18nProvider>
-            <DisclaimerBanner compact={true} />
-            <Header />
-            <main className="flex-1">
-              {children}
-            </main>
-            <WhatsAppButton variant="floating" />
-            <Footer />
+            <SiteShell>{children}</SiteShell>
           </I18nProvider>
         </AuthProvider>
       </body>

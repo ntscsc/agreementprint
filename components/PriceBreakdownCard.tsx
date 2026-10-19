@@ -56,7 +56,7 @@ export const PriceBreakdownCard: React.FC<PriceBreakdownCardProps> = ({
           <h3 className="text-lg font-black text-white">Your Rental Agreement</h3>
         </div>
         <div className="text-right">
-          <span className="text-xl sm:text-2xl font-black text-brand-600">₹{breakdown.totalPayable}/-</span>
+          <span className="text-2xl sm:text-3xl font-black text-amber-300">₹{breakdown.totalPayable}/-</span>
           <span className="block text-xs text-stone-400">Total including delivery</span>
         </div>
       </div>
@@ -134,6 +134,28 @@ export const PriceBreakdownCard: React.FC<PriceBreakdownCardProps> = ({
           </div>
         </div>
       </div>
+
+        {showCta && (
+          <div className="border-b border-brand-200 bg-brand-50 p-4">
+            {onStartOrder ? (
+              <button
+                onClick={onStartOrder}
+                className="w-full bg-brand-700 hover:bg-brand-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
+              >
+                <FileText className="w-4 h-4 text-white" />
+                <span>Start Your Agreement (₹{breakdown.totalPayable}/-)</span>
+              </button>
+            ) : (
+              <Link
+                href="/order"
+                className="w-full bg-brand-700 hover:bg-brand-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm text-center"
+              >
+                <FileText className="w-4 h-4 text-white" />
+                <span>Start Your Agreement (₹{breakdown.totalPayable}/-)</span>
+              </Link>
+            )}
+          </div>
+        )}
 
       {/* Breakdown Items */}
       <div className="p-6 divide-y divide-stone-100">
@@ -216,27 +238,7 @@ export const PriceBreakdownCard: React.FC<PriceBreakdownCardProps> = ({
           <span>Courier delivery with tracking</span>
         </div>
 
-        {showCta && (
-          <div className="pt-3">
-            {onStartOrder ? (
-              <button
-                onClick={onStartOrder}
-                className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-pointer"
-              >
-                <FileText className="w-4 h-4 text-white" />
-                <span>Start Your Agreement (₹{breakdown.totalPayable}/-)</span>
-              </button>
-            ) : (
-              <Link
-                href="/order"
-                className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider text-center"
-              >
-                <FileText className="w-4 h-4 text-white" />
-                <span>Start Your Agreement (₹{breakdown.totalPayable}/-)</span>
-              </Link>
-            )}
-          </div>
-        )}
+
       </div>
     </div>
   );

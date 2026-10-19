@@ -61,13 +61,13 @@ const customSteps = [
 
 export default function HowItWorksPage() {
   return (
-    <div className="space-y-12 py-8 pb-16">
+    <div className="space-y-8 py-6 pb-12">
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-stone-800 bg-stone-900 p-6 text-white sm:p-10 lg:p-12">
+        <div className="rounded-3xl border border-stone-800 bg-stone-900 p-5 text-white sm:p-7">
           <div className="max-w-3xl space-y-4">
             <span className="inline-block rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-400">Simple steps. Less hassle.</span>
-            <h1 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">Your agreement, made easy.</h1>
-            <p className="text-base leading-relaxed text-stone-300 sm:text-lg">From preparing your agreement to delivering the printed copy, we make the process easy. Tell us what you need and we will help you take the next step.</p>
+            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Your agreement, made easy.</h1>
+            <p className="text-base leading-relaxed text-stone-300 sm:text-lg">Share your details, confirm your price, and receive your printed agreement.</p>
             <div className="flex flex-wrap gap-3 pt-2">
               <Link href="/order" className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-bold text-stone-950 transition hover:bg-amber-400">Start Rental Agreement <ArrowRight className="h-4 w-4" /></Link>
               <Link href="/custom-agreement" className="inline-flex items-center gap-2 rounded-xl border border-stone-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800">Request a Custom Agreement</Link>
@@ -78,14 +78,14 @@ export default function HowItWorksPage() {
 
       <section aria-labelledby="rental-process" className="mx-auto max-w-5xl space-y-6 px-4 sm:px-6">
         <div><h2 id="rental-process" className="text-2xl font-bold text-stone-900">Rental agreements</h2><p className="mt-2 text-sm text-stone-600">Share your details online. We will prepare, print and send your agreement to your door.</p></div>
-        <ol className="space-y-4">
+        <ol className="relative space-y-3 border-l-2 border-brand-200 pl-4 sm:pl-6">
           {rentalSteps.map((step, index) => (
-            <li key={step.title} className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:flex-row sm:gap-5 sm:p-7">
+            <li key={step.title} className="flex flex-row gap-3 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:gap-4 sm:p-5">
               <div aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-lg font-black text-amber-800">{String(index + 1).padStart(2, '0')}</div>
               <div className="min-w-0 space-y-3">
                 <h3 className="flex items-start gap-2 text-lg font-bold text-stone-900"><step.icon aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />{step.title}</h3>
                 <p className="text-sm leading-relaxed text-stone-600">{step.desc}</p>
-                <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed text-stone-700">{step.details.map((detail) => <li key={detail}>{detail}</li>)}</ul>
+
               </div>
             </li>
           ))}

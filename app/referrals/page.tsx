@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { ReferralDashboard } from '@/components/referrals/ReferralDashboard';
 
 export const metadata: Metadata = {
+  robots: { index: false, follow: false },
   title: 'Referral Credits | AgreementPrint',
   description: 'Share your AgreementPrint coupon code, track eligible referrals, and view your available credits.',
 };

@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { TrackClient } from './TrackClient';
 
 export const metadata: Metadata = {
+  robots: { index: false, follow: false },
   title: 'Track Your Order | AgreementPrint',
   description: 'Track your Tamil Nadu non-judicial rental agreement order, verification status, and courier consignment delivery.',
   openGraph: {

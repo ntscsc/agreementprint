@@ -8,12 +8,18 @@ import { DisclaimerBanner } from '@/components/DisclaimerBanner';
 
 export const metadata: Metadata = {
   alternates: { canonical: canonicalUrl('/pricing') },
-  title: 'Pricing & Fees | AgreementPrint',
+  title: 'Rental Agreement Prices in Tamil Nadu | AgreementPrint',
   description: 'See the price for your rental agreement, delivery and optional notary service. Choose what you need and check the full total before paying.',
   openGraph: {
     images: [socialImage],
-    title: 'Pricing & Fees | AgreementPrint',
+    title: 'Rental Agreement Prices in Tamil Nadu | AgreementPrint',
     description: 'Simple prices for your rental agreement. Choose your stamp paper and delivery address to see the full cost.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Rental Agreement Prices in Tamil Nadu | AgreementPrint',
+    description: 'See the price for your rental agreement, delivery and optional notary service in Tamil Nadu.',
+    images: [socialImage],
   },
 };
 const questions = [
@@ -26,13 +32,13 @@ const questions = [
 
 export default function PricingPage() {
   return (
-    <div className="space-y-10 py-8 pb-16 sm:space-y-14">
+    <div className="space-y-6 py-6 pb-12 sm:space-y-8">
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-stone-800 bg-stone-900 p-6 text-white sm:p-10 lg:p-12">
+        <div className="rounded-3xl border border-brand-200 bg-brand-50 p-5 text-stone-900 sm:p-7">
           <div className="max-w-3xl space-y-4">
-            <span className="inline-block rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-400">Know the price before you pay</span>
-            <h1 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">Simple prices. Clear choices.</h1>
-            <p className="text-base leading-relaxed text-stone-300 sm:text-lg">Choose your stamp paper and delivery address. Add notary service if you need it. See the full price before placing your order.</p>
+            <span className="inline-block rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-800">Know the price before you pay</span>
+            <h1 className="text-3xl font-black tracking-tight text-stone-900 sm:text-4xl lg:text-4xl">Rental Agreement Prices in Tamil Nadu</h1>
+            <p className="text-base leading-relaxed text-stone-700 sm:text-lg">Choose your stamp paper and delivery address. Add notary service if you need it. See the full price before placing your order.</p>
           </div>
         </div>
       </section>

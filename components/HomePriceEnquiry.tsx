@@ -3,12 +3,16 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, IndianRupee } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 
 export function HomePriceEnquiry() {
+  const { user, loading } = useAuth();
   const [type, setType] = useState('standard');
   const [region, setRegion] = useState('Within Chennai');
   const [stamp, setStamp] = useState('100');
   const inputClass = 'mt-2 min-h-12 w-full rounded-xl border border-stone-300 bg-white px-3 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-600 xl:min-h-14 xl:text-base';
+
+  if (loading || !user) return null;
 
   return (
     <aside aria-labelledby="hero-price-title" className="w-full min-w-0 rounded-2xl border border-brand-200 bg-white/95 p-6 shadow-lg shadow-brand-900/5 sm:p-7 xl:p-8">

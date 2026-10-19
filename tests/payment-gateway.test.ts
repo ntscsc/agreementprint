@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
+import { createHmac, createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
@@ -12,13 +12,14 @@ const env = { RAZORPAY_KEY_ID: 'rzp_test_Example123', RAZORPAY_KEY_SECRET: 'test
 function harness(seed: Data = {}, options: Data = {}) {
   let records = structuredClone(seed), queue = Promise.resolve(), sequence = 0;
   const snapshot = (path: string, source = records) => ({ exists: path in source, id: path.split('/').at(-1), data: () => structuredClone(source[path]) });
+  const querySnapshot = (query: Data, source: Data) => ({ docs: Object.keys(source).filter(path => path.startsWith(`${query.collection}/`) && source[path][query.field] === query.value).map(path => snapshot(path, source)) });
   const db = {
-    collection: (collection: string) => ({ doc: (id = `auto${++sequence}`) => ({ path: `${collection}/${id}`, get: async () => snapshot(`${collection}/${id}`), update: async (value: Data) => { records[`${collection}/${id}`] = { ...records[`${collection}/${id}`], ...structuredClone(value) }; } }) }),
+    collection: (collection: string) => ({ where: (field: string, _operator: string, value: unknown) => ({ collection, field, value }), doc: (id = `auto${++sequence}`) => ({ path: `${collection}/${id}`, get: async () => snapshot(`${collection}/${id}`), update: async (value: Data) => { records[`${collection}/${id}`] = { ...records[`${collection}/${id}`], ...structuredClone(value) }; } }) }),
     runTransaction: (callback: (tx: Data) => Promise<unknown>) => {
       const result = queue.then(async () => {
         const draft = structuredClone(records); let written = false;
         const tx = {
-          get: async (ref: Data) => { assert.equal(written, false, 'Reads precede writes'); return snapshot(ref.path, draft); },
+          get: async (ref: Data) => { assert.equal(written, false, 'Reads precede writes'); return ref.collection ? querySnapshot(ref, draft) : snapshot(ref.path, draft); },
           create: (ref: Data, value: Data) => { assert.equal(ref.path in draft, false); written = true; draft[ref.path] = structuredClone(value); },
           set: (ref: Data, value: Data) => { written = true; draft[ref.path] = structuredClone(value); },
           update: (ref: Data, value: Data) => {
@@ -233,4 +234,72 @@ test('replacement balances use Razorpay and keep their checkout after switching 
   assert.equal(resumed.status, 200);
   assert.match((await resumed.json()).redirectUrl, /payment\/razorpay\/checkout/);
   assert.equal(created, 1);
+});
+
+const cancellationOrder = { ownerUid: 'customer', status: 'Under verification', updatedAt: 'version1', payment: { status: 'Paid', gateway: 'Razorpay', amount: 350, phonepeMerchantOrderId: 'TN123' } };
+const cancellationId = 'CREF' + createHash('sha256').update('cancel:O1').digest('hex').slice(0, 32);
+
+test('customer cancellation creates one refund request and never submits money before admin approval', async () => {
+  const h = harness({ 'orders/O1': cancellationOrder });
+  const route = h.load('@/app/api/orders/cancel/route');
+  const cancel = () => route.POST(request({ orderId: 'O1', updatedAt: 'version1' }, 'customer'));
+  const responses = await Promise.all([cancel(), cancel()]);
+  assert.deepEqual(responses.map(response => response.status), [200, 200]);
+  assert.equal(h.read('orders/O1').status, 'Cancelled');
+  assert.equal(h.read('orders/O1').payment.status, 'Paid');
+  assert.equal(h.read('orders/O1').cancellationRefundStatus, 'Awaiting approval');
+  const refund = h.read(`creditRefundRequests/${cancellationId}`);
+  assert.equal(refund.amount, 350);
+  assert.equal(refund.legs.length, 1);
+  assert.equal(refund.legs[0].originalMerchantOrderId, 'TN123');
+  assert.equal(refund.legs[0].merchantRefundId, cancellationId + '_0');
+  assert.equal(h.calls.length, 0);
+});
+
+test('cancellation rejects unauthorized users, unpaid orders, preparation and stale or replacement orders', async () => {
+  const patches = [
+    { payment: { ...cancellationOrder.payment, status: 'Pending' } },
+    { status: 'Drafting' }, { status: 'Dispatched' }, { status: 'Delivered' },
+    { preparationStartedAt: 'earlier' }, { courier: { trackingNumber: 'TRACK' } },
+    { replacedByOrderId: 'O2' }, { replacementPendingId: 'PENDING' }, { modificationReviewId: 'REVIEW' },
+    { updatedAt: 'newer-version' },
+  ];
+  for (const patch of patches) {
+    const h = harness({ 'orders/O1': { ...cancellationOrder, ...patch } });
+    const response = await h.load('@/app/api/orders/cancel/route').POST(request({ orderId: 'O1', updatedAt: 'version1' }, 'customer'));
+    assert.equal(response.status, 409);
+    assert.equal(h.read(`creditRefundRequests/${cancellationId}`), undefined);
+    assert.equal(h.calls.length, 0);
+  }
+  const h = harness({ 'orders/O1': cancellationOrder }), route = h.load('@/app/api/orders/cancel/route');
+  assert.equal((await route.POST(request({ orderId: 'O1' }, ''))).status, 401);
+  assert.equal((await route.POST(request({ orderId: 'O1' }, 'other'))).status, 404);
+  const history = harness({ 'orders/O1': cancellationOrder, 'adminLogs/started': { orderId: 'O1', newStatus: 'Drafting' } });
+  assert.equal((await history.load('@/app/api/orders/cancel/route').POST(request({ orderId: 'O1', updatedAt: 'version1' }, 'customer'))).status, 409);
+});
+
+test('admin can decline a cancellation refund before approval but cannot decline a submitted refund', async () => {
+  const seed = {
+    'orders/O1': { ...cancellationOrder, status: 'Cancelled', cancellationRefundId: cancellationId },
+    [`creditRefundRequests/${cancellationId}`]: { state: 'Awaiting approval', source: 'Order cancellation', orderId: 'O1', ownerUid: 'customer', legs: [{ merchantRefundId: cancellationId + '_0', state: 'Reserved', amount: 350 }] },
+  };
+  const h = harness(seed), refunds = h.load('@/lib/credit-refunds');
+  await refunds.rejectCreditRefund(cancellationId, 'admin', 'Policy reviewed and refund declined');
+  assert.equal(h.read(`creditRefundRequests/${cancellationId}`).state, 'Declined');
+  assert.equal(h.read('orders/O1').status, 'Cancelled');
+  assert.equal(h.read('orders/O1').cancellationRefundStatus, 'Declined');
+  assert.equal(h.read('orders/O1').cancellationRefundNote, 'Policy reviewed and refund declined');
+  assert.equal(h.calls.length, 0);
+  const processing = harness({ ...seed, [`creditRefundRequests/${cancellationId}`]: { ...seed[`creditRefundRequests/${cancellationId}`], state: 'Processing' } });
+  await assert.rejects(processing.load('@/lib/credit-refunds').rejectCreditRefund(cancellationId, 'admin', 'Decline processing request'), /cannot be manually released/);
+});
+
+test('refund approval stays blocked in test mode without contacting the payment provider', async () => {
+  const h = harness({
+    'razorpayCheckouts/TN123': checkout,
+    [`creditRefundRequests/${cancellationId}`]: { state: 'Awaiting approval', legs: [{ originalMerchantOrderId: 'TN123' }] },
+  });
+  await assert.rejects(h.load('@/lib/credit-refunds').approveCreditRefund(cancellationId, 'admin', 'Approved under policy'), /unavailable in test mode/);
+  assert.equal(h.read(`creditRefundRequests/${cancellationId}`).state, 'Awaiting approval');
+  assert.equal(h.calls.length, 0);
 });

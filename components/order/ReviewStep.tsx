@@ -378,7 +378,8 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             <p className="text-[11px] text-stone-600 mt-0.5">
               Agreement type: {termsData.agreementType || 'Rental'}. Agreement language: {termsData.language || 'English'}. Your inputs will be drafted into the selected template with stamp margins, amounts in words, tenure and witness clauses.
             </p>
-            {termsData.language === 'Tamil' && <p className="mt-2 text-xs font-semibold text-amber-900">{propertyData.propertyType === 'Commercial Shop' ? `Tamil shop rental agreement for ${propertyData.businessName || 'your business'}.` : `Tamil residential template: ₹${termsData.paintingDeduction?.toLocaleString('en-IN')} painting deduction from the deposit on vacating.`} Notice period: {termsData.noticePeriodDays} days. Review the draft before payment.</p>}
+            {termsData.agreementType !== 'Lease' && propertyData.propertyType !== 'Commercial Shop' && <p className="mt-2 text-xs font-semibold text-amber-900">Painting deduction on vacating: ₹{(termsData.paintingDeduction ?? 0).toLocaleString('en-IN')} from the deposit. Review the draft before payment.</p>}
+            {termsData.language === 'Tamil' && <p className="mt-2 text-xs font-semibold text-amber-900">{propertyData.propertyType === 'Commercial Shop' ? `Tamil shop rental agreement for ${propertyData.businessName || 'your business'}.` : 'Tamil residential rental agreement.'} Notice period: {termsData.noticePeriodDays} days. Review the draft before payment.</p>}
             {termsData.agreementType === 'Lease' && <p className="mt-2 text-xs font-semibold text-amber-900">Lease template: refundable advance with interest treated as rent, and no separate monthly rent. Clause 15 retains the supplied document&apos;s replacement-tenant provision if the advance is not refunded. Review this alongside the no-subletting clause before payment.</p>}
           </div>
         </div>

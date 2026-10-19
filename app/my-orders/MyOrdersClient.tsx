@@ -8,13 +8,13 @@ import { requestReviewedCheckout } from '@/lib/checkout-client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { 
-  FileText, 
-  Truck, 
-  AlertCircle, 
-  CheckCircle2, 
-  ChevronRight, 
-  LogIn, 
+import {
+  FileText,
+  Truck,
+  AlertCircle,
+  CheckCircle2,
+  ChevronRight,
+  LogIn,
   ShieldAlert,
   Eye,
   ArrowLeft,
@@ -285,7 +285,7 @@ function MyOrdersBody() {
         <p aria-live="polite" className="text-sm text-stone-600">{visibleOrders.length} of {orders.length} orders shown · Most recent first</p>
       </div>}
 
-      <Link href="/reviews" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-700 underline">Share feedback or write a review</Link>
+
       {correctionSuccess && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm text-emerald-900 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -312,19 +312,19 @@ function MyOrdersBody() {
           <p>{error}</p>
         </div>
       ) : orders.length === 0 ? (
-        <div className="bg-white border border-stone-200 rounded-3xl p-10 text-center space-y-4 shadow-sm">
+        <div className="bg-white border border-stone-200 rounded-2xl p-6 text-center space-y-3 shadow-sm">
           <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
             <FileText className="w-7 h-7" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-base font-bold text-stone-800">No Orders Found</h2>
+            <h2 className="text-base font-bold text-stone-800">No orders yet</h2>
             <p className="text-sm text-stone-600 max-w-sm mx-auto">
               You haven&apos;t placed any rental agreement orders with this account yet.
             </p>
           </div>
           <Link
             href="/order"
-            className="inline-flex items-center gap-1.5 bg-stone-900 hover:bg-stone-800 text-white font-semibold px-5 py-2.5 rounded-xl text-sm uppercase tracking-wider transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 bg-brand-700 hover:bg-brand-800 text-white font-bold px-5 py-3 rounded-xl text-sm transition-colors cursor-pointer"
           >
             <span>Start Your First Agreement</span>
             <ChevronRight className="w-4 h-4" />
@@ -459,6 +459,7 @@ function MyOrdersBody() {
           ))}
         </div>
       )}
+      <div className="border-t border-stone-200 pt-4"><Link href="/reviews" className="text-sm text-stone-600 underline hover:text-brand-700">Share feedback</Link></div>
     </div>
   );
 }

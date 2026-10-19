@@ -4,7 +4,6 @@ import { readApiResponse } from '@/lib/api-response';
 
 import React, { useState } from 'react';
 import { 
-  Mail, 
   Send, 
   CheckCircle2, 
   AlertCircle,
@@ -13,7 +12,7 @@ import {
   Truck
 } from 'lucide-react';
 import { BusinessContact } from '@/components/PolicyPage';
-import { SupportEmailLink } from '@/components/SupportEmailLink';
+import { WhatsAppButton } from '@/components/WhatsAppButton';
 
 export function ContactClient() {
   const [formData, setFormData] = useState({
@@ -89,7 +88,7 @@ export function ContactClient() {
   };
 
   return (
-    <div className="space-y-14 py-8 pb-16">
+    <div className="space-y-8 py-6 pb-12">
       {/* Header Banner */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-stone-900 text-white rounded-3xl p-8 sm:p-12 border border-stone-800 shadow-sm relative overflow-hidden">
@@ -103,7 +102,7 @@ export function ContactClient() {
             </h1>
 
             <p className="text-stone-300 text-base sm:text-lg leading-relaxed">
-              Have a question about rental agreement drafting, stamp duty, or courier tracking? Send us an inquiry below or reach out via email.
+              Have a question about rental agreement drafting, stamp duty, or courier tracking? Send us an inquiry below or reach out via email or WhatsApp.
             </p>
           </div>
         </div>
@@ -113,26 +112,19 @@ export function ContactClient() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           {/* Left Column: Support Information */}
-          <div className="lg:col-span-5 space-y-6">
+          <div className="order-2 lg:order-1 lg:col-span-5 space-y-6">
             <div className="bg-white border border-stone-200/90 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
               <div className="space-y-1">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Help & Support</span>
                 <h2 className="text-xl font-bold text-stone-900">How to Reach Us</h2>
                 <BusinessContact showOperator={false} showAddress={false} />
+                <div className="pt-3">
+                  <WhatsAppButton customText="WhatsApp Support" />
+                  <p className="mt-2 text-xs text-stone-500">WhatsApp messages only; calls are not available on this number.</p>
+                </div>
               </div>
 
               <div className="space-y-4 text-xs sm:text-sm text-stone-700">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-purple-50 rounded-xl text-purple-700 shrink-0 mt-0.5">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-stone-900">Email Support</h3>
-                    <SupportEmailLink className="text-amber-800 hover:underline font-mono block mt-0.5 font-semibold" />
-                    <p className="text-stone-500 text-xs mt-0.5">We respond to email queries within 24 hours.</p>
-                  </div>
-                </div>
-
                 <div className="flex items-start gap-3">
                   <div className="p-2 bg-emerald-50 rounded-xl text-emerald-700 shrink-0 mt-0.5">
                     <Truck className="w-4 h-4" />
@@ -150,7 +142,7 @@ export function ContactClient() {
           </div>
 
           {/* Right Column: Quick Enquiry Form */}
-          <div className="lg:col-span-7">
+          <div className="order-1 lg:order-2 lg:col-span-7">
             <div className="bg-white border border-stone-200/90 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
               <div className="space-y-1">
                 <h2 className="text-xl font-bold text-stone-900">Send an Inquiry</h2>
@@ -294,7 +286,7 @@ export function ContactClient() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="w-full bg-stone-900 hover:bg-stone-800 disabled:bg-stone-400 text-white font-semibold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
+                    className="w-full bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl text-sm flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
                   >
                     {submitting ? (
                       <>

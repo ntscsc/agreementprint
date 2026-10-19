@@ -70,8 +70,8 @@ export function CustomRequestForm() {
   if (success) return <div className="rounded-2xl border border-green-200 bg-green-50 p-6 space-y-3" role="status"><h2 className="text-xl font-bold">Request submitted</h2><p className="break-all">Your reference: <strong>{success}</strong></p><p>Our team will review your sample and contact you about the scope, quote and completion date. No payment has been collected.</p><Link className="inline-block font-semibold text-brand-700 underline" href="/my-requests">View My Requests</Link></div>;
   return <form onSubmit={submit} className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-8 space-y-6">
     <fieldset disabled={busy || loading} className="space-y-5 disabled:opacity-70">
-      <legend className="text-lg font-bold mb-4">Tell us what you need</legend>
-      <label className="block text-sm font-semibold">Agreement type<input required maxLength={100} className={field} value={data.agreementType} onChange={(e) => update('agreementType', e.target.value)} placeholder="For example, lease or service agreement" /></label>
+      <legend className="text-lg font-bold mb-4">1. Requirements</legend><p className="text-sm text-stone-600">Fields marked * are required.</p>
+      <label className="block text-sm font-semibold">Agreement type *<input required maxLength={100} className={field} value={data.agreementType} onChange={(e) => update('agreementType', e.target.value)} placeholder="For example, lease or service agreement" /></label>
       <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold">Preferred language<select className={field} value={data.language} onChange={(e) => update('language', e.target.value)}>{['English', 'Tamil', 'Both', 'Other'].map((v) => <option key={v}>{v}</option>)}</select></label><label className="block text-sm font-semibold">Preferred completion date (optional)<input type="date" className={field} value={data.preferredDate} onChange={(e) => update('preferredDate', e.target.value)} /></label></div>
       <fieldset className="rounded-xl border border-stone-200 p-4">
         <legend className="px-1 text-sm font-semibold text-stone-900">Do you need a notary signature?</legend>
@@ -85,10 +85,10 @@ export function CustomRequestForm() {
         </div>
         <p className="mt-3 text-xs leading-relaxed text-stone-600">If you choose notary service, our team will include it in your quote.</p>
       </fieldset>
-      <label className="block text-sm font-semibold">Purpose<textarea required minLength={5} maxLength={1000} rows={2} className={field} value={data.purpose} onChange={(e) => update('purpose', e.target.value)} placeholder="How will this agreement be used?" /></label>
-      <label className="block text-sm font-semibold">Customisation instructions<textarea required minLength={10} maxLength={5000} rows={5} className={field} value={data.instructions} onChange={(e) => update('instructions', e.target.value)} placeholder="Describe what to add, remove or change. Mention any details you want us to clarify." /></label>
-      <div>
-        <label htmlFor="custom-samples" className="block text-sm font-semibold">Sample templates or photos</label>
+      <label className="block text-sm font-semibold">Purpose *<textarea required minLength={5} maxLength={1000} rows={2} className={field} value={data.purpose} onChange={(e) => update('purpose', e.target.value)} placeholder="How will this agreement be used?" /></label>
+      <label className="block text-sm font-semibold">Customisation instructions *<textarea required minLength={10} maxLength={5000} rows={5} className={field} value={data.instructions} onChange={(e) => update('instructions', e.target.value)} placeholder="Describe what to add, remove or change. Mention any details you want us to clarify." /></label>
+      <section aria-labelledby="custom-samples-heading" className="rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50/50 p-4 sm:p-5"><h2 id="custom-samples-heading" className="mb-3 text-lg font-bold">2. Sample documents</h2>
+        <label htmlFor="custom-samples" className="block text-sm font-semibold">Sample templates or photos *</label>
         <p id="samples-help" className="my-2 text-sm text-stone-600">Choose up to three PDF, DOCX, JPG or PNG files, up to 10 MB each. Remove unnecessary Aadhaar, bank and other sensitive details before uploading.</p>
         <input ref={sampleInput} id="custom-samples" type="file" required={files.length === 0} multiple accept=".pdf,.docx,.jpg,.jpeg,.png" aria-describedby="samples-help" className="block w-full min-w-0 rounded-xl border border-dashed border-amber-300 bg-amber-50/50 p-3 text-sm text-stone-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-amber-600 file:px-5 file:py-3 file:text-sm file:font-bold file:text-white hover:file:bg-amber-700" onChange={(e) => {
           const selected = Array.from(e.target.files ?? []);
@@ -105,14 +105,16 @@ export function CustomRequestForm() {
             </li>
           ))}
         </ul>
-      </div>
+      </section>
+      <section aria-labelledby="custom-print-heading" className="space-y-4"><h2 id="custom-print-heading" className="text-lg font-bold">3. Printing options</h2>
       <label className="block text-sm font-semibold">Stamp paper<select className={field} value={data.stampPaperDenomination ?? 100} onChange={event => update('stampPaperDenomination', Number(event.target.value))}><option value={100}>₹100 stamp paper</option><option value={200}>₹200 stamp paper</option></select></label>
       <ExtraCopiesField value={data.extraCopies} stamp={data.stampPaperDenomination} onChange={count => update('extraCopies', count)} />
       <p className="text-sm text-stone-600">Extra copies will be added to the reviewed quote at ₹150 each.</p>
-      <h2 className="text-lg font-bold pt-3">How can we contact you?</h2>
-      <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold">Name<input required minLength={2} maxLength={100} autoComplete="name" className={field} value={data.name} onChange={(e) => update('name', e.target.value)} /></label><label className="block text-sm font-semibold">Mobile number (required)<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} autoComplete="tel-national" className={field} value={data.phone} onChange={(e) => update('phone', e.target.value)} placeholder="10-digit Indian mobile number" /></label></div>
+      </section><section aria-labelledby="custom-contact-heading" className="space-y-4 border-t border-stone-200 pt-5"><h2 id="custom-contact-heading" className="text-lg font-bold">4. Contact details</h2>
+      <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold">Name *<input required minLength={2} maxLength={100} autoComplete="name" className={field} value={data.name} onChange={(e) => update('name', e.target.value)} /></label><label className="block text-sm font-semibold">Mobile number *<input required type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} autoComplete="tel-national" className={field} value={data.phone} onChange={(e) => update('phone', e.target.value)} placeholder="10-digit Indian mobile number" /></label></div>
       <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold">Email (optional)<input type="email" maxLength={254} autoComplete="email" className={field} value={data.email} onChange={(e) => update('email', e.target.value)} /></label></div>
       <label className="flex items-start gap-3 text-sm leading-6"><input required type="checkbox" checked={data.contactConsent} onChange={(e) => update('contactConsent', e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-amber-600" /><span>I agree to be contacted about this request and have permission to share these samples. This is not consent to marketing. <Link href="/privacy-policy" className="text-brand-700 underline">Privacy policy</Link></span></label>
+      </section>
     </fieldset>
     {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
     {progress && <p role="status" className="text-sm text-brand-800">{progress}</p>}

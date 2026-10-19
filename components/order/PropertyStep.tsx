@@ -22,7 +22,7 @@ export const PropertyStep: React.FC<PropertyStepProps> = ({ data, onChange, erro
             <Home className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-stone-900">Step 3: Rental Premises (Property) Details</h2>
+            <h2 className="text-xl font-bold text-stone-900">Property details</h2>
             <p className="text-xs text-stone-500">Specify the premises in Tamil Nadu being rented out under this agreement.</p>
           </div>
         </div>

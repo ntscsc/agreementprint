@@ -14,7 +14,7 @@ interface NavItem { label: string; href: string; }
 
 export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
   const { t } = useI18n();
-  const { user, isAdmin, signOut, signInWithGoogle, editContactDetails } = useAuth();
+  const { user, loading, isAdmin, signOut, signInWithGoogle, editContactDetails } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
   const primary: NavItem[] = [
     { label: t.nav.home, href: '/' },
     { label: 'Services', href: '/services' },
-    { label: t.nav.pricing, href: '/pricing' },
+    ...(!loading && user ? [{ label: t.nav.pricing, href: '/pricing' }] : []),
     { label: t.nav.howItWorks, href: '/how-it-works' },
     { label: 'Reviews', href: '/reviews' },
   ];

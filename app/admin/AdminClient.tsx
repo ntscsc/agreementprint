@@ -93,7 +93,7 @@ function AdminBody() {
   const [localSignInError, setLocalSignInError] = useState<string | null>(null);
 
   // Active Admin Console tab
-  const [activeTab, setActiveTab] = useState<'orders' | 'enquiries' | 'pricing' | 'support' | 'couriers' | 'referrals' | 'custom' | 'reports' | 'reviews' | 'payments'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'enquiries' | 'pricing' | 'support' | 'couriers' | 'referrals' | 'custom' | 'reports' | 'reviews' | 'changes' | 'refunds' | 'payments'>('orders');
 
   // Pricing State
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
@@ -738,6 +738,8 @@ function AdminBody() {
     );
   }
 
+  const navigationGroups = [{ label: 'Daily work', items: [{ id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Business tools & settings', items: [{ id: 'reports' as const, label: 'Reports & Analytics', icon: FileText }, { id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'payments' as const, label: 'Payment Gateway', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Dispatch & Envelopes', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }, { label: 'Reviews & order requests', items: [{ id: 'reviews' as const, label: 'Customer Reviews', icon: MessageSquare }, { id: 'changes' as const, label: 'Order Change Requests', icon: FileText }, { id: 'refunds' as const, label: 'Cancellation Refunds', icon: RotateCcw }] }];
+
   return (
     <div className="admin-portal admin-tidy max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" data-section={activeTab}>
       <AdminMilestone uid={user.uid} paidOrders={orders.filter(order => order.payment?.status === 'Paid').length} ready={!loadingOrders && !ordersError} />
@@ -745,12 +747,14 @@ function AdminBody() {
         <div className="admin-hero-copy"><span className="admin-eyebrow"><ShieldCheck aria-hidden="true" className="h-4 w-4" />AgreementPrint Administration</span><h1>Administration</h1><p>Manage agreements, preparation, delivery and customer requests.</p><span className="admin-account"><span aria-hidden="true" /><SupportEmailLink className="rounded-sm hover:underline" /></span></div>
         <div className="admin-hero-actions"><Link href="/" className="admin-website-link"><ExternalLink aria-hidden="true" className="h-4 w-4" />View website</Link>{(activeTab === 'orders' || activeTab === 'enquiries') && <button type="button" onClick={activeTab === 'orders' ? fetchOrderList : fetchEnquiries} disabled={activeTab === 'orders' ? loadingOrders : loadingEnquiries || updatingEnquiryId !== null || deletingEnquiryId !== null} className="admin-refresh"><RefreshCw aria-hidden="true" className={`h-4 w-4 ${(activeTab === 'orders' ? loadingOrders : loadingEnquiries) ? 'animate-spin' : ''}`} />Refresh {activeTab === 'orders' ? 'orders' : 'enquiries'}</button>}</div>
       </header>
+      <label className="admin-mobile-section">Admin section<select value={activeTab} onChange={event => setActiveTab(event.target.value as typeof activeTab)}>{navigationGroups.map(group => <optgroup key={group.label} label={group.label}>{group.items.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</optgroup>)}</select></label>
       <nav aria-label="Admin sections" className="admin-navigation">
         <div className="grid gap-6 lg:grid-cols-[1fr_1.25fr]">
-          {[{ label: 'Daily work', items: [{ id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Business tools & settings', items: [{ id: 'reports' as const, label: 'Reports & Analytics', icon: FileText }, { id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'payments' as const, label: 'Payment Gateway', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Dispatch & Envelopes', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }, { label: 'Reviews & refunds', items: [{ id: 'reviews' as const, label: 'Reviews & Refunds', icon: MessageSquare }] }].map((group) => <div key={group.label} className={group.label === 'Reviews & refunds' ? 'border-t border-stone-200 pt-4 lg:col-span-2' : undefined}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
+          {navigationGroups.map((group) => <div key={group.label} className={group.label === 'Reviews & order requests' ? 'border-t border-stone-200 pt-4 lg:col-span-2' : undefined}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
         </div>
       </nav>
 
+      <div className="admin-workspace space-y-5">
       {activeTab === 'payments' ? <PaymentGatewaySettings /> : activeTab === 'reports' ? (
         <section className="space-y-5" aria-label="Reports and analytics">
           <header><h2 className="text-2xl font-bold text-stone-900">Reports &amp; Analytics</h2><p className="mt-2 text-sm text-stone-600">Download your business records or view website activity.</p></header>
@@ -758,10 +762,20 @@ function AdminBody() {
           <details className="rounded-2xl border border-stone-200 bg-white p-5"><summary className="cursor-pointer text-sm font-semibold text-stone-700">Website visitor activity</summary><div className="mt-5"><AdminVisitorStats /></div></details>
         </section>
       ) : activeTab === 'reviews' ? (
-        <section className="space-y-5" aria-label="Reviews and refunds">
-          <header><h2 className="text-2xl font-bold text-stone-900">Reviews &amp; Refunds</h2><p className="mt-2 text-sm text-stone-600">Manage customer feedback, order-change reviews and refund requests.</p></header>
+        <section className="space-y-5" aria-label="Customer reviews">
+          <header><h2 className="text-2xl font-bold text-stone-900">Customer Reviews</h2><p className="mt-2 text-sm text-stone-600">Review and moderate customer feedback.</p></header>
           <CustomerReviewModeration />
-          <div className="grid items-start gap-4 xl:grid-cols-2"><OrderReplacementRequests /><CreditRefundRequests /></div>
+
+        </section>
+      ) : activeTab === 'changes' ? (
+        <section className="space-y-5" aria-label="Order change requests">
+          <header><h2 className="text-2xl font-bold text-stone-900">Order Change Requests</h2><p className="mt-2 text-sm text-stone-600">Review changes to prepared orders and record related refund adjustments.</p></header>
+          <OrderReplacementRequests />
+        </section>
+      ) : activeTab === 'refunds' ? (
+        <section className="space-y-5" aria-label="Cancellation refunds and legacy reconciliation">
+          <header><h2 className="text-2xl font-bold text-stone-900">Cancellation Refunds</h2><p className="mt-2 text-sm text-stone-600">Review cancelled-order refunds, check payment gateway status and reconcile legacy records.</p></header>
+          <CreditRefundRequests />
         </section>
       ) : activeTab === 'custom' ? <CustomRequests admin /> : activeTab === 'enquiries' ? (
         <section className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5 animate-in fade-in duration-200">
@@ -1104,7 +1118,7 @@ function AdminBody() {
                 Official Stamping, Courier & Notary Rates
               </h2>
               <p className="text-xs text-stone-500 mt-0.5">
-                Configure rates for the 3 customer dropboxes. Updates apply immediately across customer checkout.
+                Configure stamp-paper packages and notary charges. Updates apply immediately across customer checkout.
               </p>
             </div>
 
@@ -1154,7 +1168,7 @@ function AdminBody() {
 
               <div className="space-y-3">
                 <div>
-                  <label htmlFor="pricing-stamp100Chennai" className="block text-xs font-bold text-stone-700 mb-1">₹100 stamp paper - Chennai courier included</label>
+                  <label htmlFor="pricing-stamp100Chennai" className="block text-xs font-bold text-stone-700 mb-1">Chennai - courier included</label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-stone-400 text-xs font-bold">₹</span>
                     <input
@@ -1178,7 +1192,7 @@ function AdminBody() {
                 </div>
 
                 <div>
-                  <label htmlFor="pricing-stamp100TamilNadu" className="block text-xs font-bold text-stone-700 mb-1">₹100 stamp paper - rest of Tamil Nadu courier included</label>
+                  <label htmlFor="pricing-stamp100TamilNadu" className="block text-xs font-bold text-stone-700 mb-1">Rest of Tamil Nadu - courier included</label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-stone-400 text-xs font-bold">₹</span>
                     <input
@@ -1215,7 +1229,7 @@ function AdminBody() {
 
               <div className="space-y-3">
                 <div>
-                  <label htmlFor="pricing-stamp200Chennai" className="block text-xs font-bold text-stone-700 mb-1">₹200 stamp paper - Chennai courier included</label>
+                  <label htmlFor="pricing-stamp200Chennai" className="block text-xs font-bold text-stone-700 mb-1">Chennai - courier included</label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-stone-400 text-xs font-bold">₹</span>
                     <input
@@ -1239,7 +1253,7 @@ function AdminBody() {
                 </div>
 
                 <div>
-                  <label htmlFor="pricing-stamp200TamilNadu" className="block text-xs font-bold text-stone-700 mb-1">₹200 stamp paper - rest of Tamil Nadu courier included</label>
+                  <label htmlFor="pricing-stamp200TamilNadu" className="block text-xs font-bold text-stone-700 mb-1">Rest of Tamil Nadu - courier included</label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-stone-400 text-xs font-bold">₹</span>
                     <input
@@ -1347,20 +1361,23 @@ function AdminBody() {
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+        <div className="flex-1">
+          <label htmlFor="admin-order-search" className="mb-2 block text-sm font-semibold">Search orders</label>
+          <div className="relative"><Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Search rental orders"
+            id="admin-order-search"
             placeholder="Search order number, owner, tenant, phone or city"
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
           />
         </div>
 
+        </div>
+        <div><label htmlFor="admin-order-status" className="mb-2 block text-sm font-semibold">Status</label>
         <select
-          aria-label="Filter rental orders by status"
+          id="admin-order-status"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
@@ -1373,7 +1390,7 @@ function AdminBody() {
           <option value="Dispatched">Dispatched</option>
           <option value="Delivered">Delivered</option>
           <option value="Cancelled">Cancelled</option>
-        </select>
+        </select></div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-stone-600"><p aria-live="polite">{loadingOrders ? 'Loading orders...' : `${filteredOrders.length} of ${orders.length} orders shown`}</p>{(searchQuery || statusFilter !== 'ALL') && <button type="button" onClick={() => { setSearchQuery(''); setStatusFilter('ALL'); }} className="rounded-lg border border-stone-300 bg-white px-3 py-2 font-semibold text-stone-700">Clear Filters</button>}</div>
@@ -1386,7 +1403,7 @@ function AdminBody() {
           </div>
         ) : filteredOrders.length === 0 ? (
           <div className="py-16 text-center text-xs text-stone-500">
-            No orders match the selected search or filter criteria.
+            {orders.length === 0 ? 'No orders yet. New customer orders will appear here.' : 'No orders match the selected search or filter criteria.'}
           </div>
         ) : (
           <>
@@ -1526,7 +1543,7 @@ function AdminBody() {
                   <div>{selectedOrder.agreementTerms.agreementType === 'Lease' ? 'Refundable lease advance' : 'Advance'}: <strong>₹{selectedOrder.agreementTerms.securityDeposit?.toLocaleString('en-IN')}</strong></div>
                   <div>Tenure: <strong>{selectedOrder.agreementTerms.tenureMonths} Months</strong></div>
                   <div>Agreement language: <strong>{selectedOrder.agreementTerms.language || 'English'}</strong></div>
-                  {selectedOrder.agreementTerms.language === 'Tamil' && selectedOrder.propertyDetails.propertyType !== 'Commercial Shop' && <div>Painting deduction: <strong>₹{selectedOrder.agreementTerms.paintingDeduction?.toLocaleString('en-IN')}</strong></div>}
+                  {selectedOrder.agreementTerms.agreementType !== 'Lease' && selectedOrder.propertyDetails.propertyType !== 'Commercial Shop' && <div>Painting deduction: <strong>₹{selectedOrder.agreementTerms.paintingDeduction?.toLocaleString('en-IN')}</strong></div>}
                   {selectedOrder.agreementTerms.language === 'Tamil' && selectedOrder.propertyDetails.propertyType === 'Commercial Shop' && <div>Template: <strong>Tamil shop rental agreement</strong></div>}
                   <div>Notice: <strong>{selectedOrder.agreementTerms.noticePeriodDays} Days</strong></div>
                   <div>Stamp Paper: <strong>In ₹{selectedOrder.agreementTerms.stampPaperDenomination || 100} Stamp Paper</strong></div>
@@ -1702,6 +1719,7 @@ function AdminBody() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

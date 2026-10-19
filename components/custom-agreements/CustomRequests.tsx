@@ -49,7 +49,7 @@ function RequestsBody({ admin = false }: { admin?: boolean }) {
   if (!user) return <div className="rounded-2xl border border-stone-200 bg-white p-6 space-y-4"><p>Sign in with Google to view your custom agreement requests.</p><button className="rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white" onClick={() => { void signInWithGoogle().catch((err) => setError(err.message)); }}>Sign In with Google</button>{error && <p role="alert" className="text-rose-700">{error}</p>}</div>;
   return <section className="space-y-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">{admin ? 'Custom Agreement Requests' : 'My Requests'}</h2><button disabled={loading} onClick={() => void load()} className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50">{loading ? 'Loading…' : 'Refresh'}</button></div>
     {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-rose-800">{error}</p>}
-    {!loading && !error && !requests.length && <p className="rounded-xl bg-white p-6 text-stone-600">No custom agreement requests yet. {!admin && <Link href="/custom-agreement" className="text-brand-700 underline">Create a request</Link>}</p>}
+    {!loading && !error && !requests.length && <div className="space-y-3 rounded-2xl border border-stone-200 bg-white p-6 text-center"><h3 className="font-bold text-stone-900">No requests yet</h3><p className="text-sm text-stone-600">Your custom agreement requests and quotes will appear here.</p>{!admin && <Link href="/custom-agreement" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand-700 px-5 py-3 text-sm font-bold text-white hover:bg-brand-800">Start your first request</Link>}</div>}
     {admin && <div className="space-y-4 rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_14rem]">
         <label className="text-sm font-semibold text-stone-700">Search Requests<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, phone, agreement or reference" className={`${input} mt-2`} /></label>
@@ -57,7 +57,7 @@ function RequestsBody({ admin = false }: { admin?: boolean }) {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-stone-600"><p aria-live="polite">{filteredRequests.length} of {requests.length} requests shown</p>{(search || statusFilter !== 'ALL') && <button type="button" onClick={() => { setSearch(''); setStatusFilter('ALL'); }} className="rounded-lg border border-stone-300 px-3 py-2 font-semibold">Clear Filters</button>}</div>
     </div>}
-    <p className="text-sm text-stone-600">Showing up to 100 most recent requests.</p>
+    {requests.length > 0 && <p className="text-sm text-stone-600">Showing up to 100 most recent requests.</p>}
     {admin && !loading && !error && requests.length > 0 && filteredRequests.length === 0 && <p className="rounded-xl border border-stone-200 bg-white p-5 text-sm text-stone-600">No requests match your search or selected status.</p>}
     {filteredRequests.map((request) => <RequestCard key={`${request.requestId}-${request.updatedAt}`} request={request} admin={admin} token={() => user.getIdToken()} refresh={load} />)}
   </section>;

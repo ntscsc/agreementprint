@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, CheckCircle2, FileText, Gift, Printer, ReceiptText, Truck, CreditCard, Award, Monitor } from 'lucide-react';
 import { VENDOR_SERVICE_TITLE } from '@/src/config/vendor';
-import { HomePriceEnquiry } from '@/components/HomePriceEnquiry';
 
 export const metadata: Metadata = {
   alternates: { canonical: canonicalUrl('/') },
@@ -37,25 +36,25 @@ export default function HomePage() {
   return (
     <div className="space-y-10 bg-stone-50 pb-10 sm:space-y-12 sm:pb-12">
       <section className="relative isolate flex min-h-[calc(100vh-81px)] items-center overflow-hidden border-b border-brand-200 bg-brand-50 py-8 supports-[height:100dvh]:min-h-[calc(100dvh-81px)] sm:py-12 lg:py-16">
-        <Image src="/images/home-hero.webp" alt="" fill priority unoptimized sizes="100vw" className="object-cover object-right" />
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(248,252,255,0.95),rgba(248,252,255,0.85))] lg:bg-[linear-gradient(90deg,rgba(248,252,255,0.94)_0%,rgba(248,252,255,0.82)_45%,rgba(248,252,255,0.25)_100%)]" />
-        <div className={`${homeContainer.replace('max-w-7xl', 'max-w-[1440px]')} relative z-10 grid items-center gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-10 xl:gap-14`}>
-          <div className="min-w-0 max-w-3xl space-y-5 xl:space-y-6">
-            <div className="flex flex-wrap items-center gap-5">
-              <span className="max-w-full rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold tracking-wide text-amber-800">{VENDOR_SERVICE_TITLE}</span>
+        {/* Decorative background; all service information is in the visible text. */}
+        <Image src="/images/home-hero.webp" alt="" aria-hidden="true" fill priority unoptimized sizes="100vw" className="object-cover object-right" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-white/65" />
+        <div className={`${homeContainer.replace('max-w-7xl', 'max-w-[1440px]')} relative z-10 grid items-center gap-8 lg:grid-cols-1 lg:gap-10 xl:gap-14`}>
+          <div className="mx-auto min-w-0 w-full max-w-5xl space-y-6 text-center sm:space-y-7">
+            <div className="flex flex-wrap items-center justify-center gap-5">
+              <span className="max-w-full rounded-full bg-amber-50 px-4 py-2 text-sm sm:text-base font-bold tracking-wide text-amber-800">{VENDOR_SERVICE_TITLE}</span>
             </div>
-            <h1 className="max-w-2xl text-3xl font-black leading-tight tracking-tight text-stone-900 sm:text-4xl lg:text-5xl xl:text-[56px]">Your rental agreement,<br className="hidden sm:block" /> delivered to your door.</h1>
-            <p className="max-w-xl text-base leading-relaxed text-stone-600 sm:text-lg xl:max-w-2xl xl:text-xl">Leave the paperwork to us. Share your details online and get your agreement prepared and printed on Tamil Nadu stamp paper, with courier delivery to your chosen address.</p>
-            <div className="grid max-w-2xl grid-cols-1 gap-3 text-sm font-medium text-stone-700 sm:grid-cols-2 xl:text-base">
-              {['Tamil Nadu stamp paper', 'Clear price before you pay', 'Optional notary service', 'Courier delivery with tracking'].map((benefit) => <div key={benefit} className="flex items-start gap-2"><CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><span>{benefit}</span></div>)}
+            <h1 className="mx-auto max-w-5xl text-4xl font-black leading-tight tracking-tight text-stone-900 sm:text-5xl lg:text-6xl xl:text-7xl">Rental Agreements, Printed &amp; Delivered</h1>
+            <p className="mx-auto max-w-3xl text-lg leading-relaxed text-stone-700 sm:text-xl lg:text-2xl">Leave the paperwork to us. Share your details online and get your agreement prepared and printed on Tamil Nadu stamp paper, with courier delivery to your chosen address.</p>
+            <div className="mx-auto grid max-w-3xl grid-cols-1 gap-3 text-base font-semibold text-stone-700 sm:grid-cols-2 sm:gap-4 lg:text-lg">
+              {['Tamil Nadu stamp paper', 'Clear price before you pay', 'Optional notary service', 'Courier delivery with tracking'].map((benefit) => <div key={benefit} className="flex items-center justify-center gap-2"><CheckCircle2 aria-hidden="true" className="h-5 w-5 shrink-0 text-amber-700" /><span>{benefit}</span></div>)}
             </div>
-            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap">
-              <Link href="/order" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-700 px-6 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800">Start My Rental Agreement <ArrowRight className="h-4 w-4" /></Link>
-              <Link href="/custom-agreement" className="inline-flex items-center justify-center rounded-xl border border-amber-700 bg-amber-700 px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-800">Need a Custom Agreement?</Link>
+            <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row sm:flex-wrap sm:gap-4">
+              <Link href="/order" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-700 px-8 py-4 text-base sm:text-lg font-bold text-white shadow-sm transition hover:bg-brand-800">Start My Rental Agreement <ArrowRight className="h-4 w-4" /></Link>
+              <Link href="/custom-agreement" className="inline-flex items-center justify-center rounded-xl border border-brand-300 bg-white/90 px-6 py-4 text-base sm:text-lg font-semibold text-brand-800 transition hover:bg-brand-50">Need a Custom Agreement?</Link>
             </div>
-            <p className="text-sm text-stone-500">Already placed an order? <Link href="/my-orders" className="font-semibold text-amber-800 hover:underline">View My Orders</Link> or <Link href="/track" className="font-semibold text-amber-800 hover:underline">track your delivery</Link>.</p>
+            <p className="text-base leading-relaxed text-stone-600 sm:text-lg">Already placed an order? <Link href="/my-orders" className="font-semibold text-amber-800 hover:underline">View My Orders</Link> or <Link href="/track" className="font-semibold text-amber-800 hover:underline">track your delivery</Link>.</p>
           </div>
-          <HomePriceEnquiry />
         </div>
       </section>
 
@@ -90,14 +89,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section aria-labelledby="our-services" className={homeContainer}>
-        <div className="rounded-2xl border border-stone-200 bg-white p-6 sm:p-8">
-          <h2 id="our-services" className="text-2xl font-extrabold tracking-tight text-stone-900 sm:text-3xl">Our Services</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-stone-600 sm:text-base">Get help with stamp paper, e-Stamps, agreements, notary services, card printing and applications. Explore our services and find what you need.</p>
-          <div className="mt-5 flex flex-wrap gap-5 text-sm font-semibold text-amber-800"><Link href="/contact" className="hover:underline">Ask About a Service</Link><Link href="/services" className="hover:underline">View All Services</Link></div>
-        </div>
-      </section>
-
       <section aria-labelledby="home-services" className={homeContainer}>
         <div className="mb-7 max-w-2xl space-y-3">
           <h2 id="home-services" className="text-2xl font-extrabold tracking-tight text-stone-900 sm:text-3xl">What can we help you with?</h2>
@@ -118,17 +109,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section aria-labelledby="home-custom" className={homeContainer}>
-        <div className="grid grid-cols-1 gap-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 sm:p-8 lg:grid-cols-2 lg:items-center">
-          <div className="min-w-0 space-y-4"><h2 id="home-custom" className="text-2xl font-extrabold tracking-tight text-stone-900 sm:text-3xl">Your needs are different.<br />Your agreement can be too.</h2><p className="max-w-xl text-sm leading-relaxed text-stone-700 sm:text-base">Share a sample document or photo and tell us what you want changed. We will discuss your needs and give you a price before starting work.</p><Link href="/custom-agreement" className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-5 py-3 text-sm font-bold text-white hover:bg-amber-700">Request a Custom Agreement <ArrowRight className="h-4 w-4" /></Link></div>
-          <div className="min-w-0 space-y-4 rounded-2xl border border-amber-200 bg-white p-5 sm:p-6">{['Tell us what you need and share a sample.', 'Our team contacts you with a price and expected completion date.', 'Sending a request is free. Agree on the work before going ahead.'].map((detail) => <div key={detail} className="flex items-start gap-3 text-sm leading-relaxed text-stone-700"><CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><span>{detail}</span></div>)}<Link href="/my-requests" className="inline-block pt-2 text-sm font-semibold text-amber-800 hover:underline">Already sent a request? View My Requests</Link></div>
-        </div>
-      </section>
-
       <div className={homeContainer}><CustomerReviews compact /></div>
 
       <section aria-labelledby="home-help" className={homeContainer}>
-        <div className="flex flex-col gap-6 rounded-2xl border border-stone-200 bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between"><div><h2 id="home-help" className="text-2xl font-extrabold tracking-tight text-stone-900 sm:text-3xl">Have a question before you begin?</h2><p className="mt-3 text-sm leading-relaxed text-stone-600 sm:text-base">Check our prices, find a quick answer or speak to our team.</p></div><div className="flex flex-wrap gap-3">{[{ label: 'See Prices', href: '/pricing' }, { label: 'Common Questions', href: '/faq' }, { label: 'Contact Us', href: '/contact' }].map((link) => <Link key={link.href} href={link.href} className="rounded-xl border border-stone-300 px-4 py-2.5 text-sm font-semibold text-stone-800 hover:bg-stone-50">{link.label}</Link>)}</div></div>
+        <div className="flex flex-col gap-6 rounded-2xl border border-stone-200 bg-white p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between"><div><h2 id="home-help" className="text-2xl font-extrabold tracking-tight text-stone-900 sm:text-3xl">Have a question before you begin?</h2><p className="mt-3 text-sm leading-relaxed text-stone-600 sm:text-base">Find a quick answer or speak to our team.</p></div><div className="flex flex-wrap gap-3">{[{ label: 'Common Questions', href: '/faq' }, { label: 'Contact Us', href: '/contact' }].map((link) => <Link key={link.href} href={link.href} className="rounded-xl border border-stone-300 px-4 py-2.5 text-sm font-semibold text-stone-800 hover:bg-stone-50">{link.label}</Link>)}</div></div>
       </section>
     </div>
   );
