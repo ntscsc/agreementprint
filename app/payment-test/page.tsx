@@ -1,37 +1,37 @@
 'use client';
 
 import { readApiResponse } from '@/lib/api-response';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 export default function PaymentTestPage() {
   const { user } = useAuth();
-  return <PaymentTestGateways key={user?.uid ?? 'guest'} />;
+  return <Suspense fallback={<p role="status" className="p-6">Loading payment options...</p>}><PaymentTestGateways key={user?.uid ?? 'guest'} /></Suspense>;
 }
 type Gateway = 'PhonePe' | 'Razorpay';
 function PaymentTestGateways() {
-  const [gateway, setGateway] = useState<Gateway>('PhonePe');
-  useEffect(() => { if (new URLSearchParams(window.location.search).get('gateway') === 'Razorpay') setGateway('Razorpay'); }, []);
+  const params = useSearchParams();
+  const router = useRouter();
+  const gateway: Gateway = params.get('gateway') === 'Razorpay' ? 'Razorpay' : 'PhonePe';
+  const initialReference = params.get('merchantOrderId') || '';
   function selectGateway(selected: Gateway) {
     const url = new URL(window.location.href);
     url.searchParams.set('gateway', selected);
     url.searchParams.delete('merchantOrderId');
-    window.history.replaceState(null, '', url);
-    setGateway(selected);
+    router.replace(`${url.pathname}${url.search}`, { scroll: false });
   }
-  return <PaymentTestBody key={gateway} gateway={gateway} onGatewayChange={selectGateway} />;
+  return <PaymentTestBody key={`${gateway}:${initialReference}`} gateway={gateway} initialReference={initialReference} onGatewayChange={selectGateway} />;
 }
-function PaymentTestBody({ gateway, onGatewayChange }: { gateway: Gateway; onGatewayChange: (gateway: Gateway) => void }) {
+function PaymentTestBody({ gateway, initialReference, onGatewayChange }: { gateway: Gateway; initialReference: string; onGatewayChange: (gateway: Gateway) => void }) {
   const { user, loading, signInWithGoogle } = useAuth();
   const [config, setConfig] = useState<{ configured: boolean; live: boolean } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [state, setState] = useState('');
-  const [reference, setReference] = useState('');
+  const [reference, setReference] = useState(initialReference);
   const [paymentLive, setPaymentLive] = useState<boolean | null>(null);
   const endpoint = `/api/payment/${gateway === 'Razorpay' ? 'razorpay' : 'phonepe'}/test-product`;
   useEffect(() => {
     let active = true;
     fetch(endpoint, { cache: 'no-store' }).then(readApiResponse).then(data => { if (active) setConfig({ configured: data.configured === true, live: data.live === true }); }).catch(() => { if (active) setError('Could not load payment configuration.'); });
-    const params = new URLSearchParams(window.location.search);
-    if ((params.get('gateway') || 'PhonePe') === gateway) setReference(params.get('merchantOrderId') || '');
     return () => { active = false; };
   }, [endpoint, gateway]);
   async function action(action: 'start' | 'status') {
