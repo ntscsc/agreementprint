@@ -8,7 +8,7 @@ import { VENDOR_SERVICES } from '@/src/config/vendor-services';
 export const metadata: Metadata = {
   alternates: { canonical: canonicalUrl('/services') },
   title: 'Our Services | AgreementPrint',
-  description: 'Explore stamp paper, e-Stamp and other services: rental agreements, notary services, card printing and application assistance.',
+  description: 'Explore stamp paper, e-stamp paper and other services: rental agreements, notary services, card printing and application assistance.',
 };
 export default function ServicesPage() {
   return (

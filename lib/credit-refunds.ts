@@ -1,7 +1,8 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { randomUUID } from 'node:crypto';
 import { ApiInputError } from '@/lib/api-input';
-import { phonePeRefundRequest, fetchPhonePeOrderStatus, getPhonePeCredentials, getPhonePeAccessToken } from '@/lib/phonepe';
+import { fetchGatewayOrderStatus as fetchPhonePeOrderStatus, getGatewayAccessToken as getPhonePeAccessToken } from '@/lib/payment-gateway';
+import { gatewayRefundRequest as phonePeRefundRequest, credentialsForPaymentReference } from '@/lib/gateway-refunds';
 
 const activeStates = ['Awaiting approval', 'Processing'];
 export async function settleCreditRefundLeg(requestId: string, merchantRefundId: string, state: string, amount?: number, originalMerchantOrderId?: string) {
@@ -14,7 +15,7 @@ export async function settleCreditRefundLeg(requestId: string, merchantRefundId:
     if (index < 0) throw new ApiInputError('Refund reference was not found.', 404);
     const leg = record.legs[index];
     if (['COMPLETED', 'FAILED', 'REJECTED'].includes(leg.state)) return;
-    if (state === 'REJECTED' && record.state !== 'Awaiting approval') throw new ApiInputError('A submitted refund cannot be released until PhonePe confirms failure.', 409);
+    if (state === 'REJECTED' && record.state !== 'Awaiting approval') throw new ApiInputError('A submitted refund cannot be released until the payment gateway confirms failure.', 409);
     if (state !== 'REJECTED' && (record.state !== 'Processing' || amount !== leg.amount * 100 || originalMerchantOrderId !== leg.originalMerchantOrderId)) throw new ApiInputError('Refund confirmation does not match the original payment.', 409);
     if (record.source === 'Order cancellation') {
       const orderRef = db.collection('orders').doc(record.orderId), order = (await tx.get(orderRef)).data();
@@ -49,27 +50,30 @@ export async function reconcileCreditRefund(requestId: string) {
   for (const leg of record.legs) {
     if (['COMPLETED', 'FAILED', 'REJECTED'].includes(leg.state)) continue;
     try {
-      const result = await phonePeRefundRequest(leg.merchantRefundId);
+      const result = await phonePeRefundRequest(leg.merchantRefundId, undefined, undefined, leg.originalMerchantOrderId);
       if (result.emptyResponse) {
-        await ref.update({ statusMessage: 'PhonePe has not returned a refund status yet. The refund remains unconfirmed. In sandbox, check the refund scenario configuration before retrying.', updatedAt: new Date().toISOString() });
+        await ref.update({ statusMessage: 'The payment gateway has not returned a refund status yet. The refund remains unconfirmed. Check the original provider before retrying.', updatedAt: new Date().toISOString() });
         continue;
       }
       // Status is fetched using our fixed refund ID. Some documented responses
       // contain only PhonePe's refundId, so verify the echoed merchant ID if present.
       if (result.merchantRefundId && result.merchantRefundId !== leg.merchantRefundId) throw new Error('Refund reference mismatch');
-      if (result.originalMerchantOrderId !== leg.originalMerchantOrderId || result.amount !== leg.amount * 100) throw new ApiInputError('PhonePe refund status does not match the reserved original payment. The refund remains pending for admin review.', 409);
+      if (result.originalMerchantOrderId !== leg.originalMerchantOrderId || result.amount !== leg.amount * 100) throw new ApiInputError('Payment gateway refund status does not match the reserved original payment. The refund remains pending for admin review.', 409);
       await settleCreditRefundLeg(requestId, leg.merchantRefundId, result.state || 'PENDING', result.amount, result.originalMerchantOrderId);
-      await ref.update({ statusMessage: ['COMPLETED', 'FAILED'].includes(result.state || '') ? 'PhonePe returned a confirmed refund result.' : 'PhonePe is processing the refund. The original refund request remains pending until confirmation.', updatedAt: new Date().toISOString() });
+      await ref.update({ statusMessage: ['COMPLETED', 'FAILED'].includes(result.state || '') ? 'The payment gateway returned a confirmed refund result.' : 'The payment gateway is processing the refund. The original refund request remains pending until confirmation.', updatedAt: new Date().toISOString() });
     } catch (error) { if ((error as { status?: number }).status !== 404) throw error; }
   }
 }
 
 export async function approveCreditRefund(requestId: string, adminUid: string, notes: string) {
   const db = getAdminDb(), ref = db.collection('creditRefundRequests').doc(requestId);
-  const credentials = getPhonePeCredentials();
-  if (!credentials) throw new ApiInputError('PhonePe refunds are temporarily unavailable.', 503);
-  if (!credentials.production) throw new ApiInputError('Refunds are unavailable in test mode. The request remains saved for admin review.', 409);
-  const token = await getPhonePeAccessToken(credentials);
+  const preflight = (await ref.get()).data();
+  if (!preflight) throw new ApiInputError('Refund request not found.', 404);
+  for (const leg of preflight.legs) {
+    const credentials = await credentialsForPaymentReference(leg.originalMerchantOrderId);
+    if (!credentials) throw new ApiInputError('Original payment gateway credentials are unavailable.', 503);
+    if (!credentials.production) throw new ApiInputError('Refunds are unavailable in test mode. The request remains saved for admin review.', 409);
+  }
   // Recovery always checks the original refund IDs before any retry.
   await reconcileCreditRefund(requestId);
   const leaseId = randomUUID();
@@ -91,16 +95,19 @@ export async function approveCreditRefund(requestId: string, adminUid: string, n
       if (['COMPLETED', 'FAILED', 'REJECTED'].includes(leg.state)) continue;
       let submitOriginalReference = false;
       try {
-        const result = await phonePeRefundRequest(leg.merchantRefundId);
+        const result = await phonePeRefundRequest(leg.merchantRefundId, undefined, undefined, leg.originalMerchantOrderId);
         // An explicit admin retry may re-submit ONLY the original unique refund
         // reference. Never generate a new refund ID for an uncertain response.
         submitOriginalReference = result.emptyResponse === true;
       }
       catch (error) { if ((error as { status?: number }).status === 404) submitOriginalReference = true; else throw error; }
       if (!submitOriginalReference) continue;
+      const credentials = await credentialsForPaymentReference(leg.originalMerchantOrderId);
+      if (!credentials) throw new ApiInputError('Original payment verification is unavailable.', 503);
+      const token = await getPhonePeAccessToken(credentials);
       const payment = await fetchPhonePeOrderStatus(credentials, token, leg.originalMerchantOrderId);
       const fundedAmount = leg.allocations[0].fundedAmount;
-      if (!Number.isSafeInteger(fundedAmount) || fundedAmount < leg.amount || leg.allocations.some((source: { fundedAmount: number }) => source.fundedAmount !== fundedAmount) || payment.state !== 'COMPLETED' || payment.amount !== fundedAmount * 100) throw new ApiInputError('The original PhonePe payment could not be verified. The refund remains pending for admin review.', 409);
+      if (!Number.isSafeInteger(fundedAmount) || fundedAmount < leg.amount || leg.allocations.some((source: { fundedAmount: number }) => source.fundedAmount !== fundedAmount) || payment.state !== 'COMPLETED' || payment.amount !== fundedAmount * 100) throw new ApiInputError('The original payment could not be verified. The refund remains pending for admin review.', 409);
       await ref.update({ statusMessage: 'Submitting the approved refund to the original payment method using its existing refund reference.', updatedAt: new Date().toISOString() });
       await phonePeRefundRequest(leg.merchantRefundId, leg.originalMerchantOrderId, leg.amount * 100);
     }
@@ -116,7 +123,7 @@ export async function rejectCreditRefund(requestId: string, adminUid: string, no
     const record = (await tx.get(ref)).data();
     if (!record) throw new ApiInputError('Refund request not found.', 404);
     if (record.state === 'Declined') return;
-    if (record.state !== 'Awaiting approval') throw new ApiInputError('A submitted refund must be checked with PhonePe; it cannot be manually released.', 409);
+    if (record.state !== 'Awaiting approval') throw new ApiInputError('A submitted refund must be checked with its payment gateway; it cannot be manually released.', 409);
     if (record.source === 'Order cancellation') {
       const orderRef = db.collection('orders').doc(record.orderId), order = (await tx.get(orderRef)).data();
       if (!order || order.cancellationRefundId !== requestId) throw new Error('Cancellation refund does not match the original order');

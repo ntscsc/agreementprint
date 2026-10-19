@@ -37,7 +37,7 @@ export async function refundableCredits(uid: string, tx?: Transaction) {
       if (p.additionalPayment > 0 && typeof p.phonepeMerchantOrderId === 'string') carried.push({ merchantOrderId: p.phonepeMerchantOrderId, fundedAmount: p.additionalPayment, originalOrderId: id, amount: p.additionalPayment });
       return carried.reduce((sum, source) => sum + source.amount, 0) === p.amount ? carried : [];
     }
-    return p.gateway === 'PhonePe' && typeof p.phonepeMerchantOrderId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(p.phonepeMerchantOrderId)
+    return ['PhonePe', 'Razorpay'].includes(p.gateway) && typeof p.phonepeMerchantOrderId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(p.phonepeMerchantOrderId)
       ? [{ merchantOrderId: p.phonepeMerchantOrderId, fundedAmount: p.amount, originalOrderId: id, amount: p.amount }] : [];
   }
   const lots = new Map<string, RefundableLot>();

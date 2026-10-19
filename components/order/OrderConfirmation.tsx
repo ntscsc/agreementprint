@@ -21,6 +21,7 @@ import { Celebration, paidOrderCelebrationKey } from '@/components/Celebration';
 import { VENDOR_CONFIG } from '@/src/config/vendor';
 import { RentalAgreementDocument } from '@/components/agreement/RentalAgreementDocument';
 import { DownloadBillButton } from '@/components/order/DownloadBillButton';
+import { OrderReviewPrompt } from '@/components/reviews/OrderReviewPrompt';
 
 interface OrderConfirmationProps {
   order: Order;
@@ -64,6 +65,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
     <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6 space-y-8 animate-in fade-in duration-200">
       <Celebration eventKey={user && order.payment.status === 'Paid' ? paidOrderCelebrationKey(user.uid, order.orderId) : null} message="Payment confirmed! Your agreement is on its way to being prepared." />
       {/* Success Badge Banner */}
+      {order.payment.status === 'Paid' && <OrderReviewPrompt orderId={order.orderId} />}
       <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 sm:p-8 text-center space-y-4">
         <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
           <CheckCircle2 className="w-8 h-8" />

@@ -192,6 +192,12 @@ service cloud.firestore {
     }
 
     // Gateway associations are created and read only by the server Admin SDK.
+    match /razorpayCheckouts/{attemptId} { allow read, write: if false; }
+    match /razorpayOrderReferences/{attemptId} { allow read, write: if false; }
+    match /razorpayRefunds/{refundId} { allow read, write: if false; }
+    match /razorpayTestPayments/{attemptId} { allow read, write: if false; }
+    match /razorpayTestCustomers/{customerId} { allow read, write: if false; }
+
     match /phonepePaymentAttempts/{attemptId} {
       allow read, write: if false;
     }
@@ -237,6 +243,7 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin()
+        && settingId != 'paymentGateway'
         && (settingId != 'pricing' || isValidPricing(request.resource.data))
         && (settingId != 'referrals' || (request.resource.data.rewardAmount is int
           && request.resource.data.rewardAmount >= 0 && request.resource.data.rewardAmount <= 100000

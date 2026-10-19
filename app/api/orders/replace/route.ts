@@ -6,7 +6,7 @@ import { validateAgreement } from '@/lib/agreement-validation';
 import { preparationHasStarted, replacementQuote, settleReplacement } from '@/lib/order-replacement';
 import { resolvePricingConfig } from '@/src/config/pricing';
 import { checkoutDetailsChanged } from '@/lib/order-checkout-details';
-import { fetchPhonePeOrderStatus, getPhonePeAccessToken, getPhonePeApiBase, getPhonePeCredentials } from '@/lib/phonepe';
+import { fetchGatewayOrderStatus as fetchPhonePeOrderStatus, getGatewayAccessToken as getPhonePeAccessToken, getCheckoutCredentials, createGatewayCheckout, recoverRazorpayCheckout } from '@/lib/payment-gateway';
 
 export const runtime = 'nodejs';
 const json = (data: unknown) => NextResponse.json(data, { headers: { 'Cache-Control': 'no-store' } });
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         if (reviewRequired && body.acceptAdminReview !== true) return { quote, reviewRequired };
         if (body.reviewedTotal !== quote.total) throw new ApiInputError('The price has changed. Review the updated total before continuing.', 409);
         if (!reviewRequired && quote.due > 0) {
-          if (!getPhonePeCredentials()) throw new ApiInputError('Online payment is temporarily unavailable.', 503);
+          if (!await getCheckoutCredentials(db)) throw new ApiInputError('Online payment is temporarily unavailable.', 503);
           returnUrl(req);
         }
         const now = new Date().toISOString();
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       return json({ completed: true, original: (await originalRef.get()).data(), order: (await db.collection('orders').doc(record.replacementOrderId).get()).data() });
     }
     if (record.state !== 'Awaiting payment') throw new ApiInputError('This replacement requires administrator review.', 409);
-    const credentials = getPhonePeCredentials();
+    const credentials = await getCheckoutCredentials(db, record.checkoutStartedAt ? record.gateway ?? 'PhonePe' : undefined);
     if (!credentials) throw new ApiInputError('Online payment is temporarily unavailable.', 503);
     const accessToken = await getPhonePeAccessToken(credentials);
     if (record.checkoutStartedAt) {
@@ -92,7 +92,8 @@ export async function POST(req: NextRequest) {
         if (settled.completed) return json({ completed: true, original: (await originalRef.get()).data(), order: (await db.collection('orders').doc(record.replacementOrderId).get()).data() });
         if (['FAILED', 'EXPIRED'].includes(status.state || '')) return json({ failed: true, message: 'Payment failed or expired. Start a new replacement from your original order.' });
         if (body.action === 'status') return json({ pending: true });
-        if (record.redirectUrl) return json({ redirectUrl: record.redirectUrl });
+        const resumedUrl = record.redirectUrl || (credentials.gateway === 'Razorpay' ? await recoverRazorpayCheckout(requestId, user.uid) : null);
+        if (resumedUrl) return json({ redirectUrl: resumedUrl });
       } catch (error) {
         if ((error as { status?: number }).status !== 404) throw error;
         // An absent gateway order can be retried using the SAME merchant reference.
@@ -102,16 +103,14 @@ export async function POST(req: NextRequest) {
     await db.runTransaction(async tx => {
       const latest = (await tx.get(requestRef)).data()!;
       if (latest.checkoutLeaseUntil > Date.now()) throw new ApiInputError('Checkout is opening. Please wait and check its status.', 409);
+      if (latest.checkoutStartedAt && (latest.gateway ?? 'PhonePe') !== (credentials.gateway ?? 'PhonePe')) throw new ApiInputError('The original checkout must be resumed. Refresh and try again.', 409);
       if (latest.state !== 'Awaiting payment') throw new ApiInputError('Payment status changed. Please refresh.', 409);
-      tx.update(requestRef, { checkoutStartedAt: latest.checkoutStartedAt || Date.now(), checkoutLeaseUntil: Date.now() + 30000 });
+      tx.update(requestRef, { gateway: credentials.gateway ?? 'PhonePe', checkoutStartedAt: latest.checkoutStartedAt || Date.now(), checkoutLeaseUntil: Date.now() + 30000 });
     });
     const url = returnUrl(req); url.searchParams.set('replacement', requestId); url.searchParams.set('orderId', body.orderId);
-    const response = await fetch(`${getPhonePeApiBase(credentials.production)}/checkout/v2/pay`, {
-      method: 'POST', headers: { Authorization: `O-Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ merchantOrderId: requestId, amount: record.quote.due * 100, expireAfter: 1200, paymentFlow: { type: 'PG_CHECKOUT', merchantUrls: { redirectUrl: url.toString() } } }), signal: AbortSignal.timeout(15000),
-    });
+    const response = await createGatewayCheckout(credentials, accessToken, requestId, record.quote.due * 100, url.toString(), user.uid);
     const result = await response.json();
-    if (!response.ok || typeof result.redirectUrl !== 'string' || new URL(result.redirectUrl).protocol !== 'https:') throw new ApiInputError('Checkout could not open. Resume this replacement to check payment before retrying.', 503);
+    if (!response.ok || typeof result.redirectUrl !== 'string' || (new URL(result.redirectUrl, url.origin).protocol !== 'https:' && !(credentials.gateway === 'Razorpay' && new URL(result.redirectUrl, url.origin).origin === url.origin))) throw new ApiInputError('Checkout could not open. Resume this replacement to check payment before retrying.', 503);
     await requestRef.update({ redirectUrl: result.redirectUrl, returnUrl: url.toString(), checkoutLeaseUntil: 0 });
     return json({ redirectUrl: result.redirectUrl });
   } catch (error) {

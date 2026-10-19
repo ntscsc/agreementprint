@@ -55,8 +55,8 @@ export async function settleReplacement(requestId: string, state: string, amount
         refundStatus: 'Not required' },
       payment: { status: 'Paid', amount: q.cashUsed + q.due, referralCreditApplied: q.creditsUsed,
         subtotal: q.subtotal, couponDiscount: q.discount, couponCode: original.payment.couponCode || '', totalBeforeCredits: q.total,
-        gateway: q.due > 0 ? 'PhonePe' : original.payment.gateway || 'PhonePe', paidAt: now,
-        ...(q.due > 0 ? { phonepeMerchantOrderId: requestId, phonepeTransactionId: transactionId || requestId } : {}),
+        gateway: q.due > 0 ? request.gateway ?? 'PhonePe' : original.payment.gateway || 'PhonePe', paidAt: now,
+        ...(q.due > 0 ? { phonepeMerchantOrderId: requestId, ...(request.gateway === 'Razorpay' ? { razorpayPaymentId: transactionId || requestId } : { phonepeTransactionId: transactionId || requestId }) } : {}),
         carriedFromOrderId: request.originalOrderId, carriedCash: q.cashUsed, carriedCredit: q.creditsUsed, additionalPayment: q.due,
       },
     };

@@ -1,7 +1,7 @@
 import { readJsonObject, inputErrorStatus, validDocumentId } from '@/lib/api-input';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyFirebaseIdToken } from '@/lib/firebase-admin';
-import { fetchPhonePeOrderStatus, getPhonePeAccessToken, getPhonePeCredentials } from '@/lib/phonepe';
+import { fetchGatewayOrderStatus as fetchPhonePeOrderStatus, getGatewayAccessToken as getPhonePeAccessToken, gatewayCredentials, parsePaymentGateway } from '@/lib/payment-gateway';
 import { confirmPaidOrderAndGrantReferral, releaseReferralReservation } from '@/lib/referral-admin';
 import { isTrustedPaymentAttempt } from '@/lib/payment-attempt';
 
@@ -26,9 +26,8 @@ export async function POST(req: NextRequest) {
     if (order.ownerUid !== decodedToken.uid) return NextResponse.json({ error: 'Order access denied.' }, { status: 403 });
     if (order.payment?.status === 'Paid') return NextResponse.json({ paid: true });
 
-    const credentials = getPhonePeCredentials();
     const merchantOrderId = requestedMerchantOrderId || order.payment?.phonepeMerchantOrderId;
-    if (!credentials || typeof merchantOrderId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(merchantOrderId)) {
+    if (typeof merchantOrderId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(merchantOrderId)) {
       return NextResponse.json({ error: 'No payment attempt was found for this order.' }, { status: 404 });
     }
     const attemptSnapshot = await db.collection('phonepePaymentAttempts').doc(merchantOrderId).get();
@@ -36,6 +35,8 @@ export async function POST(req: NextRequest) {
     if (!isTrustedPaymentAttempt(paymentAttempt, orderId, decodedToken.uid, merchantOrderId)) {
       return NextResponse.json({ error: 'Payment attempt was not found for this order.' }, { status: 404 });
     }
+    const credentials = gatewayCredentials(parsePaymentGateway((paymentAttempt as { gateway?: unknown }).gateway));
+    if (!credentials) return NextResponse.json({ error: 'Payment verification is temporarily unavailable.' }, { status: 503 });
     const expectedAmount = paymentAttempt.amount;
     const initiatedAt = paymentAttempt.initiatedAt;
 

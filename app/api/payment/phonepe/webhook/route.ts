@@ -48,6 +48,8 @@ export async function POST(req: NextRequest) {
       ? payload.merchantOrderId
       : '';
     if (!/^[A-Za-z0-9_-]+$/.test(merchantOrderId)) return NextResponse.json({ error: 'Missing merchant order reference.' }, { status: 400 });
+    // Provider callbacks may only settle attempts owned by that provider.
+    if ((await getAdminDb().collection('razorpayCheckouts').doc(merchantOrderId).get()).exists) return NextResponse.json({ error: 'This payment belongs to another gateway.' }, { status: 409 });
 
     if (/^REPLPAY[a-f0-9]{32}$/.test(merchantOrderId)) {
       const payment = Array.isArray(payload.paymentDetails) ? payload.paymentDetails.find((p: { state?: string }) => p.state === 'COMPLETED') : undefined;

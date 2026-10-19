@@ -3,6 +3,11 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { customIdentity, customBody, customError } from '@/lib/custom-request-server';
 import { ApiInputError, validDocumentId } from '@/lib/api-input';
 import { AggregateField } from 'firebase-admin/firestore';
+import { validateCustomerProfile } from '@/lib/customer-profile';
+
+class ReviewProfileRequiredError extends ApiInputError {
+  constructor() { super('Complete your name and mobile number to submit feedback.', 409); }
+}
 
 export const runtime = 'nodejs';
 const json = (body: unknown) => NextResponse.json(body, { headers: { 'Cache-Control': 'no-store' } });
@@ -43,13 +48,18 @@ export async function POST(req: NextRequest) {
     await db.runTransaction(async tx => {
       const profile = (await tx.get(db.collection('customerProfiles').doc(identity.uid))).data();
       const previous = (await tx.get(ref)).data();
-      if (typeof profile?.name !== 'string' || !profile.name.trim()) throw new ApiInputError('Save your name in My Account before submitting feedback.', 409);
+      let contact;
+      try { contact = validateCustomerProfile(profile); }
+      catch { throw new ReviewProfileRequiredError(); }
       const now = new Date().toISOString();
-      tx.set(ref, { name: profile.name.trim().slice(0, 100), rating, comment: comment.trim(), publicConsent: true, status: 'Published', createdAt: previous?.createdAt || now, updatedAt: now });
-      tx.set(db.collection('publishedCustomerReviews').doc(identity.uid), { name: profile.name.trim().slice(0, 100), rating, comment: comment.trim(), publishedAt: now });
+      tx.set(ref, { name: contact.name, rating, comment: comment.trim(), publicConsent: true, status: 'Published', createdAt: previous?.createdAt || now, updatedAt: now });
+      tx.set(db.collection('publishedCustomerReviews').doc(identity.uid), { name: contact.name, rating, comment: comment.trim(), publishedAt: now });
     });
     return json({ success: true });
-  } catch (error) { return customError(error); }
+  } catch (error) {
+    if (error instanceof ReviewProfileRequiredError) return NextResponse.json({ error: error.message, code: 'CUSTOMER_PROFILE_REQUIRED' }, { status: 409, headers: { 'Cache-Control': 'no-store' } });
+    return customError(error);
+  }
 }
 
 export async function PATCH(req: NextRequest) {

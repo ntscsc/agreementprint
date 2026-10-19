@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
     const indiaDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(generatedAt);
     return new NextResponse(new Uint8Array(buffer), { headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="AgreementPrint-Admin-Reports-${indiaDate}.xlsx"`,
+      'Content-Disposition': `attachment; filename="AgreementPrint-Analytics-v2-${indiaDate}.xlsx"`,
+      'X-Report-Version': 'analytics-v2',
       'Cache-Control': 'private, no-store, max-age=0',
       'X-Content-Type-Options': 'nosniff',
     } });

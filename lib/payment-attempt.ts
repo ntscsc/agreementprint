@@ -1,6 +1,7 @@
 // These records live in a collection denied to all Firebase client SDKs.
 // Never infer gateway ownership or amounts from customer-created order fields.
 export interface TrustedPaymentAttempt {
+  gateway?: 'PhonePe' | 'Razorpay';
   orderId: string;
   ownerUid: string;
   merchantOrderId: string;
@@ -22,6 +23,7 @@ export function isTrustedPaymentAttempt(
 ): value is TrustedPaymentAttempt {
   if (!value || typeof value !== 'object') return false;
   const attempt = value as Record<string, unknown>;
+  if (attempt.gateway !== undefined && attempt.gateway !== 'PhonePe' && attempt.gateway !== 'Razorpay') return false;
   if (attempt.couponDiscount !== undefined || attempt.subtotal !== undefined || attempt.couponCode !== undefined) {
     if (typeof attempt.subtotal !== 'number' || !Number.isSafeInteger(attempt.subtotal) || attempt.subtotal < 1 ||
         typeof attempt.couponDiscount !== 'number' || !Number.isSafeInteger(attempt.couponDiscount) || attempt.couponDiscount < 0 || attempt.couponDiscount > attempt.subtotal ||

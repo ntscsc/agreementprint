@@ -58,13 +58,14 @@ function loader(db: ReturnType<typeof database>, extra: Data = {}) {
     if (name in extra) return extra[name];
     if (name === '@/lib/firebase-admin') return { getAdminDb: () => db };
     if (name === 'firebase-admin/firestore') return {};
+    if (name === 'razorpay') return { default: class { orders = { create: async (body: unknown) => (await extra.fetch('https://api.razorpay.com/v1/orders', { method: 'POST', body: JSON.stringify(body) })).json() }; } };
     if (!name.startsWith('@/')) return require(name);
     if (name.endsWith('.json')) return { default: JSON.parse(readFileSync(new URL(`../${name.slice(2)}`, import.meta.url), 'utf8')) };
     if (cache[name]) return cache[name];
     const source = readFileSync(new URL(`../${name.slice(2)}.ts`, import.meta.url), 'utf8');
     const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017 } }).outputText;
     const target = { exports: {} };
-    runInNewContext(compiled, { module: target, exports: target.exports, require: load, Date, console, URL, Buffer, Uint8Array, File, AbortSignal, process: { env: { NODE_ENV: 'test' } }, fetch: extra.fetch });
+    runInNewContext(compiled, { module: target, exports: target.exports, require: load, Date, console, URL, Buffer, Uint8Array, File, AbortSignal, Response, process: extra.process ?? { env: { NODE_ENV: 'test' } }, fetch: extra.fetch });
     cache[name] = target.exports;
     return target.exports;
   }
@@ -186,6 +187,60 @@ function checkoutLoader(db: ReturnType<typeof database>, gatewayState = 'PENDING
 function checkoutRequest(body: unknown) {
   return { headers: { get: () => 'Bearer TOKEN' }, json: async () => ({ reviewedTotal: 350, ...(body as object) }), nextUrl: { origin: 'https://vendor.example' } };
 }
+
+test('Razorpay checkout preserves coupons and credits, stays pinned after switching, and settles once', async () => {
+  const db = database({ ...couponSeed(), 'settings/paymentGateway': { activeGateway: 'Razorpay' } });
+  let created = 0, paid = false;
+  let providerOrder: Data;
+  const load = loader(db, {
+    '@/lib/firebase-admin': { getAdminDb: () => db, verifyFirebaseIdToken: async () => ({ uid: 'U1' }) },
+    'next/server': { NextResponse: { json: (body: unknown, options?: { status: number }) => ({ body, status: options?.status ?? 200 }) } },
+    process: { env: { NODE_ENV: 'test', RAZORPAY_KEY_ID: 'rzp_test_Example123', RAZORPAY_KEY_SECRET: 'test-secret', RAZORPAY_WEBHOOK_SECRET: 'webhook-secret' } },
+    fetch: async (url: string, init: Data) => {
+      if (init.method === 'POST') { created++; providerOrder = { ...JSON.parse(init.body), id: 'order_123' }; return new Response(JSON.stringify(providerOrder)); }
+      if (url.endsWith('/payments')) return new Response(JSON.stringify({ items: [{ id: 'pay_123', order_id: 'order_123', currency: 'INR', amount: 15000, status: 'captured', captured: true }] }));
+      return new Response(JSON.stringify({ ...providerOrder, status: paid ? 'paid' : 'created', amount_paid: paid ? 15000 : 0, amount_due: paid ? 0 : 15000 }));
+    },
+  });
+  const route = load('@/app/api/payment/phonepe/create-order/route');
+  const response = await route.POST(checkoutRequest({ orderId: 'O1', creditAmount: 100, reviewedTotal: 250 }));
+  assert.equal(response.status, 200);
+  assert.equal(response.body.gateway, 'Razorpay');
+  assert.match(response.body.redirectUrl, /payment\/razorpay\/checkout/);
+  const order = db.read('orders/O1'), merchantOrderId = order.payment.phonepeMerchantOrderId;
+  assert.equal(order.payment.gateway, 'Razorpay');
+  assert.equal(order.payment.amount, 150);
+  assert.equal(order.payment.couponDiscount, 100);
+  assert.equal(db.read('referralAccounts/U1').balance, 0);
+  // Simulate the process stopping after the provider association was saved but
+  // before the redirect URL was copied to the order's attempt record.
+  await db.runTransaction(async tx => tx.update(db.collection('phonepePaymentAttempts').doc(merchantOrderId), { redirectUrl: '' }));
+  await db.runTransaction(async tx => tx.update(db.collection('settings').doc('paymentGateway'), { activeGateway: 'PhonePe' }));
+  const resumed = await route.POST(checkoutRequest({ orderId: 'O1', creditAmount: 100, reviewedTotal: 250 }));
+  assert.equal(resumed.status, 200);
+  assert.equal(resumed.body.gateway, 'Razorpay');
+  assert.equal(resumed.body.merchantOrderId, merchantOrderId);
+  assert.equal(created, 1);
+  paid = true;
+  const settlement = load('@/lib/gateway-settlement');
+  await Promise.all([settlement.settleRazorpayCheckout(merchantOrderId), settlement.settleRazorpayCheckout(merchantOrderId)]);
+  assert.equal(db.read('orders/O1').payment.status, 'Paid');
+  assert.equal(db.read('orders/O1').payment.razorpayPaymentId, 'pay_123');
+  assert.equal(db.read('firstOrderCoupons/U1').state, 'consumed');
+  assert.equal(db.read('referralReservations/O1').status, 'consumed');
+  assert.equal(db.read('referralAccounts/U1').balance, 0);
+  assert.equal(db.read('razorpayCheckouts/' + merchantOrderId).state, 'COMPLETED');
+});
+
+test('an existing PhonePe checkout stays on PhonePe after the admin selects Razorpay', async () => {
+  const db = database({ ...seed, 'settings/paymentGateway': { activeGateway: 'Razorpay' }, 'phonepePaymentAttempts/P1': attempt('P1'), 'orders/O1': { ...seed['orders/O1'], payment: { status: 'Pending', gateway: 'PhonePe', phonepeMerchantOrderId: 'P1' } } });
+  let created = 0;
+  const response = await checkoutLoader(db, 'PENDING', async () => { created++; }).POST(checkoutRequest({ orderId: 'O1', creditAmount: 100 }));
+  assert.equal(response.status, 200);
+  assert.equal(response.body.gateway, 'PhonePe');
+  assert.equal(response.body.merchantOrderId, 'P1');
+  assert.equal(created, 0);
+});
 
 const couponSeed = (discountAmount = 100) => ({
   ...seed,

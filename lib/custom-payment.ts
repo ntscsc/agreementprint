@@ -22,7 +22,7 @@ export async function settleCustomPayment(merchantOrderId: string, amount: unkno
     if (state === 'COMPLETED') {
       if (amount !== attempt.amount * 100) throw new ApiInputError('Payment amount does not match the quote.', 409);
       const now = new Date().toISOString();
-      tx.update(ref, { status: 'Accepted', acceptedAt: now, updatedAt: now, payment: { status: 'Paid', amount: attempt.amount, merchantOrderId, transactionId: transactionId || merchantOrderId, paidAt: now } });
+      tx.update(ref, { status: 'Accepted', acceptedAt: now, updatedAt: now, payment: { status: 'Paid', gateway: attempt.gateway ?? 'PhonePe', amount: attempt.amount, merchantOrderId, transactionId: transactionId || merchantOrderId, paidAt: now } });
       tx.update(attemptRef, { state: 'COMPLETED' });
       return { paid: true };
     }

@@ -1,5 +1,6 @@
 'use client';
 
+import { PaymentGatewaySettings } from '@/components/admin/PaymentGatewaySettings';
 import { AdminReportDownload } from '@/components/admin/AdminReportDownload';
 import { EnvelopePrint } from '@/components/admin/EnvelopePrint';
 import { CustomerReviewModeration } from '@/components/admin/CustomerReviewModeration';
@@ -92,7 +93,7 @@ function AdminBody() {
   const [localSignInError, setLocalSignInError] = useState<string | null>(null);
 
   // Active Admin Console tab
-  const [activeTab, setActiveTab] = useState<'orders' | 'enquiries' | 'pricing' | 'support' | 'couriers' | 'referrals' | 'custom' | 'reports' | 'reviews'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'enquiries' | 'pricing' | 'support' | 'couriers' | 'referrals' | 'custom' | 'reports' | 'reviews' | 'payments'>('orders');
 
   // Pricing State
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
@@ -746,11 +747,11 @@ function AdminBody() {
       </header>
       <nav aria-label="Admin sections" className="admin-navigation">
         <div className="grid gap-6 lg:grid-cols-[1fr_1.25fr]">
-          {[{ label: 'Daily work', items: [{ id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Business tools & settings', items: [{ id: 'reports' as const, label: 'Reports & Analytics', icon: FileText }, { id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Dispatch & Envelopes', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }, { label: 'Reviews & refunds', items: [{ id: 'reviews' as const, label: 'Reviews & Refunds', icon: MessageSquare }] }].map((group) => <div key={group.label} className={group.label === 'Reviews & refunds' ? 'border-t border-stone-200 pt-4 lg:col-span-2' : undefined}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
+          {[{ label: 'Daily work', items: [{ id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Business tools & settings', items: [{ id: 'reports' as const, label: 'Reports & Analytics', icon: FileText }, { id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'payments' as const, label: 'Payment Gateway', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Dispatch & Envelopes', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }, { label: 'Reviews & refunds', items: [{ id: 'reviews' as const, label: 'Reviews & Refunds', icon: MessageSquare }] }].map((group) => <div key={group.label} className={group.label === 'Reviews & refunds' ? 'border-t border-stone-200 pt-4 lg:col-span-2' : undefined}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
         </div>
       </nav>
 
-      {activeTab === 'reports' ? (
+      {activeTab === 'payments' ? <PaymentGatewaySettings /> : activeTab === 'reports' ? (
         <section className="space-y-5" aria-label="Reports and analytics">
           <header><h2 className="text-2xl font-bold text-stone-900">Reports &amp; Analytics</h2><p className="mt-2 text-sm text-stone-600">Download your business records or view website activity.</p></header>
           <AdminReportDownload />

@@ -157,6 +157,7 @@ export async function confirmPaidOrderAndGrantReferral(
       updatedAt: now,
       ...paymentDetails.paymentUpdates,
       ...(trustedAttempt ? {
+        'payment.gateway': trustedAttempt.gateway ?? 'PhonePe',
         'payment.amount': trustedAttempt.amount,
         'payment.referralCreditApplied': trustedAttempt.creditApplied,
         'payment.totalBeforeCredits': trustedAttempt.totalBeforeCredits ?? trustedAttempt.amount + trustedAttempt.creditApplied,
@@ -166,7 +167,7 @@ export async function confirmPaidOrderAndGrantReferral(
       } : {}),
     };
     if (paymentDetails.transactionId) {
-      paidOrderUpdate['payment.phonepeTransactionId'] = paymentDetails.transactionId;
+      paidOrderUpdate[trustedAttempt?.gateway === 'Razorpay' ? 'payment.razorpayPaymentId' : 'payment.phonepeTransactionId'] = paymentDetails.transactionId;
     }
     if (paymentDetails.merchantOrderId) {
       paidOrderUpdate['payment.phonepeMerchantOrderId'] = paymentDetails.merchantOrderId;
@@ -308,7 +309,7 @@ export async function reserveReferralCreditForOrder(
     if (options?.paymentAttempt) {
       transaction.create(db.collection('phonepePaymentAttempts').doc(options.merchantOrderId), options.paymentAttempt);
       transaction.update(orderRef, {
-        'payment.gateway': 'PhonePe', 'payment.status': 'Pending',
+        'payment.gateway': options.paymentAttempt.gateway ?? 'PhonePe', 'payment.status': 'Pending',
         'payment.phonepeMerchantOrderId': options.merchantOrderId,
         'payment.amount': options.paymentAttempt.amount,
         'payment.referralCreditApplied': amount,

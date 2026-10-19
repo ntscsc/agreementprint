@@ -13,7 +13,7 @@ export function CustomerReviews({ compact = false }: { compact?: boolean }) {
 }
 
 function CustomerReviewsBody({ compact }: { compact: boolean }) {
-  const { user, signInWithGoogle } = useAuth();
+  const { user, signInWithGoogle, editContactDetails } = useAuth();
   const [reviews, setReviews] = useState<Review[]>([]), [loading, setLoading] = useState(true), [listError, setListError] = useState('');
   const [summary, setSummary] = useState({ count: 0, totalStars: 0, average: 0 });
   const [rating, setRating] = useState(5), [comment, setComment] = useState('');
@@ -46,7 +46,16 @@ function CustomerReviewsBody({ compact }: { compact: boolean }) {
     {!compact && <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6"><h2 className="text-xl font-bold">Share your experience</h2>{!user ? <button type="button" disabled={busy} onClick={async () => { setBusy(true); try { await signInWithGoogle(); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Please try signing in again.'); } finally { setBusy(false); } }} className="mt-4 min-h-11 rounded-xl bg-brand-700 px-4 py-2 font-semibold text-white">Sign in to leave feedback</button> : ownLoading ? <p className="mt-4 text-sm" role="status">Loading your feedback…</p> : <form className="mt-5 space-y-4" onSubmit={async event => {
       event.preventDefault(); if (busy) return; setBusy(true); setError(''); setMessage('');
       try {
-        await readApiResponse(await fetch('/api/customer-reviews', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, comment }) }));
+        const response = await fetch('/api/customer-reviews', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, comment }) });
+        if (response.status === 409) {
+          const result = await response.clone().json().catch(() => null);
+          if (result?.code === 'CUSTOMER_PROFILE_REQUIRED') {
+            editContactDetails();
+            setMessage('Your feedback is kept here. Save your contact details, then submit again.');
+            return;
+          }
+        }
+        await readApiResponse(response);
         setOwnStatus('Published'); setMessage('Thank you. Your review is now published.'); setRevision(value => value + 1);
       } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to submit feedback. Please try again.'); }
       finally { setBusy(false); }

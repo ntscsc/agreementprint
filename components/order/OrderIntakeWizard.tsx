@@ -612,6 +612,10 @@ function OrderIntakeBody() {
         throw new Error(paymentResult.error || 'Unable to start online payment. Your order is saved and you can retry.');
       }
 
+      if (paymentResult.gateway === 'Razorpay') {
+        window.location.assign(paymentResult.redirectUrl);
+        return;
+      }
       setPhonePeCheckout({
         redirectUrl: paymentResult.redirectUrl,
         merchantOrderId: paymentResult.merchantOrderId,

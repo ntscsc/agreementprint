@@ -53,11 +53,12 @@ function harness(seed: Data = {}, extras: Data = {}) {
       createPrivateDownloadUrl: async () => 'https://storage.example/private-sample',
     };
     if (name === '@/lib/sample-validation') return { validateSampleBytes: () => { scans++; } };
+    if (name === 'razorpay') return { default: class { orders = { create: async (body: unknown) => (await extras.fetch('https://api.razorpay.com/v1/orders', { method: 'POST', body: JSON.stringify(body) })).json() }; } };
     if (!name.startsWith('@/')) return require(name);
     if (cache[name]) return cache[name];
     const source = readFileSync(new URL(`../${name.slice(2)}.ts`, import.meta.url), 'utf8');
     const target = { exports: {} };
-    runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017 } }).outputText, { module: target, exports: target.exports, require: load, Date, Buffer, console, URL, AbortSignal, fetch: extras.fetch, setTimeout, clearTimeout, process: extras.process ?? { env: {} } });
+    runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017 } }).outputText, { module: target, exports: target.exports, require: load, Date, Buffer, console, URL, AbortSignal, Response, fetch: extras.fetch, setTimeout, clearTimeout, process: extras.process ?? { env: {} } });
     return cache[name] = target.exports;
   }
   return { load, read: (path: string) => documents[path], scans: () => scans, downloads: () => downloads };
@@ -86,6 +87,25 @@ test('customer profiles require name and mobile, isolate accounts and preserve c
   assert.equal((await route.POST(request('POST', { name: 'Updated Customer', phone: '8765432109' }))).status, 200);
   assert.equal(h.read('customerProfiles/customer').createdAt, saved.createdAt);
 });
+test('feedback requests contact details for incomplete profiles and publishes after they are saved', async () => {
+  for (const profile of [undefined, { name: '', phone: '9876543210' }, { name: 'Customer' }, { name: 'Customer', phone: '123' }]) {
+    const h = harness(profile ? { 'customerProfiles/customer': profile } : {});
+    const route = h.load('@/app/api/customer-reviews/route');
+    const response = await route.POST(request('POST', { rating: 5, comment: 'Helpful service and clear communication.' }));
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).code, 'CUSTOMER_PROFILE_REQUIRED');
+    assert.equal(h.read('publishedCustomerReviews/customer'), undefined);
+    assert.equal(h.read('customerReviews/customer'), undefined);
+  }
+  const h = harness({ 'customerProfiles/customer': { name: ' Example Customer ', phone: '9876543210' } });
+  const route = h.load('@/app/api/customer-reviews/route');
+  const response = await route.POST(request('POST', { rating: 4, comment: 'Helpful service and clear communication.' }));
+  assert.equal(response.status, 200);
+  assert.equal(h.read('publishedCustomerReviews/customer').name, 'Example Customer');
+  assert.equal(h.read('publishedCustomerReviews/customer').rating, 4);
+  assert.equal(h.read('customerReviews/customer').status, 'Published');
+});
+
 test('server sample uploads enforce ownership, exact reservation and immutable retry contents', async () => {
   const h = harness({ [`customAgreementRequests/${id}`]: draft });
   const route = h.load('@/app/api/custom-agreements/upload/route');
@@ -279,6 +299,29 @@ test('existing submitted quotes are displayed as awaiting payment and accepted b
   const result = await h.load('@/app/api/custom-agreements/payment/route').POST(request('POST', { requestId: id, action: 'pay', quoteAmount: 600 }));
   assert.equal(result.status, 200);
   assert.equal(h.read(path).status, 'Quoted / Awaiting Payment');
+});
+
+test('custom agreement payments use Razorpay and resume the same checkout after switching gateways', async () => {
+  const path = `customAgreementRequests/${id}`;
+  let created = 0, providerOrder: Data;
+  const h = harness({ [path]: { ...draft, status: 'Quoted / Awaiting Payment', quoteAmount: 600 }, 'settings/paymentGateway': { activeGateway: 'Razorpay' } }, {
+    process: { env: { RAZORPAY_KEY_ID: 'rzp_test_Example123', RAZORPAY_KEY_SECRET: 'test-secret', RAZORPAY_WEBHOOK_SECRET: 'webhook-secret' } },
+    fetch: async (url: string, init: Data) => {
+      if (init.method === 'POST') { created++; providerOrder = { ...JSON.parse(init.body), id: 'order_custom123' }; return new Response(JSON.stringify(providerOrder)); }
+      return new Response(JSON.stringify({ ...providerOrder, status: 'created' }));
+    },
+  });
+  const route = h.load('@/app/api/custom-agreements/payment/route');
+  const body = { requestId: id, action: 'pay', quoteAmount: 600 };
+  const response = await route.POST(request('POST', body));
+  assert.equal(response.status, 200);
+  assert.match((await response.json()).redirectUrl, /payment\/razorpay\/checkout/);
+  assert.equal(h.read(path).payment.gateway, 'Razorpay');
+  await h.load('@/lib/firebase-admin').getAdminDb().collection('settings').doc('paymentGateway').update({ activeGateway: 'PhonePe' });
+  const resumed = await route.POST(request('POST', body));
+  assert.equal(resumed.status, 200);
+  assert.match((await resumed.json()).redirectUrl, /payment\/razorpay\/checkout/);
+  assert.equal(created, 1);
 });
 
 test('unquoted and invalid legacy requests stay Submitted and customer quote edits are rejected', async () => {

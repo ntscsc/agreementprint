@@ -130,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider value={{ user, loading, isAdmin, customerProfile, editContactDetails, authError, clearAuthError, signInWithGoogle, signOut }}>
       {children}
       {user && editingContactUid === user.uid && <CustomerProfilePrompt key={`edit-${user.uid}`} user={user} onSaved={saveProfile} onSignOut={signOut} onClose={closeContactEditor} />}
-      {user && !isAdmin && <CustomerProfilePrompt key={user.uid} user={user} onSaved={saveProfile} onSignOut={signOut} />}
+      {user && !isAdmin && !customerProfile && editingContactUid !== user.uid && <CustomerProfilePrompt key={user.uid} user={user} onSaved={saveProfile} onSignOut={signOut} />}
     </AuthContext.Provider>
   );
 };

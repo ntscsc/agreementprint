@@ -40,6 +40,13 @@ function loadRoute(route: string, documents: Record<string, unknown>, calls: { g
     '@/lib/payment-attempt': { isTrustedPaymentAttempt },
     '@/lib/referral-utils': {},
     '@/lib/referral-admin': { confirmPaidOrderAndGrantReferral: async () => { calls.confirmed++; } },
+    '@/lib/payment-gateway': {
+      getCheckoutCredentials: async () => ({}),
+      gatewayCredentials: () => ({}),
+      parsePaymentGateway: (gateway: unknown) => gateway ?? 'PhonePe',
+      getGatewayAccessToken: async () => { calls.gateway++; return 'token'; },
+      fetchGatewayOrderStatus: async () => ({ state: 'COMPLETED', amount: 35000 }),
+    },
     '@/lib/phonepe': {
       getPhonePeCredentials: () => ({}),
       getPhonePeAccessToken: async () => { calls.gateway++; return 'token'; },

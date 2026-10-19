@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateOrderPrice, resolvePricingConfig } from '@/src/config/pricing';
 import { getAdminDb, verifyFirebaseIdToken } from '@/lib/firebase-admin';
-import { fetchPhonePeOrderStatus, getPhonePeAccessToken, getPhonePeApiBase, getPhonePeCredentials } from '@/lib/phonepe';
+import { fetchGatewayOrderStatus as fetchPhonePeOrderStatus, getGatewayAccessToken as getPhonePeAccessToken, getCheckoutCredentials, createGatewayCheckout, recoverRazorpayCheckout } from '@/lib/payment-gateway';
 import { confirmPaidOrderAndGrantReferral, releaseReferralReservation, reserveReferralCreditForOrder } from '@/lib/referral-admin';
 import { isTrustedPaymentAttempt } from '@/lib/payment-attempt';
 import { acquireCheckoutLock, assertCheckoutLock, releaseCheckoutLock } from '@/lib/checkout-lock';
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         if (!details[key] || typeof details[key] !== 'object' || Array.isArray(details[key])) return NextResponse.json({ error: 'Complete order details are required.' }, { status: 400 });
       }
     }
-    const credentials = getPhonePeCredentials();
+    let credentials = await getCheckoutCredentials(db, previousAttempt && !['FAILED', 'EXPIRED'].includes(String(previousData?.state)) ? previousData?.gateway ?? 'PhonePe' : undefined);
     if (previousAttempt && !['FAILED', 'EXPIRED'].includes(String(previousData?.state))) {
       if (!credentials) return NextResponse.json({ error: 'Payment verification is unavailable. Please retry later.' }, { status: 503 });
       // Never replace a payable attempt merely because the local timer elapsed.
@@ -82,13 +82,15 @@ export async function POST(req: NextRequest) {
       }
       if (status.state === 'FAILED' || status.state === 'EXPIRED') {
         await releaseReferralReservation(orderId, previousMerchantOrderId, status.state);
+        credentials = await getCheckoutCredentials(db);
       } else {
         if (checkoutDetailsChanged(order, details) || requested !== previousAttempt.creditApplied) {
           return NextResponse.json({ error: 'The existing checkout is still pending. Finish it or wait for confirmed expiry before changing the order or credits.' }, { status: 409 });
         }
         if (body.reviewedTotal !== previousAttempt.amount + previousAttempt.creditApplied) return NextResponse.json({ error: 'Review the payable total before continuing.', quoteRequired: true, reviewedTotal: previousAttempt.amount + previousAttempt.creditApplied, subtotal: previousAttempt.subtotal ?? previousAttempt.amount + previousAttempt.creditApplied, couponDiscount: previousAttempt.couponDiscount ?? 0, couponCode: previousAttempt.couponCode ?? '', creditApplied: previousAttempt.creditApplied, amountDue: previousAttempt.amount }, { status: 409 });
-        if (!previousAttempt.redirectUrl) return NextResponse.json({ error: 'Checkout is being verified. Please retry shortly; another charge has not been started.' }, { status: 409 });
-        return NextResponse.json({ available: true, redirectUrl: previousAttempt.redirectUrl, merchantOrderId: previousMerchantOrderId, initiatedAt: previousAttempt.initiatedAt, creditApplied: previousAttempt.creditApplied, amountDue: previousAttempt.amount });
+        const resumedUrl = previousAttempt.redirectUrl || (credentials.gateway === 'Razorpay' ? await recoverRazorpayCheckout(previousMerchantOrderId, decoded.uid) : null);
+        if (!resumedUrl) return NextResponse.json({ error: 'Checkout is being verified. Please retry shortly; another charge has not been started.' }, { status: 409 });
+        return NextResponse.json({ available: true, gateway: previousData?.gateway ?? 'PhonePe', redirectUrl: resumedUrl, merchantOrderId: previousMerchantOrderId, initiatedAt: previousAttempt.initiatedAt, creditApplied: previousAttempt.creditApplied, amountDue: previousAttempt.amount });
       }
     }
     const pricingData = (await db.collection('settings').doc('pricing').get()).data() ?? {};
@@ -124,7 +126,7 @@ export async function POST(req: NextRequest) {
     try {
       await reserveReferralCreditForOrder(orderId, decoded.uid, requested, {
         merchantOrderId, lockToken: lock.token, totalBeforeCredits: coupon.total, coupon,
-        paymentAttempt: amountDue > 0 ? { orderId, ownerUid: decoded.uid, merchantOrderId, amount: amountDue, creditApplied: requested, initiatedAt, redirectUrl: '', returnUrl: returnUrl.toString(), state: 'INITIALIZING', totalBeforeCredits: coupon.total, subtotal: coupon.subtotal, couponDiscount: coupon.couponDiscount, couponCode: coupon.code } : undefined,
+        paymentAttempt: amountDue > 0 ? { gateway: credentials?.gateway ?? 'PhonePe', orderId, ownerUid: decoded.uid, merchantOrderId, amount: amountDue, creditApplied: requested, initiatedAt, redirectUrl: '', returnUrl: returnUrl.toString(), state: 'INITIALIZING', totalBeforeCredits: coupon.total, subtotal: coupon.subtotal, couponDiscount: coupon.couponDiscount, couponCode: coupon.code } : undefined,
       });
     } catch (error) { return NextResponse.json({ error: (error as Error).message }, { status: 409 }); }
     if (amountDue === 0) {
@@ -132,11 +134,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ available: true, paid: true, order: (await orderRef.get()).data(), creditApplied: requested, amountDue: 0 });
     }
     const accessToken = await getPhonePeAccessToken(credentials!);
-    const response = await fetch(`${getPhonePeApiBase(credentials!.production)}/checkout/v2/pay`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `O-Bearer ${accessToken}` },
-      body: JSON.stringify({ merchantOrderId, amount: Math.round(amountDue * 100), expireAfter: 1200, metaInfo: { udf1: orderId }, paymentFlow: { type: 'PG_CHECKOUT', merchantUrls: { redirectUrl: returnUrl.toString() } } }),
-      signal: AbortSignal.timeout(15_000),
-    });
+    const response = await createGatewayCheckout(credentials!, accessToken, merchantOrderId, Math.round(amountDue * 100), returnUrl.toString(), decoded.uid);
     // Even an error response can be ambiguous: retain the attempt and verify its status.
     const data = await response.json();
     const checkoutUrl = typeof data.redirectUrl === 'string' ? data.redirectUrl : data.redirect_url;
@@ -154,7 +152,7 @@ export async function POST(req: NextRequest) {
     const latest = (await orderRef.get()).data()!;
     if (latest.payment?.status === 'Paid') return NextResponse.json({ available: true, paid: true, order: latest });
     if (latest.payment?.status === 'Failed') return NextResponse.json({ error: 'Checkout failed. Please retry.' }, { status: 409 });
-    return NextResponse.json({ available: true, redirectUrl: checkoutUrl, merchantOrderId, initiatedAt, creditApplied: requested, amountDue });
+    return NextResponse.json({ available: true, gateway: credentials?.gateway ?? 'PhonePe', order_id: data.order_id, amount: data.amount, currency: data.currency, redirectUrl: checkoutUrl, merchantOrderId, initiatedAt, creditApplied: requested, amountDue });
   } catch (error) {
     const status = inputErrorStatus(error);
     if (status) return NextResponse.json({ error: status === 401 ? 'Sign in again to continue.' : (error as Error).message }, { status });

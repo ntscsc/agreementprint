@@ -2,6 +2,7 @@
 
 import { readApiResponse } from '@/lib/api-response';
 import { DownloadBillButton } from '@/components/order/DownloadBillButton';
+import { OrderReviewPrompt } from '@/components/reviews/OrderReviewPrompt';
 import { Celebration, paidOrderCelebrationKey } from '@/components/Celebration';
 
 import { requestReviewedCheckout } from '@/lib/checkout-client';
@@ -195,6 +196,7 @@ function PhonePeReturnBody() {
           <Link href="/my-orders" className="text-sm font-semibold text-amber-800 underline underline-offset-2">Go to My Orders</Link>
         </div>
         {displayResult === 'paid' && <DownloadBillButton orderId={orderId} />}
+        {displayResult === 'paid' && <OrderReviewPrompt orderId={orderId} />}
       </div>
     </main>
   );

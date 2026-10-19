@@ -110,12 +110,20 @@ test('customer clarifications persist only through the restricted correction tra
 });
 
 test('private payment attempts, locks and referral records deny even client admins', async () => {
-  for (const collection of ['phonepePaymentAttempts', 'checkoutLocks', 'referralAccounts', 'referralLedger', 'orderTrackingLimits', 'firstOrderCoupons']) {
+  for (const collection of ['phonepePaymentAttempts', 'razorpayCheckouts', 'razorpayOrderReferences', 'razorpayRefunds', 'razorpayTestPayments', 'razorpayTestCustomers', 'checkoutLocks', 'referralAccounts', 'referralLedger', 'orderTrackingLimits', 'firstOrderCoupons']) {
     await seed(`${collection}/private`, { secret: true });
     for (const client of [db(), admin(), env.unauthenticatedContext().firestore()]) {
       await assertFails(getDoc(doc(client, `${collection}/private`)));
       await assertFails(setDoc(doc(client, `${collection}/private`), { secret: false }));
     }
+  }
+});
+
+test('gateway selection can only be written through the authenticated server API', async () => {
+  await seed('settings/paymentGateway', { activeGateway: 'PhonePe' });
+  for (const client of [db(), admin(), env.unauthenticatedContext().firestore()]) {
+    await assertFails(setDoc(doc(client, 'settings/paymentGateway'), { activeGateway: 'Razorpay' }));
+    await assertFails(deleteDoc(doc(client, 'settings/paymentGateway')));
   }
 });
 

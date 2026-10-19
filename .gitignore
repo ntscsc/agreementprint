@@ -3,10 +3,13 @@ node_modules/
 .next-dev/
 .next-policy-review/
 .next-review/
+.next-gateway-check/
 coverage/
 tmp/pdfs/
 tmp/whatsapp-feature-chrome/
 tmp/whatsapp-features.html
+tmp/gateway-*.txt
+tmp/gateway-smoke.mjs
 output/
 .DS_Store
 *.log

@@ -3,7 +3,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { customIdentity, customError } from '@/lib/custom-request-server';
 import { ApiInputError, readJsonObject } from '@/lib/api-input';
 import { approveCreditRefund, reconcileCreditRefund, rejectCreditRefund } from '@/lib/credit-refunds';
-import { getPhonePeCredentials } from '@/lib/phonepe';
+import { gatewayCredentials } from '@/lib/payment-gateway';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   try {
     if (!(await customIdentity(req)).admin) throw new ApiInputError('Administrator access required.', 403);
     const docs = await getAdminDb().collection('creditRefundRequests').where('state', 'in', ['Awaiting approval', 'Processing']).limit(100).get();
-    return NextResponse.json({ refundsAvailable: getPhonePeCredentials()?.production === true, requests: docs.docs.map(doc => doc.data()).sort((a, b) => a.createdAt.localeCompare(b.createdAt)) }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ refundsAvailable: gatewayCredentials('PhonePe')?.production === true || gatewayCredentials('Razorpay')?.production === true, requests: docs.docs.map(doc => doc.data()).sort((a, b) => a.createdAt.localeCompare(b.createdAt)) }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) { return customError(error); }
 }
 export async function PATCH(req: NextRequest) {
