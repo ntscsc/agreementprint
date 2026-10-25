@@ -18,7 +18,7 @@ export function getOrderBill(order: Order) {
     throw new Error('The saved payment totals do not balance. Please contact support.');
   }
   return {
-    reference: `AP-${order.orderId}`,
+    reference: order.publicReference || `AP-${order.orderId}`,
     orderId: order.orderId,
     customerEmail: order.customerEmail,
     orderDate: order.createdAt,

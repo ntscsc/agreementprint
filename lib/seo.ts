@@ -5,7 +5,7 @@ export const publicPagePaths = [
   '/',
   '/about',
   '/services',
-  '/rental-agreement-in-chennai',
+  '/rental-agreement-chennai',
   '/contact',
   '/how-it-works',
   '/faq',

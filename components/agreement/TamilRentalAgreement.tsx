@@ -25,11 +25,12 @@ export function TamilRentalAgreement({ data, stampPaperSpace, customerPreview, w
 }) {
   const owner = data.ownerDetails ?? {}, tenant = data.tenantDetails ?? {}, property = data.propertyDetails ?? {}, terms = data.agreementTerms ?? {};
   const p = source.paragraphs;
+  const city = property.city?.trim() || 'Chennai';
+  const executionLocation = /^chennai$/i.test(city) ? 'சென்னை' : city;
   const period = terms.noticePeriodDays ?? (property.propertyType === 'Commercial Shop' ? 90 : 30);
   const notice = period > 0 && period % 30 === 0 ? `${period / 30} மாத` : `${period} நாள்`;
   const isShop = property.propertyType === 'Commercial Shop';
   const propertyTypes: Record<string, string> = { House: 'தனி வீடு', Flat: 'அடுக்குமாடிக் குடியிருப்பு', 'Commercial Shop': 'வணிகக் கடை / அலுவலகம்' };
-  const furnishingTypes: Record<string, string> = { Unfurnished: 'தளபாடங்கள் இல்லாதது', 'Semi-Furnished': 'பகுதியளவு தளபாடங்கள் கொண்டது', 'Fully Furnished': 'முழுமையான தளபாடங்கள் கொண்டது' };
   const residentialPages: string[][] = [
     [
       `${address(owner.address, owner.pincode)}, என்ற முகவரியில் வசிக்கும் ${owner.fullName || blank}${owner.relativeName?.trim() ? ` (${relationship(owner.relationship)}: ${owner.relativeName.trim()})` : ''}, வயது ${owner.age || blank}, முதல் தரப்பினராகவும்,`,
@@ -75,8 +76,9 @@ export function TamilRentalAgreement({ data, stampPaperSpace, customerPreview, w
     <div>
       {stampPaperSpace && (index === 0 || (index === 1 && terms.stampPaperDenomination === 200)) && stampMargin((index + 1) as 1 | 2)}
       {index === 0 && <h1 className="mb-8 text-center text-lg font-bold underline">{isShop ? shop.title : p[0]}</h1>}
-      <div className="space-y-4">{paragraphs.map((paragraph, number) => <p key={number} className="break-words">{paragraph}</p>)}</div>
-      {index === 0 && property.propertyType && <p className="mt-4">சொத்து வகை: {propertyTypes[property.propertyType] || property.propertyType}. {property.furnishing && <>தளபாட நிலை: {furnishingTypes[property.furnishing] || property.furnishing}.</>}</p>}
+      {index === 0 && <p className="tamil-execution-location">இடம்: {executionLocation}</p>}
+      <div className="space-y-4 tamil-agreement-body">{paragraphs.map((paragraph, number) => <p key={number} className="break-words">{paragraph}</p>)}</div>
+      {index === 0 && property.propertyType && <p className="mt-4">சொத்து வகை: {propertyTypes[property.propertyType] || property.propertyType}. </p>}
       {index === 2 && <div className="mt-8 space-y-9"><h2 className="font-bold">{p[22]}</h2><p>1. ________________________________</p><p>2. ________________________________</p></div>}
     </div>
     <div className="mt-12 grid grid-cols-2 gap-6 text-center text-xs"><div><div className="mb-3 border-b border-stone-400 pt-6" />{index === 2 && <p>முதல் தரப்பு</p>}<p>{isShop ? '(கடை உரிமையாளர்)' : '(வீட்டின் உரிமையாளர்)'}</p><p>{owner.fullName}</p></div><div><div className="mb-3 border-b border-stone-400 pt-6" />{index === 2 && <p>இரண்டாம் தரப்பு</p>}<p>(வாடகைதாரர்)</p><p>{tenant.fullName}</p></div></div>

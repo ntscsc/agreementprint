@@ -1,3 +1,5 @@
+import { indianLoginPhone, phoneAuthError } from '../lib/phone-auth.ts';
+import { emailAuthError } from '../lib/auth-errors.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -53,4 +55,26 @@ test('A full coupon discount can be reviewed and retried with a zero payable tot
   assert.equal(app.sent[1].reviewedTotal, 0);
   assert.match(app.prompts[0], /Coupon discount: −₹350/);
   assert.match(app.prompts[0], /Amount due: ₹0/);
+});
+
+
+test('email sign-in gives actionable errors without exposing provider responses', () => {
+  assert.equal(emailAuthError({ code: 'auth/wrong-password' }), emailAuthError({ code: 'auth/user-not-found' }));
+  assert.match(emailAuthError({ code: 'auth/operation-not-allowed' }), /not enabled/);
+  assert.match(emailAuthError({ code: 'auth/too-many-requests' }), /wait/);
+  assert.match(emailAuthError({ code: 'auth/network-request-failed' }), /connection/);
+  assert.match(emailAuthError({ code: 'auth/weak-password' }), /8 characters/);
+  assert.doesNotMatch(emailAuthError(new Error('private-provider-debug-data')), /private-provider/);
+});
+
+
+test('phone login accepts Indian mobiles and reports safe OTP errors', () => {
+  assert.equal(indianLoginPhone('9876543210'), '+919876543210');
+  assert.equal(indianLoginPhone('+91 98765 43210'), '+919876543210');
+  for (const number of ['123', '1234567890', '+1 2345678901', '']) assert.throws(() => indianLoginPhone(number));
+  assert.match(phoneAuthError({ code: 'auth/invalid-verification-code' }), /incorrect/);
+  assert.match(phoneAuthError({ code: 'auth/code-expired' }), /expired/);
+  assert.match(phoneAuthError({ code: 'auth/billing-not-enabled' }), /email or Google/);
+  assert.match(phoneAuthError({ code: 'auth/quota-exceeded' }), /Wait/);
+  assert.doesNotMatch(phoneAuthError(new Error('secret-provider-details')), /secret-provider/);
 });

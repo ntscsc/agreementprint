@@ -9,13 +9,13 @@ const details = { agreementType: 'Service agreement', purpose: 'An agreement for
 const id = 'CUSTOM_00000000-0000-4000-8000-000000000001';
 type Data = Record<string, any>;
 function harness(seed: Data = {}, extras: Data = {}) {
-  let documents = structuredClone(seed), queue = Promise.resolve();
+  let documents = structuredClone(seed), queue = Promise.resolve(), autoId = 0;
   const snapshot = (path: string, source = documents) => ({ exists: path in source, id: path.split('/').at(-1), data: () => structuredClone(source[path]) });
   const db = {
     collection: (name: string) => {
-      let key = '', value: unknown, count = 100;
+      let key = '', value: unknown, count = Infinity;
       const query = {
-        doc: (id: string) => ({ path: `${name}/${id}`, get: async () => snapshot(`${name}/${id}`), update: async (data: Data) => { documents[`${name}/${id}`] = { ...documents[`${name}/${id}`], ...structuredClone(data) }; } }),
+        doc: (id: string = `auto-${++autoId}`) => ({ path: `${name}/${id}`, get: async () => snapshot(`${name}/${id}`), update: async (data: Data) => { documents[`${name}/${id}`] = { ...documents[`${name}/${id}`], ...structuredClone(data) }; } }),
         where: (k: string, _op: string, v: unknown) => { key = k; value = v; return query; },
         orderBy: () => query, limit: (n: number) => { count = n; return query; },
         get: async () => ({ docs: Object.keys(documents).filter((p) => p.startsWith(`${name}/`) && (!key || documents[p][key] === value)).slice(0, count).map((p) => snapshot(p)) }),
@@ -40,7 +40,7 @@ function harness(seed: Data = {}, extras: Data = {}) {
   const cache: Data = {};
   function load(name: string): any {
     if (name in extras) return extras[name];
-    if (name === 'next/server') return { NextResponse: { json: (data: unknown, options?: ResponseInit) => new Response(JSON.stringify(data), options) } };
+    if (name === 'next/server') return { NextResponse: class extends Response { static json(data: unknown, options?: ResponseInit) { return new Response(JSON.stringify(data), options); } } };
     if (name === '@/lib/firebase-admin') return { getAdminDb: () => db, verifyFirebaseIdToken: async (token: string) => { if (token === 'bad') throw Object.assign(new Error('Invalid'), { code: 'auth/invalid-id-token' }); return { uid: token, email: token === 'admin' ? 'pradeep1992official@gmail.com' : 'user@example.com', email_verified: true }; } };
     if (name === '@/lib/file-storage') return {
       uploadPrivateFile: async (path: string, data: Buffer, contentType: string) => {
@@ -55,10 +55,11 @@ function harness(seed: Data = {}, extras: Data = {}) {
     if (name === '@/lib/sample-validation') return { validateSampleBytes: () => { scans++; } };
     if (name === 'razorpay') return { default: class { orders = { create: async (body: unknown) => (await extras.fetch('https://api.razorpay.com/v1/orders', { method: 'POST', body: JSON.stringify(body) })).json() }; } };
     if (!name.startsWith('@/')) return require(name);
+    if (name.endsWith('.json')) return { default: JSON.parse(readFileSync(new URL(`../${name.slice(2)}`, import.meta.url), 'utf8')) };
     if (cache[name]) return cache[name];
     const source = readFileSync(new URL(`../${name.slice(2)}.ts`, import.meta.url), 'utf8');
     const target = { exports: {} };
-    runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017 } }).outputText, { module: target, exports: target.exports, require: load, Date, Buffer, console, URL, AbortSignal, Response, fetch: extras.fetch, setTimeout, clearTimeout, process: extras.process ?? { env: {} } });
+    runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2017 } }).outputText, { module: target, exports: target.exports, require: load, Date, Buffer, console, URL, AbortSignal, Response, TextDecoder, fetch: extras.fetch, setTimeout, clearTimeout, process: extras.process ?? { env: {} } });
     return cache[name] = target.exports;
   }
   return { load, read: (path: string) => documents[path], scans: () => scans, downloads: () => downloads };
@@ -334,4 +335,196 @@ test('unquoted and invalid legacy requests stay Submitted and customer quote edi
     assert.equal((await route.PATCH(request('PATCH', { requestId: id, status: 'Submitted', quoteAmount: 600 }))).status, 409);
     assert.equal(h.read(path).status, 'Submitted');
   }
+});
+
+
+test('price-neutral customer edits retain the order and payment and safely handle retries', async () => {
+  const orderId = 'ORDER_SAME_PRICE', requestKey = 'a'.repeat(32);
+  const original = { orderId, ownerUid: 'customer', status: 'Under verification', updatedAt: 'before', createdAt: 'original-date',
+    ownerDetails: { phone: '9876543210', pincode: '600001' }, tenantDetails: {}, propertyDetails: {},
+    agreementTerms: { startDate: '2026-10-01' }, payment: { status: 'Paid', amount: 350 } };
+  const quote = { subtotal: 350, discount: 0, total: 350, alreadyPaid: 350, due: 0, surplus: 0, excessCash: 0, excessCredits: 0 };
+  const h = harness({ [`orders/${orderId}`]: original }, {
+    '@/lib/agreement-validation': { validateAgreement: () => {} },
+    '@/src/config/pricing': { resolvePricingConfig: () => ({}) },
+    '@/lib/payment-gateway': {},
+    '@/lib/order-replacement': {
+      preparationHasStarted: async (_tx: unknown, _id: string, order: Data) => ['Drafting', 'Dispatched', 'Delivered'].includes(order.status),
+      replacementQuote: () => quote,
+    },
+  });
+  const route = h.load('@/app/api/orders/replace/route');
+  const body = { action: 'submit', requestKey, orderId, updatedAt: 'before', reviewedTotal: 350,
+    ownerDetails: { ...original.ownerDetails, pincode: '600002' }, tenantDetails: {}, propertyDetails: {},
+    agreementTerms: { startDate: '2026-11-01' } };
+  const preview = await route.POST(request('POST', { ...body, action: 'preview' }));
+  assert.equal(preview.status, 200);
+  assert.equal(h.read(`orders/${orderId}`).updatedAt, 'before');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await route.POST(request('POST', body));
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.edited, true);
+    assert.equal(result.order.orderId, orderId);
+    assert.equal(result.order.status, 'Under verification');
+    assert.equal(result.order.ownerDetails.pincode, '600002');
+    assert.equal(result.order.agreementTerms.startDate, '2026-11-01');
+    assert.deepEqual(result.order.payment, original.payment);
+    assert.equal(result.order.createdAt, original.createdAt);
+  }
+  assert.equal(h.read(`orderReplacements/REPLPAY${requestKey}`), undefined);
+  assert.equal(h.read(`orders/${orderId}`).replacementPendingId, undefined);
+  assert.equal(h.read(`orderEditHistory/REPLPAY${requestKey}`).sameOrderEdit, true);
+  const changed = await route.POST(request('POST', { ...body, agreementTerms: { startDate: '2026-12-01' } }));
+  assert.equal(changed.status, 409);
+});
+
+
+test('customer referral dashboard returns more than 100 referrals, rewards and ledger entries', async () => {
+  const seed: Data = {};
+  for (let i = 0; i < 125; i++) {
+    seed[`orders/order-${i}`] = { ownerUid: `friend-${i}`, referralCode: 'CUSTOMER123', payment: { status: 'Paid' }, createdAt: String(i).padStart(3, '0') };
+    seed[`referralRewards/friend-${i}`] = { referrerUid: 'customer', amount: 50 };
+    seed[`referralLedger/reward-${i}`] = { ownerUid: 'customer', type: 'reward', amount: 50, createdAt: String(i).padStart(3, '0') };
+  }
+  const h = harness(seed, {
+    '@/lib/referral-admin': { getOrCreateReferralAccount: async () => ({ code: 'CUSTOMER123', balance: 6250 }), getReferralRewardAmount: () => 50 },
+  });
+  const result = await h.load('@/app/api/referrals/me/route').GET(request('GET'));
+  assert.equal(result.status, 200);
+  const data = await result.json();
+  assert.equal(data.referrals.length, 125);
+  assert.equal(data.referrals.filter((r: Data) => r.status === 'Rewarded').length, 125);
+  assert.equal(data.ledger.length, 125);
+  assert.equal(data.balance, 6250);
+});
+
+
+test('admin can abandon unstarted, expired and pending replacements without changing original payment', async () => {
+  for (const state of ['UNSTARTED', 'EXPIRED', 'PENDING']) {
+    const requestId = 'REPLPAY' + 'b'.repeat(32);
+    const seed = {
+      'orders/ORDER1': { ownerUid: 'customer', payment: { status: 'Paid' }, status: 'Under verification', replacementPendingId: requestId },
+      [`orderReplacements/${requestId}`]: { originalOrderId: 'ORDER1', ownerUid: 'customer', state: 'Awaiting payment', ...(state === 'UNSTARTED' ? {} : { checkoutStartedAt: 123 }) },
+    };
+    const h = harness(seed, {
+      '@/lib/payment-gateway': { getCheckoutCredentials: async () => ({}), getGatewayAccessToken: async () => '', fetchGatewayOrderStatus: async () => ({ state }) },
+    });
+    const route = h.load('@/app/api/admin/order-replacements/route');
+    assert.equal((await route.POST(request('POST', { orderId: 'ORDER1' }, 'customer'))).status, 403);
+    const response = await route.POST(request('POST', { orderId: 'ORDER1' }, 'admin'));
+    assert.equal(response.status, 200);
+    assert.equal(h.read('orders/ORDER1').replacementPendingId, null);
+    assert.equal(h.read('orders/ORDER1').payment.status, 'Paid');
+    assert.equal(h.read(`orderReplacements/${requestId}`).state, 'Abandoned');
+  }
+});
+
+
+test('abandoned replacement releases the paid order and late payment goes to refund review exactly once', async () => {
+  const requestId = 'REPLPAY' + 'c'.repeat(32);
+  const original = { ownerUid: 'customer', payment: { status: 'Paid', amount: 350 }, status: 'Under verification', replacementPendingId: requestId };
+  const h = harness({
+    'orders/ORDER1': original,
+    [`orderReplacements/${requestId}`]: { requestId, ownerUid: 'customer', originalOrderId: 'ORDER1', replacementOrderId: 'NEW1', state: 'Awaiting payment', quote: { due: 100 }, createdAt: '2026-01-01' },
+  });
+  const lib = h.load('@/lib/order-replacement');
+  await assert.rejects(() => lib.abandonReplacement('ORDER1', 'other'), /not found/);
+  await lib.abandonReplacement('ORDER1', 'customer');
+  assert.equal(h.read('orders/ORDER1').replacementPendingId, null);
+  assert.deepEqual(h.read('orders/ORDER1').payment, original.payment);
+  await assert.rejects(() => lib.settleReplacement(requestId, 'COMPLETED', 9999, 'pay_late'), /verified amount/);
+  for (let i = 0; i < 2; i++) {
+    const result = await lib.settleReplacement(requestId, 'COMPLETED', 10000, 'pay_late');
+    assert.equal(result.refundPending, true);
+  }
+  assert.equal(h.read(`orderReplacements/${requestId}`).refundStatus, 'Requested');
+  assert.equal(h.read(`orderReplacements/${requestId}`).refundAmount, 100);
+  assert.equal(h.read(`orderReplacements/${requestId}`).latePaymentTransactionId, 'pay_late');
+  assert.equal(h.read('orders/NEW1'), undefined);
+  assert.equal(h.read('orders/ORDER1').status, 'Under verification');
+  const refund = await h.load('@/app/api/admin/replacements/route').PATCH(request('PATCH', { requestId, action: 'refund-recorded', notes: 'Refund transfer REF123 confirmed' }, 'admin'));
+  assert.equal(refund.status, 200);
+  assert.equal(h.read(`orderReplacements/${requestId}`).refundStatus, 'Refunded');
+  assert.equal(h.read('orders/NEW1'), undefined);
+});
+
+
+test('short order references have six digits, remain stable and cannot be assigned by another customer', async () => {
+  const h = harness({ 'orders/LONG_ORIGINAL_1': { ownerUid: 'customer' }, 'orders/REPLACE_LONG_2': { ownerUid: 'customer' } });
+  const route = h.load('@/app/api/orders/reference/route');
+  assert.equal((await route.POST(request('POST', { orderId: 'LONG_ORIGINAL_1' }, 'other'))).status, 404);
+  const first = await (await route.POST(request('POST', { orderId: 'LONG_ORIGINAL_1' }))).json();
+  const repeated = await (await route.POST(request('POST', { orderId: 'LONG_ORIGINAL_1' }))).json();
+  const second = await (await route.POST(request('POST', { orderId: 'REPLACE_LONG_2' }))).json();
+  assert.match(first.reference, /^AP-\d{6}$/);
+  assert.equal(first.reference, repeated.reference);
+  assert.notEqual(first.reference, second.reference);
+  assert.equal(h.read(`publicOrderReferences/${first.reference}`).orderId, 'LONG_ORIGINAL_1');
+  assert.equal(h.read('orders/LONG_ORIGINAL_1').publicReference, first.reference);
+});
+
+
+test('walk-in counter creates unpaid orders idempotently, records counter payment and supports print and collection', async () => {
+  const h = harness({}, { '@/lib/order-bill-pdf': { renderOrderBill: async () => Buffer.from('%PDF-counter-test') }, '@/src/config/vendor': { VENDOR_CONFIG: { email: 'support@example.com' } } });
+  const route = h.load('@/app/api/admin/counter-orders/route');
+  const orderId = 'COUNTER_' + 'd'.repeat(32);
+  const person = { fullName: 'Walk In Customer', relativeName: '', age: 35, address: '12 Example Street, Chennai', pincode: '600001', phone: '9876543210' };
+  const body: Data = { action: 'save', orderId, saveKey: 'a'.repeat(32), ownerDetails: person, tenantDetails: { ...person, fullName: 'Example Tenant' },
+    propertyDetails: { fullAddress: '12 Example Street, Chennai', city: 'Chennai', pincode: '600001', propertyType: 'House', furnishing: 'Unfurnished' },
+    agreementTerms: { agreementType: 'Rental', language: 'English', monthlyRent: 15000, securityDeposit: 10000, maintenanceCharges: 500, paintingDeduction: 0, startDate: '2026-10-26', tenureMonths: 11, noticePeriodDays: 30, rentIncreasePct: 0, paymentDueDay: 5, stampPaperDenomination: 100, includeNotary: false, extraCopies: 0, deliveryRecipient: 'Owner', deliveryLocation: 'Within Chennai' },
+    counterAmount: 350, counterPaymentMethod: 'Unpaid', counterPaymentReference: '' };
+  const call = (data: Data, token = 'admin') => route.POST(request('POST', data, token));
+  assert.equal((await route.GET(request('GET', undefined, 'customer'))).status, 403);
+  assert.equal((await call(body, 'customer')).status, 403);
+  assert.equal((await call({ ...body, counterAmount: 0 })).status, 400);
+  assert.equal((await call({ ...body, ownerDetails: { ...person, phone: '123' } })).status, 400);
+  for (let retry = 0; retry < 2; retry++) assert.equal((await call(body)).status, 200);
+  let order = h.read(`counterOrders/${orderId}`);
+  assert.match(order.publicReference, /^AP-\d{6}$/);
+  assert.equal(order.source, 'Counter');
+  assert.equal(order.payment.status, 'Pending');
+  assert.equal(h.read(`orders/${orderId}`), undefined);
+  assert.equal(h.read('systemCounters/publicOrderReference').last, 100000);
+  assert.equal((await call({ action: 'bill', orderId })).status, 409);
+  assert.equal((await call({ action: 'print', orderId, updatedAt: order.updatedAt })).status, 409);
+  assert.equal((await call({ action: 'print', orderId, updatedAt: order.updatedAt, allowUnpaid: true })).status, 200);
+  order = h.read(`counterOrders/${orderId}`);
+  assert.equal(order.status, 'Drafting');
+  assert.equal((await call({ action: 'collect', orderId, updatedAt: order.updatedAt })).status, 409);
+  const paid = { ...body, updatedAt: order.updatedAt, saveKey: 'b'.repeat(32), counterPaymentMethod: 'UPI', counterPaymentReference: 'UPI123456' };
+  assert.equal((await call(paid)).status, 200);
+  order = h.read(`counterOrders/${orderId}`);
+  assert.equal(order.payment.status, 'Paid');
+  assert.equal(order.payment.gateway, 'Counter');
+  assert.equal(order.payment.amount, 350);
+  assert.equal((await call({ ...paid, updatedAt: order.updatedAt, saveKey: 'c'.repeat(32), counterAmount: 500 })).status, 409);
+  const bill = await call({ action: 'bill', orderId });
+  assert.equal(bill.status, 200);
+  assert.match(bill.headers.get('content-type'), /application\/pdf/);
+  assert.equal((await call({ action: 'collect', orderId, updatedAt: 'stale' })).status, 409);
+  assert.equal((await call({ ...paid, updatedAt: order.updatedAt, saveKey: 'e'.repeat(32), ownerDetails: { ...person, fullName: 'Corrected Landlord' } })).status, 200);
+  order = h.read(`counterOrders/${orderId}`);
+  assert.equal(order.preparationStartedAt, undefined);
+  assert.equal(order.payment.status, 'Paid');
+  assert.equal((await call({ action: 'collect', orderId, updatedAt: order.updatedAt })).status, 409);
+  assert.equal((await call({ action: 'print', orderId, updatedAt: order.updatedAt })).status, 200);
+  order = h.read(`counterOrders/${orderId}`);
+  assert.equal((await call({ action: 'collect', orderId, updatedAt: order.updatedAt })).status, 200);
+  order = h.read(`counterOrders/${orderId}`);
+  assert.equal(order.status, 'Delivered');
+  assert.ok(order.collectedAt);
+  assert.equal((await call({ ...paid, updatedAt: order.updatedAt })).status, 409);
+  assert.equal((await call({ action: 'print', orderId, updatedAt: order.updatedAt })).status, 200);
+  assert.equal(h.read(`counterOrders/${orderId}`).status, 'Delivered');
+});
+
+
+test('phone-only customers can validate an agreement without an email', () => {
+  const h = harness();
+  const person = { fullName: 'Phone Customer', age: 30, relativeName: '', phone: '9876543210', address: '12 Example Street, Chennai', pincode: '600001' };
+  const order = { ownerDetails: person, tenantDetails: person, propertyDetails: { fullAddress: '12 Example Street, Chennai', city: 'Chennai', pincode: '600001', propertyType: 'House', furnishing: 'Unfurnished' }, agreementTerms: { language: 'English', monthlyRent: 15000, securityDeposit: 50000, maintenanceCharges: 0, startDate: '2026-10-26', tenureMonths: 11, noticePeriodDays: 30, rentIncreasePct: 0, stampPaperDenomination: 100, includeNotary: false, deliveryRecipient: 'Owner', deliveryLocation: 'Within Chennai' }, customerEmail: '' };
+  const validate = h.load('@/lib/agreement-validation').validateAgreement;
+  assert.doesNotThrow(() => validate(order));
+  assert.throws(() => validate({ ...order, customerEmail: 'not-an-email' }), /email/);
 });

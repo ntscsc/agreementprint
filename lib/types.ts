@@ -75,7 +75,7 @@ export interface OrderPayment {
   couponCode?: string;
   referralCreditApplied?: number;
   reservationKey?: string;
-  gateway?: 'PhonePe' | 'ReferralCredit' | 'Coupon' | 'Razorpay';
+  gateway?: 'PhonePe' | 'ReferralCredit' | 'Coupon' | 'Razorpay' | 'Counter';
   phonepeMerchantOrderId?: string;
   phonepeMerchantOrderIds?: string[];
   phonepePaymentAttempts?: Array<{
@@ -100,6 +100,7 @@ export interface OrderCourier {
 }
 
 export interface Order {
+  publicReference?: string;
   cancellationRefundId?: string;
   cancellationRefundAmount?: number;
   cancellationRefundStatus?: string;

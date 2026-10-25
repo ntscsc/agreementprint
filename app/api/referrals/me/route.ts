@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
     const account = await getOrCreateReferralAccount(uid, db);
     const referralSettings = await db.collection('settings').doc('referrals').get();
     const [ordersSnapshot, rewardsSnapshot, ledgerSnapshot, firstPaidOrder, customerOrders, coupon, legacyDiscounts] = await Promise.all([
-      db.collection('orders').where('referralCode', '==', account.code).limit(100).get(),
-      db.collection('referralRewards').where('referrerUid', '==', uid).limit(100).get(),
+      db.collection('orders').where('referralCode', '==', account.code).get(),
+      db.collection('referralRewards').where('referrerUid', '==', uid).get(),
       db.collection('referralLedger').where('ownerUid', '==', uid).get(),
       db.collection('referralFirstPaidOrders').doc(uid).get(),
       db.collection('orders').where('ownerUid', '==', uid).get(),
@@ -43,8 +43,7 @@ export async function GET(request: NextRequest) {
 
     const ledger = ledgerSnapshot.docs
       .map((entry) => entry.data())
-      .sort((first, second) => String(second.createdAt).localeCompare(String(first.createdAt)))
-      .slice(0, 100);
+      .sort((first, second) => String(second.createdAt).localeCompare(String(first.createdAt)));
 
     return NextResponse.json({
       code: account.code,

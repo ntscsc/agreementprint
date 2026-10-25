@@ -1,5 +1,7 @@
 'use client';
 
+import { OrderReference } from './OrderReference';
+
 import { maskedAadhaar } from '@/lib/identity-display';
 
 import React, { useState } from 'react';
@@ -45,7 +47,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
             createdAt: order.createdAt,
           }}
           onBack={() => setShowAgreementPreview(false)}
-          title={`${order.agreementTerms.agreementType === 'Lease' ? 'Lease' : 'Rental'} Agreement Draft (Order #${order.orderId})`}
+          title={`${order.agreementTerms.agreementType === 'Lease' ? 'Lease' : 'Rental'} Agreement Draft${order.publicReference ? ` (${order.publicReference})` : ''}`}
           customerPreview
         />
         <div className="flex justify-center no-print">
@@ -76,7 +78,7 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
             Application Submitted Successfully
           </span>
           <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight pt-2">
-            Order Reference: <span className="font-mono text-emerald-900">{order.orderId}</span>
+            Order Reference: <OrderReference reference={order.orderId} />
           </h1>
           <p className="text-xs sm:text-sm text-stone-600 max-w-lg mx-auto leading-relaxed">
             Your rental agreement application has been registered. Documents are now queued for verification.
@@ -105,9 +107,9 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({ order, onS
               <div className="flex flex-wrap gap-x-6 gap-y-1 text-stone-700">
                 <span>Package total: ₹{(order.payment.subtotal ?? order.payment.totalBeforeCredits ?? order.payment.amount ?? 0).toLocaleString('en-IN')}</span>
                 {!!order.agreementTerms.extraCopies && <span>Includes {order.agreementTerms.extraCopies} extra copies at ₹150 each, on ₹{order.agreementTerms.stampPaperDenomination ?? 100} stamp paper.</span>}
-                {(order.payment.couponDiscount ?? 0) > 0 && <span>Coupon discount ({order.payment.couponCode}): −₹{order.payment.couponDiscount?.toLocaleString('en-IN')}</span>}
+                {(order.payment.couponDiscount ?? 0) > 0 && <span>Coupon discount ({order.payment.couponCode}): -₹{order.payment.couponDiscount?.toLocaleString('en-IN')}</span>}
                 {(order.payment.referralCreditApplied ?? 0) > 0 && (
-                  <span>Referral credit: −₹{order.payment.referralCreditApplied?.toLocaleString('en-IN')}</span>
+                  <span>Referral credit: -₹{order.payment.referralCreditApplied?.toLocaleString('en-IN')}</span>
                 )}
                 <strong>Paid: ₹{(order.payment.amount ?? 0).toLocaleString('en-IN')}</strong>
               </div>

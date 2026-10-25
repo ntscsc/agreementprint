@@ -223,6 +223,10 @@ service cloud.firestore {
     match /visitorAnalyticsLimits/{id} { allow read, write: if false; }
 
     // Administrative activity audit logs: admin only
+    match /counterOrders/{orderId} { allow read, write: if false; }
+    match /publicOrderReferences/{reference} { allow read, write: if false; }
+    match /systemCounters/{counterId} { allow read, write: if false; }
+
     match /adminLogs/{logId} {
       allow read, write: if isAdmin();
     }

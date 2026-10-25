@@ -82,7 +82,7 @@ export function validateAgreement(value: unknown) {
   if (!pin || !/^6\d{5}$/.test(pin)) throw new ApiInputError('The delivery address needs a Tamil Nadu PIN code.');
   const region = /^600\d{3}$/.test(pin) ? 'Within Chennai' : 'Within Tamil Nadu';
   if (data.agreementTerms.deliveryLocation !== region) throw new ApiInputError('The delivery region must match the selected address PIN code.');
-  if (data.customerEmail !== undefined && (typeof data.customerEmail !== 'string' || data.customerEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.customerEmail))) throw new ApiInputError('Enter a valid customer email.');
+  if (data.customerEmail !== undefined && data.customerEmail !== '' && (typeof data.customerEmail !== 'string' || data.customerEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.customerEmail))) throw new ApiInputError('Enter a valid customer email.');
   if (data.customerPhone !== undefined && (typeof data.customerPhone !== 'string' || !/^[6-9]\d{9}$/.test(data.customerPhone))) throw new ApiInputError('Enter a valid customer phone.');
   if (data.referralCode !== undefined && data.referralCode !== '' && !isValidCouponCode(data.referralCode)) throw new ApiInputError('Enter a valid coupon code.');
 }

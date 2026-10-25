@@ -44,7 +44,7 @@ export function LeaseAgreement({ data, stampPaperSpace, stampMargin, watermark, 
   const split = terms.stampPaperDenomination === 200 ? 6 : 12;
   const pageClass = 'agreement-page lease-agreement-page relative mx-auto flex min-h-[297mm] max-w-[210mm] flex-col justify-between rounded-2xl border border-stone-200 bg-white p-8 text-[14px] leading-[1.65] text-stone-900 shadow-sm sm:p-14';
   return <>
-    <section className={pageClass} style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", serif' }}>
+    <section className={pageClass} style={{ fontFamily: '"Agreement Symbols", Georgia, Cambria, "Times New Roman", serif' }}>
       {watermark}
       <div className="space-y-5 text-justify">
         {stampPaperSpace && stampMargin(1)}
@@ -58,7 +58,7 @@ export function LeaseAgreement({ data, stampPaperSpace, stampMargin, watermark, 
       {signatures}
       <p className="mt-6 text-center text-xs text-stone-400 print:hidden">Page 1 of 3 — Lease Agreement</p>
     </section>
-    <section className={pageClass} style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", serif' }}>
+    <section className={pageClass} style={{ fontFamily: '"Agreement Symbols", Georgia, Cambria, "Times New Roman", serif' }}>
       {watermark}
       <div className="space-y-3 text-justify">
         {stampPaperSpace && terms.stampPaperDenomination === 200 && stampMargin(2)}
@@ -69,7 +69,7 @@ export function LeaseAgreement({ data, stampPaperSpace, stampMargin, watermark, 
       {signatures}
       <p className="mt-6 text-center text-xs text-stone-400 print:hidden">Page 2 of 3 — Lease Terms</p>
     </section>
-    <section className={pageClass} style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", serif' }}>
+    <section className={pageClass} style={{ fontFamily: '"Agreement Symbols", Georgia, Cambria, "Times New Roman", serif' }}>
       {watermark}
       <div className="space-y-3 text-justify">
         {renderClauses(split, clauses.length)}

@@ -11,7 +11,7 @@ interface RazorpayConstructor { new(options: Record<string, unknown>): RazorpayI
 
 function Checkout() {
   const params = useSearchParams(), attempt = params.get('attempt') || '';
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading, signIn } = useAuth();
   const [ready, setReady] = useState(false), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState('');
   async function request(action: string, fields = {}) {
     if (!user) throw new Error('Sign in with the account used for this order.');
@@ -31,7 +31,7 @@ function Checkout() {
     <div className="space-y-5 rounded-2xl border border-stone-200 bg-white p-6">
       <h1 className="text-2xl font-bold">Secure payment with Razorpay</h1>
       <p className="text-sm text-stone-600">Complete payment or check an existing payment below. Your order is confirmed after payment verification.</p>
-      {loading ? <p role="status">Checking your account…</p> : !user ? <button onClick={async () => { try { await signInWithGoogle(); } catch { setError('Sign in was not completed. Please try again.'); } }} className="min-h-11 rounded-xl bg-brand-700 px-5 py-3 text-white">Sign in to continue</button> : <div className="flex flex-wrap gap-3">
+      {loading ? <p role="status">Checking your account…</p> : !user ? <button onClick={async () => { try { await signIn(); } catch { setError('Sign in was not completed. Please try again.'); } }} className="min-h-11 rounded-xl bg-brand-700 px-5 py-3 text-white">Sign in to continue</button> : <div className="flex flex-wrap gap-3">
         <button disabled={!ready || busy || !attempt} onClick={async () => {
           setBusy(true); setError(''); setMessage('');
           try {

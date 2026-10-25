@@ -322,3 +322,195 @@
 .order-edit-form .text-xs { font-size: 14px; line-height: 1.5; }
 .order-edit-form .text-stone-500 { color: #57534e; }
 .order-edit-form :is(input, select, textarea):disabled { opacity: 1; color: #57534e; background: #f5f5f4; }
+
+/* Stamp sheets reserve six inches measured from the physical top edge.
+   The shared marker is used by English, Tamil and lease agreement templates. */
+.agreement-page:has(.stamp-paper-allowance) {
+  padding-top: 6in !important;
+}
+.agreement-page:has(.stamp-paper-allowance) > div:has(> .stamp-paper-allowance) {
+  margin-top: 0 !important;
+}
+.stamp-paper-allowance {
+  height: 0;
+  margin: 0 !important;
+  overflow: visible;
+}
+.stamp-paper-allowance img {
+  position: absolute;
+  top: 20mm;
+  left: 15mm;
+  width: calc(100% - 30mm);
+  height: calc(6in - 25mm);
+  object-fit: contain;
+}
+.stamp-paper-allowance + * {
+  margin-top: 0 !important;
+}
+@media print {
+  .agreement-page:has(.stamp-paper-allowance) {
+    padding-top: 6in !important;
+    height: auto !important;
+    display: block !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+  .agreement-page:has(.stamp-paper-allowance) :is(p, .leading-loose) {
+    line-height: 1.4 !important;
+  }
+  .agreement-page:has(.stamp-paper-allowance) [class*="space-y-"] > :not(:last-child):not(.stamp-paper-allowance) {
+    margin-block-end: 1.5mm !important;
+  }
+}
+
+@media print {
+  .agreement-page:has(.stamp-paper-allowance) > .mt-12 {
+    margin-top: 6mm !important;
+  }
+  .agreement-page:has(.stamp-paper-allowance) > .mt-12 .pt-6 {
+    padding-top: 3mm !important;
+  }
+}
+
+.replacement-hold-panel {
+  border: 1px solid #fda4af;
+  border-left: 5px solid #e11d48;
+  border-radius: 16px;
+  padding: 20px;
+  background: linear-gradient(120deg, #fff1f2, #fff7ed);
+  box-shadow: 0 4px 16px rgb(159 18 57 / 8%);
+}
+.replacement-hold-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.replacement-hold-icon { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; color: #fff; background: #be123c; flex-shrink: 0; }
+.replacement-hold-eyebrow { margin: 0 0 3px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #9f1239; }
+.replacement-hold-heading h4 { margin: 0; font-size: 18px; line-height: 1.35; font-weight: 800; color: #881337; }
+.replacement-hold-badge { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; border: 1px solid #fecdd3; border-radius: 999px; padding: 5px 9px; font-size: 11px; font-weight: 700; background: #fff; color: #9f1239; }
+.replacement-hold-description { margin: 14px 0 16px; color: #881337; font-size: 14px; line-height: 1.6; }
+.replacement-hold-action { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 12px 18px; border: 1px solid #9f1239; border-radius: 10px; background: #be123c; color: #fff; font-size: 14px; font-weight: 700; line-height: 1.4; box-shadow: 0 3px 8px rgb(159 18 57 / 18%); cursor: pointer; transition: background .15s; }
+.replacement-hold-action:hover:not(:disabled) { background: #9f1239; }
+.replacement-hold-action:disabled { opacity: .65; cursor: wait; }
+.replacement-hold-help { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: #9f1239; }
+@media (max-width: 540px) {
+  .replacement-hold-panel { padding: 16px; }
+  .replacement-hold-badge { margin-left: 0; }
+  .replacement-hold-action { width: 100%; }
+}
+
+.fulfillment-status-card, .fulfillment-option-card { border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; background: #f8fafc; }
+.fulfillment-action-heading { display: flex; align-items: center; gap: 10px; }
+.fulfillment-action-heading h4 { font-size: 15px; font-weight: 800; color: #0f172a; margin: 0; }
+.fulfillment-action-heading p, .fulfillment-option-card > p { font-size: 13px; line-height: 1.5; color: #475569; margin: 4px 0 0; }
+.fulfillment-action-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px; background: #e2e8f0; color: #334155; }
+.fulfillment-status-controls { display: flex; align-items: flex-end; gap: 12px; margin-top: 18px; }
+.fulfillment-status-field { flex: 1; min-width: 0; }
+.fulfillment-status-field label { display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px; }
+.fulfillment-status-field select { width: 100%; min-height: 46px; padding: 10px 12px; background: white; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; }
+.fulfillment-apply-button { min-height: 46px; border-radius: 10px; background: #0369a1; color: #fff; padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.fulfillment-apply-button:hover:not(:disabled) { background: #075985; }
+.fulfillment-secondary-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.fulfillment-option-card { display: flex; flex-direction: column; gap: 12px; background: white; }
+.fulfillment-correction-card .fulfillment-action-icon { background: #fff1f2; color: #be123c; }
+.fulfillment-dispatch-card .fulfillment-action-icon { background: #e0f2fe; color: #0369a1; }
+.fulfillment-option-button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; margin-top: auto; min-height: 44px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; color: #334155; font-size: 12px; font-weight: 700; background: #fff; text-align: left; cursor: pointer; }
+.fulfillment-option-button:hover:not(:disabled) { background: #f1f5f9; }
+.fulfillment-status-controls :disabled, .fulfillment-option-button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 540px) { .fulfillment-secondary-actions { grid-template-columns: 1fr; } .fulfillment-status-controls { flex-direction: column; align-items: stretch; } .fulfillment-status-card, .fulfillment-option-card { padding: 16px; } }
+
+.customer-order-brief { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.customer-order-name { margin: 0; font-size: 15px; font-weight: 600; color: #1c1917; overflow-wrap: anywhere; }
+.customer-order-name span { font-weight: 400; color: #78716c; }
+.customer-order-location { margin: 5px 0 0; font-size: 13px; color: #78716c; }
+.customer-order-package { flex-shrink: 0; font-size: 12px; color: #78716c; }
+.customer-order-track { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: 10px; padding: 10px 16px; background: #0369a1; color: white; font-size: 13px; font-weight: 600; }
+.customer-order-track:hover { background: #075985; }
+.customer-order-details { border-top: 1px solid #f5f5f4; }
+.customer-order-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0 0; cursor: pointer; list-style: none; font-size: 13px; font-weight: 500; color: #57534e; }
+.customer-order-details > summary::-webkit-details-marker { display: none; }
+.customer-order-details[open] > summary svg { transform: rotate(90deg); }
+.customer-order-details-body { display: flex; flex-direction: column; gap: 18px; padding-top: 20px; }
+@media (max-width: 540px) { .customer-order-brief { align-items: flex-start; flex-direction: column; gap: 8px; } }
+
+/* Local glyph fallback keeps currency and punctuation available offline. */
+@font-face {
+  font-family: 'Agreement Symbols';
+  src: url('/fonts/NotoSans-Regular.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+20B9, U+2010-2015, U+00B7;
+}
+@theme {
+  --font-sans: 'Agreement Symbols', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-mono: 'Agreement Symbols', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.tamil-agreement-body, .tamil-agreement-page > div > .mt-4 {
+  text-align: justify;
+  text-justify: inter-word;
+  overflow-wrap: anywhere;
+}
+.tamil-execution-location { margin: 0 0 4mm; text-align: right; font-weight: 600; }
+
+.revenue-stamp-box {
+  box-sizing: border-box;
+  width: 30mm;
+  height: 35mm;
+  margin-top: 6mm;
+  margin-left: auto;
+  border: 1px solid #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #57534e;
+  break-inside: avoid;
+}
+
+/* Keep the footer readable when advanced colour or gradient styles fail. */
+.site-footer {
+  background-color: #172343;
+  background-image: linear-gradient(120deg, #172343 0%, #24245b 55%, #134750 100%);
+  border-top: 1px solid #334b74;
+  color: #eff6ff;
+  font-family: 'Agreement Symbols', Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.site-footer :is(p, li, a, span, nav, div) { color: #eff6ff; }
+.site-footer h2 { color: #ffffff; }
+.site-footer a:hover { color: #dcfce7; }
+.site-footer a:focus-visible { outline: 2px solid #ffffff; outline-offset: 4px; }
+@media (forced-colors: active) {
+  .site-footer { background: Canvas; color: CanvasText; border-color: CanvasText; }
+  .site-footer :is(p, li, span, nav, div, h2) { color: CanvasText; }
+  .site-footer a, .site-footer a:hover { color: LinkText; }
+}
+
+/* Legal document values must remain readable without modern colour support. */
+.agreement-page { background-color: #ffffff !important; color: #111111 !important; }
+.agreement-page .agreement-field-highlight {
+  color: #111111 !important;
+  background-color: #fef3c7 !important;
+  border-bottom-color: #d97706 !important;
+}
+.agreement-page :is(p, h1, h2, strong) { color: #111111; }
+@media print {
+  .agreement-page .agreement-field-highlight {
+    color: #000000 !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+  }
+}
+@media (forced-colors: active) {
+  .agreement-page { background-color: Canvas !important; color: CanvasText !important; }
+  .agreement-page :is(p, h1, h2, strong), .agreement-page .agreement-field-highlight { color: CanvasText !important; }
+  .agreement-page .agreement-field-highlight { background-color: Canvas !important; }
+}
+
+.google-signin-button { display: inline-flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 48px; margin-top: 24px; border: 1px solid #1967d2; border-radius: 12px; padding: 8px 16px; background-color: #1967d2; color: #ffffff; font-size: 14px; font-weight: 600; cursor: pointer; }
+.google-signin-button:hover:not(:disabled) { background-color: #185abc; }
+.google-signin-button:disabled { opacity: .5; cursor: wait; }
+.google-signin-logo { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 6px; background: #ffffff; }

@@ -102,7 +102,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
     stampPaperSpace && terms.stampPaperDenomination === 200;
 
   const renderStampPaperAllowance = (pageNumber: 1 | 2) => (
-    <div className="stamp-paper-allowance mb-8 h-64 w-full sm:h-72">
+    <div className="stamp-paper-allowance w-full">
       {!blankStampSpace && <Image src="/images/stamp-paper-100.png" alt={`₹100 non-judicial stamp reference image — page ${pageNumber}`} width={1119} height={563} unoptimized className="h-full w-full object-contain" />}
     </div>
   );
@@ -262,7 +262,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
         {/* ================= PAGE 1 ================= */}
         <section 
           className="agreement-page relative bg-white border border-stone-200 rounded-2xl shadow-sm p-8 sm:p-14 text-stone-900 font-serif leading-relaxed text-[15px] max-w-[210mm] mx-auto min-h-[297mm] flex flex-col justify-between"
-          style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}
+          style={{ fontFamily: '"Agreement Symbols", Georgia, Cambria, "Times New Roman", Times, serif' }}
         >
           {customerPreview && <SampleDraftWatermark />}
           <div>
@@ -322,7 +322,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
         {/* ================= PAGE 2 ================= */}
         <section 
           className="agreement-page relative bg-white border border-stone-200 rounded-2xl shadow-sm p-8 sm:p-14 text-stone-900 font-serif leading-relaxed text-[15px] max-w-[210mm] mx-auto min-h-[297mm] flex flex-col justify-between"
-          style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}
+          style={{ fontFamily: '"Agreement Symbols", Georgia, Cambria, "Times New Roman", Times, serif' }}
         >
           {customerPreview && <SampleDraftWatermark />}
           {showSecondPageStampPaperSpace && (
@@ -370,7 +370,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
         {/* ================= PAGE 3 ================= */}
         <section 
           className="agreement-page relative bg-white border border-stone-200 rounded-2xl shadow-sm p-8 sm:p-14 text-stone-900 font-serif leading-relaxed text-[15px] max-w-[210mm] mx-auto min-h-[297mm] flex flex-col justify-between"
-          style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}
+          style={{ fontFamily: '"Agreement Symbols", Georgia, Cambria, "Times New Roman", Times, serif' }}
         >
           {customerPreview && <SampleDraftWatermark />}
           <div className={isEnglish200 ? "space-y-3 text-justify text-[14px] [&_.leading-loose]:leading-[1.6]" : "space-y-6 text-justify"}>

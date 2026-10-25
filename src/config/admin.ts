@@ -4,7 +4,7 @@
  */
 export const ADMIN_EMAILS = [
   'pradeep1992official@gmail.com',
-  'ntcsc@gmail.com',
+  'ntscsc@gmail.com',
 ];
 
 export const ADMIN_EMAIL = 'pradeep1992official@gmail.com';

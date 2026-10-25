@@ -3,11 +3,10 @@ import { GRIEVANCE_PHONE, VENDOR_CONFIG, WHATSAPP_URL } from '@/src/config/vendo
 import { SupportEmailLink } from '@/components/SupportEmailLink';
 import { PolicyNavigation } from '@/components/PolicyNavigation';
 
-export function BusinessContact({ showOperator = true, showAddress = true }: { showOperator?: boolean; showAddress?: boolean }) {
+export function BusinessContact({ showOperator = true }: { showOperator?: boolean; showAddress?: boolean }) {
   return (
     <address className="not-italic space-y-1 text-sm leading-relaxed">
       <p className="font-semibold">{showOperator ? `${VENDOR_CONFIG.name} - operator of AgreementPrint` : 'AgreementPrint Support'}</p>
-      {showAddress && <p>{VENDOR_CONFIG.addressLine1}, {VENDOR_CONFIG.addressLine2}, {VENDOR_CONFIG.city} - {VENDOR_CONFIG.pincode}, {VENDOR_CONFIG.state}</p>}
       <p>Email: <SupportEmailLink className="text-amber-800 underline break-all" /></p>
       <p>WhatsApp only: <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="text-amber-800 underline">{VENDOR_CONFIG.whatsappNumber}</a></p>
       <p>Support hours: {VENDOR_CONFIG.workingHours}</p>

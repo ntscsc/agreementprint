@@ -5,7 +5,7 @@ import { ApiInputError } from '@/lib/api-input';
 import { VENDOR_CONFIG } from '@/src/config/vendor';
 
 export const runtime = 'nodejs';
-const defaults = { name: VENDOR_CONFIG.tradeName, address: [VENDOR_CONFIG.name, VENDOR_CONFIG.addressLine1, VENDOR_CONFIG.addressLine2, `${VENDOR_CONFIG.city} - ${VENDOR_CONFIG.pincode}`, VENDOR_CONFIG.state].filter(Boolean).join('\n'), phone: VENDOR_CONFIG.phone };
+const defaults = { name: VENDOR_CONFIG.tradeName, address: '', phone: VENDOR_CONFIG.phone };
 
 export async function GET(req: NextRequest) {
   try {

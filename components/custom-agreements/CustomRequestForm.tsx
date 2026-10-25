@@ -7,9 +7,9 @@ import { readApiResponse } from '@/lib/api-response';
 import { CustomInput, SAMPLE_TYPES, validateCustomInput, validateSample } from '@/lib/custom-agreement';
 
 const field = 'mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600';
-const blank: CustomInput = { agreementType: '', purpose: '', language: 'English', instructions: '', preferredDate: '', name: '', phone: '', email: '', extraCopies: 0, stampPaperDenomination: 100, contactConsent: false, includeNotary: false };
+const blank: CustomInput = { agreementType: 'Custom document', purpose: '', language: 'English', instructions: '', preferredDate: '', name: '', phone: '', email: '', extraCopies: 0, stampPaperDenomination: 100, contactConsent: false, includeNotary: false };
 export function CustomRequestForm() {
-  const { user, loading, signInWithGoogle, customerProfile } = useAuth();
+  const { user, loading, signIn, customerProfile } = useAuth();
   const [enteredData, setData] = useState(blank), [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false), [progress, setProgress] = useState(''), [error, setError] = useState(''), [success, setSuccess] = useState('');
   const pending = useRef<{ requestId: string; ownerUid: string; uploaded: Set<string> } | null>(null);
@@ -34,7 +34,7 @@ export function CustomRequestForm() {
       const details = validateCustomInput(data);
       if (!files.length || files.length > 3) throw new Error('Choose one to three sample files.');
       const descriptors = files.map((file) => validateSample({ name: file.name, size: file.size, contentType: SAMPLE_TYPES[file.name.split('.').pop()!.toLowerCase()] ?? file.type }));
-      const currentUser = user ?? await signInWithGoogle();
+      const currentUser = user ?? await signIn();
       if (!currentUser) throw new Error('Sign in to submit your request.');
       const token = await currentUser.getIdToken();
       async function send(body: unknown) {
@@ -71,12 +71,11 @@ export function CustomRequestForm() {
   return <form onSubmit={submit} className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-8 space-y-6">
     <fieldset disabled={busy || loading} className="space-y-5 disabled:opacity-70">
       <legend className="text-lg font-bold mb-4">1. Requirements</legend><p className="text-sm text-stone-600">Fields marked * are required.</p>
-      <label className="block text-sm font-semibold">Agreement type *<input required maxLength={100} className={field} value={data.agreementType} onChange={(e) => update('agreementType', e.target.value)} placeholder="For example, lease or service agreement" /></label>
       <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold">Preferred language<select className={field} value={data.language} onChange={(e) => update('language', e.target.value)}>{['English', 'Tamil', 'Both', 'Other'].map((v) => <option key={v}>{v}</option>)}</select></label><label className="block text-sm font-semibold">Preferred completion date (optional)<input type="date" className={field} value={data.preferredDate} onChange={(e) => update('preferredDate', e.target.value)} /></label></div>
       <fieldset className="rounded-xl border border-stone-200 p-4">
         <legend className="px-1 text-sm font-semibold text-stone-900">Do you need a notary signature?</legend>
         <div className="grid gap-3 sm:grid-cols-2">
-          {[{ value: false, label: 'No, agreement only' }, { value: true, label: 'Yes, add notary signature' }].map((choice) => (
+          {[{ value: false, label: 'No, document only' }, { value: true, label: 'Yes, add notary signature' }].map((choice) => (
             <label key={String(choice.value)} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-amber-500 ${Boolean(data.includeNotary) === choice.value ? 'border-amber-600 bg-amber-50 text-amber-900' : 'border-stone-300 bg-white text-stone-700'}`}>
               <input type="radio" name="custom-notary" checked={Boolean(data.includeNotary) === choice.value} onChange={() => update('includeNotary', choice.value)} className="h-4 w-4 shrink-0 accent-amber-600" />
               {choice.label}
@@ -85,7 +84,7 @@ export function CustomRequestForm() {
         </div>
         <p className="mt-3 text-xs leading-relaxed text-stone-600">If you choose notary service, our team will include it in your quote.</p>
       </fieldset>
-      <label className="block text-sm font-semibold">Purpose *<textarea required minLength={5} maxLength={1000} rows={2} className={field} value={data.purpose} onChange={(e) => update('purpose', e.target.value)} placeholder="How will this agreement be used?" /></label>
+      <label className="block text-sm font-semibold">Purpose *<textarea required minLength={5} maxLength={1000} rows={2} className={field} value={data.purpose} onChange={(e) => update('purpose', e.target.value)} placeholder="What do you need this document for?" /></label>
       <label className="block text-sm font-semibold">Customisation instructions *<textarea required minLength={10} maxLength={5000} rows={5} className={field} value={data.instructions} onChange={(e) => update('instructions', e.target.value)} placeholder="Describe what to add, remove or change. Mention any details you want us to clarify." /></label>
       <section aria-labelledby="custom-samples-heading" className="rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50/50 p-4 sm:p-5"><h2 id="custom-samples-heading" className="mb-3 text-lg font-bold">2. Sample documents</h2>
         <label htmlFor="custom-samples" className="block text-sm font-semibold">Sample templates or photos *</label>
@@ -119,6 +118,6 @@ export function CustomRequestForm() {
     {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
     {progress && <p role="status" className="text-sm text-brand-800">{progress}</p>}
     <p className="text-sm text-stone-600">Custom agreement drafting is subject to review. We will confirm the price and delivery time before starting work.</p>
-    <button disabled={busy || loading} className="w-full rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white hover:bg-amber-700 disabled:opacity-50">{busy ? 'Submitting…' : user ? 'Submit Request for Review' : 'Sign in with Google & Submit'}</button>
+    <button disabled={busy || loading} className="w-full rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white hover:bg-amber-700 disabled:opacity-50">{busy ? 'Submitting…' : user ? 'Submit Request for Review' : 'Sign in & Submit'}</button>
   </form>;
 }

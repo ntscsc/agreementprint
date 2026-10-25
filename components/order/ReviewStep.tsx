@@ -127,19 +127,40 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
     paymentAllowed: false,
   });
   const payableTotal = totalAfterCoupon ?? feeState.totalPayable ?? 0;
-  async function applyCoupon() {
-    if (!user) return;
-    setCouponBusy(true); setCouponError('');
-    const key = quoteKey, code = normalizedCoupon;
-    try {
-      const response = await fetch('/api/referrals/validate', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ code, orderId: paymentOrderId, packageOptions: { stampPaperDenomination: termsData.stampPaperDenomination, deliveryLocation: termsData.deliveryLocation, extraCopies: termsData.extraCopies ?? 0, includeNotary: termsData.includeNotary === true } }) });
-      const quote = await readApiResponse(response);
-      if (quote.subtotal !== feeState.totalPayable) { setFeeReload(value => value + 1); throw new Error('The package price changed. Review the refreshed price and apply your coupon again.'); }
-      setCouponQuote({ code, key, total: quote.total, couponDiscount: quote.couponDiscount });
-      setCreditAmount(value => String(Math.min(Number(value) || 0, quote.total)));
-    } catch (err) { setCouponQuote(null); setCouponError(err instanceof Error ? err.message : 'Could not apply coupon.'); }
-    finally { setCouponBusy(false); }
-  }
+  useEffect(() => {
+    setCouponQuote(null);
+    setCouponError('');
+    setCouponBusy(false);
+    if (!user || !canApplyReferralCode || !normalizedCoupon || phonePeCheckout || feeState.loading || feeState.quoteKey !== quoteKey || !feeState.paymentAllowed) return;
+    let active = true;
+    const controller = new AbortController();
+    setCouponBusy(true);
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch('/api/referrals/validate', {
+          method: 'POST', signal: controller.signal,
+          headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: normalizedCoupon, orderId: paymentOrderId, packageOptions: {
+            stampPaperDenomination: termsData.stampPaperDenomination, deliveryLocation: termsData.deliveryLocation,
+            extraCopies: termsData.extraCopies ?? 0, includeNotary: termsData.includeNotary === true,
+          } }),
+        });
+        const quote = await readApiResponse(response);
+        if (!active) return;
+        if (quote.subtotal !== feeState.totalPayable) {
+          setFeeReload(value => value + 1);
+          throw new Error('The package price changed. Checking your coupon against the refreshed price.');
+        }
+        setCouponQuote({ code: normalizedCoupon, key: quoteKey, total: quote.total, couponDiscount: quote.couponDiscount });
+        setCreditAmount(value => String(Math.min(Number(value) || 0, quote.total)));
+      } catch (err) {
+        if (active) setCouponError(err instanceof Error ? err.message : 'Could not check coupon.');
+      } finally { if (active) setCouponBusy(false); }
+    }, 500);
+    return () => { active = false; clearTimeout(timer); controller.abort(); };
+  }, [user, canApplyReferralCode, normalizedCoupon, phonePeCheckout, paymentOrderId, quoteKey,
+    feeState.loading, feeState.quoteKey, feeState.paymentAllowed, feeState.totalPayable,
+    termsData.stampPaperDenomination, termsData.deliveryLocation, termsData.extraCopies, termsData.includeNotary]);
 
   useEffect(() => {
     if (!user) return;
@@ -413,7 +434,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <span className="mt-1 block font-normal text-stone-500">
             Use a customer or agent coupon for a discount on this first order.
           </span>
-          <button type="button" disabled={couponBusy || !normalizedCoupon || Boolean(phonePeCheckout)} onClick={() => void applyCoupon()} className="mt-2 rounded-lg bg-amber-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{couponBusy ? 'Checking…' : couponApplied ? 'Recheck Coupon' : 'Confirm Coupon'}</button>
+          {couponBusy && <span role="status" className="mt-2 block font-normal text-stone-600">Checking coupon?</span>}
           {couponApplied && <span role="status" className="mt-2 block font-semibold text-emerald-800">Coupon applied: ₹{couponQuote.couponDiscount.toLocaleString('en-IN')} off this order.</span>}
           {couponError && <span role="alert" className="mt-2 block font-normal text-rose-800">{couponError}</span>}
         </label>
@@ -600,7 +621,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
               </span>
             </div>
             {!!feeState.extraCopies && <div className="flex justify-between gap-3 text-stone-300"><span>Extra stamped copies ({feeState.extraCopies} × ₹150):</span><span className="font-mono text-white">₹{(feeState.extraCopyFee ?? 0).toLocaleString('en-IN')}</span></div>}
-            {couponApplied && <div className="flex justify-between gap-3 text-emerald-300"><span>First-order discount:</span><span className="font-mono">−₹{couponQuote.couponDiscount.toLocaleString('en-IN')}</span></div>}
+            {couponApplied && <div className="flex justify-between gap-3 text-emerald-300"><span>First-order discount:</span><span className="font-mono">-₹{couponQuote.couponDiscount.toLocaleString('en-IN')}</span></div>}
             <div className="border-t border-stone-800 pt-3 flex justify-between text-sm font-bold text-amber-400">
               <span>Total Payable Amount:</span>
               <span className="font-mono text-base">₹{payableTotal.toLocaleString('en-IN')}</span>
@@ -609,7 +630,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
               <>
                 <div className="flex justify-between text-emerald-300">
                   <span>Referral credit applied:</span>
-                  <span className="font-mono">−₹{Number(creditAmount).toLocaleString('en-IN')}</span>
+                  <span className="font-mono">-₹{Number(creditAmount).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between border-t border-stone-800 pt-2 text-sm font-bold text-white">
                   <span>Amount due:</span>

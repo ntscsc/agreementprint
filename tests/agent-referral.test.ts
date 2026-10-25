@@ -211,3 +211,64 @@ test('Zero-rate paid referrals have no agent payment due; returning customers ca
   assert.equal(summary.paymentsDue, 0);
   assert.equal((await referral.POST(request({ code: 'RAVI2026' }, 'customer'))).status, 409);
 });
+
+
+test('customer rewards stop at three distinct new customers and payment retries do not consume slots', async () => {
+  const h = harness();
+  h.write('referralCodes/CUSTOMER123', { kind: 'customer', uid: 'referrer' });
+  h.write('referralAccounts/referrer', { balance: 0 });
+  h.write('settings/referrals', { rewardAmount: 50, refereeDiscountAmount: 25 });
+  for (let i = 1; i <= 4; i++) await pay(h, `friend${i}`, 'CUSTOMER123');
+  assert.equal(h.read('referralAccounts/referrer').balance, 150);
+  assert.equal(h.read('referralRewards/friend4'), undefined);
+  assert.equal(h.read('orders/ORDER_friend4').payment.status, 'Paid');
+  assert.equal(h.read('customerReferralLimits/referrer').rewarded.length, 3);
+  await h.load('@/lib/referral-admin').confirmPaidOrderAndGrantReferral('ORDER_friend1');
+  assert.equal(h.read('referralAccounts/referrer').balance, 150);
+  await assert.rejects(() => h.load('@/lib/coupon-server').getCouponQuote(
+    { collection: (name: string) => ({
+      doc: (id: string) => ({ get: async () => ({ exists: !!h.read(`${name}/${id}`), data: () => h.read(`${name}/${id}`) }) }),
+      where: () => ({ get: async () => ({ docs: [] }) }),
+    }) }, 'friend5', 'CUSTOMER123', 350), /maximum of 3/);
+});
+
+test('existing customer referral rewards count toward the three-customer limit', async () => {
+  const h = harness();
+  h.write('referralCodes/CUSTOMER123', { kind: 'customer', uid: 'referrer' });
+  h.write('referralAccounts/referrer', { balance: 150 });
+  for (let i = 1; i <= 3; i++) h.write(`referralRewards/old${i}`, { referrerUid: 'referrer', amount: 50 });
+  await pay(h, 'newfriend', 'CUSTOMER123');
+  assert.equal(h.read('referralAccounts/referrer').balance, 150);
+  assert.equal(h.read('referralRewards/newfriend'), undefined);
+});
+
+test('agent referrals remain available beyond three new customers', async () => {
+  const h = harness();
+  h.write('referralCodes/AGENT123', { kind: 'agent', rewardAmount: 75, customerDiscountAmount: 25 });
+  for (let i = 1; i <= 5; i++) {
+    await pay(h, `agentfriend${i}`, 'AGENT123');
+    assert.equal(h.read(`referralRewards/agentfriend${i}`).kind, 'agent');
+    assert.equal(h.read(`agentReferralCustomers/agentfriend${i}`).rewardAmount, 75);
+  }
+});
+
+
+test('customer coupon checkout reserves only three referral places before payment', async () => {
+  const h = harness();
+  h.write('referralCodes/CUSTOMER123', { kind: 'customer', uid: 'referrer' });
+  h.write('settings/referrals', { refereeDiscountAmount: 25 });
+  const api = h.load('@/lib/referral-admin');
+  for (let i = 1; i <= 4; i++) {
+    const uid = `pending${i}`, orderId = `PENDING_${i}`;
+    h.write(`orders/${orderId}`, { ownerUid: uid, payment: { status: 'Pending' } });
+    h.write(`checkoutLocks/${orderId}`, { token: 'lock', expiresAt: Date.now() + 60000 });
+    const reserve = () => api.reserveReferralCreditForOrder(orderId, uid, 0, {
+      merchantOrderId: `CHECKOUT_${i}`, lockToken: 'lock', totalBeforeCredits: 325,
+      coupon: { code: 'CUSTOMER123', subtotal: 350, couponDiscount: 25, total: 325 },
+    });
+    if (i < 4) await reserve();
+    else await assert.rejects(reserve, /maximum of 3/);
+  }
+  assert.equal(Object.keys(h.read('customerReferralLimits/referrer').pending).length, 3);
+  assert.equal(h.read('firstOrderCoupons/pending4'), undefined);
+});

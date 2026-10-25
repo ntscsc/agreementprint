@@ -1,18 +1,21 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { 
   User, 
   onAuthStateChanged, 
-  signInWithPopup, 
+  signInWithPopup,
+  getAdditionalUserInfo, 
   signOut as firebaseSignOut 
 } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import { isUserAdmin } from '@/src/config/admin';
 import { normalizeReferralCode } from '@/lib/referral-utils';
 import { isValidCouponCode } from '@/lib/coupon';
+import { SignInDialog } from '@/components/SignInDialog';
 import { CustomerProfilePrompt } from '@/components/CustomerProfilePrompt';
-import type { CustomerProfile } from '@/lib/customer-profile';
+import { validateCustomerProfile, type CustomerProfile } from '@/lib/customer-profile';
+import { readApiResponse } from '@/lib/api-response';
 
 interface AuthContextType {
   user: User | null;
@@ -22,6 +25,7 @@ interface AuthContextType {
   customerProfile: CustomerProfile | null;
   editContactDetails: () => void;
   clearAuthError: () => void;
+  signIn: () => Promise<User | null>;
   signInWithGoogle: () => Promise<User | null>;
   signOut: () => Promise<void>;
 }
@@ -34,22 +38,40 @@ const AuthContext = createContext<AuthContextType>({
   customerProfile: null,
   editContactDetails: () => {},
   clearAuthError: () => {},
+  signIn: async () => null,
   signInWithGoogle: async () => null,
   signOut: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [showSignIn, setShowSignIn] = useState(false);
+  const pendingSignIn = useRef<{ promise: Promise<User | null>; resolve: (user: User | null) => void } | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  const [signupContactUid, setSignupContactUid] = useState<string | null>(null);
   const [editingContactUid, setEditingContactUid] = useState<string | null>(null);
   const closeContactEditor = useCallback(() => setEditingContactUid(null), []);
   const editContactDetails = () => { if (user) setEditingContactUid(user.uid); };
   const [savedProfile, setSavedProfile] = useState<{ uid: string; profile: CustomerProfile } | null>(null);
-  const saveProfile = useCallback((profile: CustomerProfile) => { if (user) setSavedProfile({ uid: user.uid, profile }); }, [user]);
+  const saveProfile = useCallback((profile: CustomerProfile) => { if (user) { setSavedProfile({ uid: user.uid, profile }); setSignupContactUid(null); } }, [user]);
   const customerProfile = savedProfile?.uid === user?.uid ? savedProfile?.profile ?? null : null;
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      try {
+        const result = await readApiResponse(await fetch('/api/customer-profile', {
+          headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store',
+        }));
+        if (active && result.profile) setSavedProfile({ uid: user.uid, profile: validateCustomerProfile(result.profile) });
+      } catch { /* Profile loading must not open the signup dialog for existing accounts. */ }
+    })();
+    return () => { active = false; };
+  }, [user]);
 
   useEffect(() => {
     const incoming = normalizeReferralCode(new URLSearchParams(window.location.search).get('coupon') || new URLSearchParams(window.location.search).get('ref'));
@@ -93,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthError(null);
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      if (getAdditionalUserInfo(result)?.isNewUser) setSignupContactUid(result.user.uid);
       return result.user;
     } catch (error: unknown) {
       console.error('Google Sign-In failed:', error);
@@ -114,11 +137,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signIn = (): Promise<User | null> => {
+    if (auth.currentUser) return Promise.resolve(auth.currentUser);
+    if (pendingSignIn.current) return pendingSignIn.current.promise;
+    setAuthError(null);
+    let resolve!: (user: User | null) => void;
+    const promise = new Promise<User | null>(done => { resolve = done; });
+    pendingSignIn.current = { promise, resolve };
+    setShowSignIn(true);
+    return promise;
+  };
+  const finishSignIn = (signedInUser: User | null, newAccount = false) => {
+    setShowSignIn(false);
+    setAuthError(null);
+    if (signedInUser && newAccount) setSignupContactUid(signedInUser.uid);
+    pendingSignIn.current?.resolve(signedInUser);
+    pendingSignIn.current = null;
+  };
+
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
       setUser(null);
       setEditingContactUid(null);
+      setSignupContactUid(null);
+      setSavedProfile(null);
       setIsAdmin(false);
       setAuthError(null);
     } catch (error) {
@@ -127,10 +170,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, customerProfile, editContactDetails, authError, clearAuthError, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, customerProfile, editContactDetails, authError, clearAuthError, signIn, signInWithGoogle, signOut }}>
       {children}
+      {showSignIn && <SignInDialog onGoogle={signInWithGoogle} onComplete={finishSignIn} onCancel={() => finishSignIn(null)} />}
       {user && editingContactUid === user.uid && <CustomerProfilePrompt key={`edit-${user.uid}`} user={user} onSaved={saveProfile} onSignOut={signOut} onClose={closeContactEditor} />}
-      {user && !isAdmin && !customerProfile && editingContactUid !== user.uid && <CustomerProfilePrompt key={user.uid} user={user} onSaved={saveProfile} onSignOut={signOut} />}
+      {user && !showSignIn && signupContactUid === user.uid && !isAdmin && !customerProfile && editingContactUid !== user.uid && <CustomerProfilePrompt key={user.uid} user={user} onSaved={saveProfile} onSignOut={signOut} />}
     </AuthContext.Provider>
   );
 };

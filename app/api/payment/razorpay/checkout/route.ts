@@ -16,6 +16,10 @@ export async function POST(req: NextRequest) {
     if (!credentials || credentials.keyId !== record.keyId || !record.razorpayOrderId) throw new ApiInputError('The existing checkout needs verification. Please contact support.', 409);
     let result: Record<string, unknown>;
     if (body.action === 'options') {
+      if (/^REPLPAY[a-f0-9]{32}$/.test(body.attempt)) {
+        const replacement = (await getAdminDb().collection('orderReplacements').doc(body.attempt).get()).data();
+        if (!replacement || !['Awaiting payment', 'Ready'].includes(replacement.state)) throw new ApiInputError('This replacement checkout is closed. Return to My Orders.', 409);
+      }
       result = { key: credentials.keyId, order_id: record.razorpayOrderId, razorpayOrderId: record.razorpayOrderId, amount: record.amount, currency: record.currency, returnUrl: paymentReturnPath(record.returnUrl), paid: record.state === 'COMPLETED' };
     } else if (body.action === 'verify' || body.action === 'status') {
       if (body.action === 'verify' && (!body.razorpay_order_id || !body.razorpay_payment_id || !body.razorpay_signature)) throw new ApiInputError('Payment ID, order ID and signature are required.', 400);

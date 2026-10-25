@@ -17,6 +17,7 @@ import { OrderStatus } from '@/lib/types';
 
 interface TrackedOrder {
   orderId: string;
+  publicReference?: string;
   status: OrderStatus;
   createdAt: string;
   updatedAt: string;
@@ -226,7 +227,7 @@ export function TrackClient() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-4">
             <div>
               <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Order Reference</span>
-              <h2 className="text-xl font-black font-mono text-stone-900">{orderData.orderId}</h2>
+              <h2 className="text-xl font-black font-mono text-stone-900">{orderData.publicReference || orderData.orderId}</h2>
               <p className="text-xs text-stone-500">
                 Registered for: {orderData.ownerName} & {orderData.tenantName} ({orderData.propertyCity})
               </p>

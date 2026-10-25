@@ -8,8 +8,7 @@ import {
   CheckCircle2, 
   AlertCircle,
   RefreshCw,
-  ShieldCheck,
-  Truck
+  ShieldCheck
 } from 'lucide-react';
 import { BusinessContact } from '@/components/PolicyPage';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
@@ -124,20 +123,7 @@ export function ContactClient() {
                 </div>
               </div>
 
-              <div className="space-y-4 text-xs sm:text-sm text-stone-700">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-emerald-50 rounded-xl text-emerald-700 shrink-0 mt-0.5">
-                    <Truck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-stone-900">Courier Dispatch</h3>
-                    <p className="text-stone-600 mt-0.5">
-                      Physical agreements are dispatched with tracking details available in your order status.
-                    </p>
-                  </div>
-                </div>
 
-              </div>
             </div>
           </div>
 

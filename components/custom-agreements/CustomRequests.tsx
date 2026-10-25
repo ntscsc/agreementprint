@@ -28,7 +28,7 @@ export function CustomRequests({ admin = false }: { admin?: boolean }) {
   return <RequestsBody key={`${user?.uid ?? 'guest'}-${admin}`} admin={admin} />;
 }
 function RequestsBody({ admin = false }: { admin?: boolean }) {
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, signIn } = useAuth();
   const [requests, setRequests] = useState<CustomRequest[]>([]), [loading, setLoading] = useState(false), [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -46,7 +46,7 @@ function RequestsBody({ admin = false }: { admin?: boolean }) {
     return () => { active = false; };
   }, [load]);
   if (authLoading) return <p role="status">Checking your sign-in…</p>;
-  if (!user) return <div className="rounded-2xl border border-stone-200 bg-white p-6 space-y-4"><p>Sign in with Google to view your custom agreement requests.</p><button className="rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white" onClick={() => { void signInWithGoogle().catch((err) => setError(err.message)); }}>Sign In with Google</button>{error && <p role="alert" className="text-rose-700">{error}</p>}</div>;
+  if (!user) return <div className="rounded-2xl border border-stone-200 bg-white p-6 space-y-4"><p>Sign in to view your custom agreement requests.</p><button className="rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white" onClick={() => { void signIn().catch((err) => setError(err.message)); }}>Sign In</button>{error && <p role="alert" className="text-rose-700">{error}</p>}</div>;
   return <section className="space-y-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">{admin ? 'Custom Agreement Requests' : 'My Requests'}</h2><button disabled={loading} onClick={() => void load()} className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50">{loading ? 'Loading…' : 'Refresh'}</button></div>
     {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-rose-800">{error}</p>}
     {!loading && !error && !requests.length && <div className="space-y-3 rounded-2xl border border-stone-200 bg-white p-6 text-center"><h3 className="font-bold text-stone-900">No requests yet</h3><p className="text-sm text-stone-600">Your custom agreement requests and quotes will appear here.</p>{!admin && <Link href="/custom-agreement" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand-700 px-5 py-3 text-sm font-bold text-white hover:bg-brand-800">Start your first request</Link>}</div>}

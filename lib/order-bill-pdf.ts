@@ -28,11 +28,10 @@ export async function renderOrderBill(bill: OrderBill, supportEmail: string): Pr
   text('ORDER BILL / PAYMENT RECEIPT', 12, '#166534');
   doc.moveDown();
   text(`Operated by ${VENDOR_CONFIG.name}`);
-  text(`${VENDOR_CONFIG.addressLine1}, ${VENDOR_CONFIG.addressLine2}, ${VENDOR_CONFIG.city} - ${VENDOR_CONFIG.pincode}, ${VENDOR_CONFIG.state}`);
   text(`Support email: ${supportEmail}`);
   doc.moveDown();
   text(`Bill reference: ${bill.reference}`, 12, '#172343');
-  text(`Order reference: ${bill.orderId}`);
+  text(`Order reference: ${bill.reference}`);
   text(`Ordered: ${date(bill.orderDate)}`);
   text(`Payment confirmed: ${date(bill.paidAt)}`);
   doc.moveDown();

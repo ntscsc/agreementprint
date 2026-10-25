@@ -23,7 +23,7 @@ function PaymentTestGateways() {
   return <PaymentTestBody key={`${gateway}:${initialReference}`} gateway={gateway} initialReference={initialReference} onGatewayChange={selectGateway} />;
 }
 function PaymentTestBody({ gateway, initialReference, onGatewayChange }: { gateway: Gateway; initialReference: string; onGatewayChange: (gateway: Gateway) => void }) {
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading, signIn } = useAuth();
   const [config, setConfig] = useState<{ configured: boolean; live: boolean } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [state, setState] = useState('');
   const [reference, setReference] = useState(initialReference);
@@ -54,7 +54,7 @@ function PaymentTestBody({ gateway, initialReference, onGatewayChange }: { gatew
     {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {state && <p role="status" className={`rounded-xl border p-3 font-semibold ${state === 'COMPLETED' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : ['FAILED', 'EXPIRED'].includes(state) ? 'border-red-200 bg-red-50 text-red-800' : 'border-yellow-300 bg-yellow-50 text-yellow-900'}`}>{state === 'COMPLETED' ? (paymentLive ?? config?.live ? 'Payment confirmed: Rs.1 received.' : 'Test payment confirmed. No real money was charged.') : `Payment status: ${state}`}</p>}
     {reference && <p className="break-all text-xs text-stone-600">Payment reference: {reference}</p>}
-    {loading ? <p>Checking sign-in...</p> : !user ? <button onClick={() => void signInWithGoogle().catch(e => setError(e.message))} className="min-h-11 rounded-xl bg-brand-700 px-5 py-3 font-semibold text-white">Sign in to test payment</button> : <div className="flex flex-wrap gap-3"><button disabled={busy || !config?.configured || state === 'COMPLETED'} onClick={() => void action('start')} className="min-h-11 rounded-xl bg-brand-700 px-5 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Please wait...' : config?.live ? `Pay Rs.1 with ${gateway}` : `Test Rs.1 with ${gateway}`}</button><button disabled={busy} onClick={() => void action('status')} className="min-h-11 rounded-xl border border-stone-300 px-5 py-3 font-semibold disabled:opacity-50">Check payment status</button></div>}
+    {loading ? <p>Checking sign-in...</p> : !user ? <button onClick={() => void signIn().catch(e => setError(e.message))} className="min-h-11 rounded-xl bg-brand-700 px-5 py-3 font-semibold text-white">Sign in to test payment</button> : <div className="flex flex-wrap gap-3"><button disabled={busy || !config?.configured || state === 'COMPLETED'} onClick={() => void action('start')} className="min-h-11 rounded-xl bg-brand-700 px-5 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Please wait...' : config?.live ? `Pay Rs.1 with ${gateway}` : `Test Rs.1 with ${gateway}`}</button><button disabled={busy} onClick={() => void action('status')} className="min-h-11 rounded-xl border border-stone-300 px-5 py-3 font-semibold disabled:opacity-50">Check payment status</button></div>}
     {config && !config.configured && <p className="text-sm text-red-800">{gateway} credentials are not configured.</p>}
   </section></main>;
 }

@@ -30,7 +30,7 @@ export function ReferralDashboard() {
 }
 
 function ReferralDashboardBody() {
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, signIn } = useAuth();
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,13 +86,13 @@ function ReferralDashboardBody() {
         <p className="mt-2 text-sm text-stone-600">Sign in to get your personal coupon code and view your credit balance.</p>
         <button
           type="button"
-          onClick={() => void signInWithGoogle().catch((signInError) => {
+          onClick={() => void signIn().catch((signInError) => {
             console.error('Referral page sign-in failed:', signInError);
             setError('Could not sign in. Please try again.');
           })}
           className="mt-6 rounded-xl bg-amber-500 px-5 py-3 text-sm font-bold text-stone-950"
         >
-          Sign in with Google
+          Sign in
         </button>
         {error && <p className="mt-3 text-sm text-rose-700" role="alert">{error}</p>}
       </section>
@@ -109,6 +109,7 @@ function ReferralDashboardBody() {
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-stone-600">
           Share your code. When a new customer uses it on their first paid order, you earn ₹
           {data?.rewardAmount.toLocaleString('en-IN') ?? '—'} in AgreementPrint credit.
+          You can refer a maximum of 3 new customers. Rewards are earned after each customer pays for their first order.
           {data && data.couponDiscount > 0 && <> Your friend also gets ₹{data.couponDiscount.toLocaleString('en-IN')} off that first order.</>}
         </p>
       </header>
@@ -178,7 +179,7 @@ function ReferralDashboardBody() {
                   <li key={`${entry.orderId}-${entry.type}-${index}`} className="flex items-center justify-between gap-3 py-3 text-sm">
                     <span className="capitalize text-stone-700">{entry.type === 'refund_completed' ? 'Refund confirmed' : entry.type === 'redeem' ? 'Used on order' : entry.type.replaceAll('_', ' ')}</span>
                     <span className={`font-mono font-semibold ${['reward', 'release', 'replacement_credit', 'refund_release', 'cancellation_credit', 'cancellation_reward_return'].includes(entry.type) ? 'text-emerald-700' : 'text-stone-800'}`}>
-                      {['refund_completed', 'redeem'].includes(entry.type) ? '' : ['reward', 'release', 'replacement_credit', 'refund_release', 'cancellation_credit', 'cancellation_reward_return'].includes(entry.type) ? '+' : '−'}₹{Number(entry.amount).toLocaleString('en-IN')}
+                      {['refund_completed', 'redeem'].includes(entry.type) ? '' : ['reward', 'release', 'replacement_credit', 'refund_release', 'cancellation_credit', 'cancellation_reward_return'].includes(entry.type) ? '+' : '-'}₹{Number(entry.amount).toLocaleString('en-IN')}
                     </span>
                   </li>
                 ))}

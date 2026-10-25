@@ -17,7 +17,7 @@
           },
           {
             "number": 3,
-            "text": "The Platform is owned by Net Time Systems, a company incorporated under the Companies Act, 1956 with its registered office at 32, 13 FIRST MAIN ROAD NANGANALLUR CHENNAI - 600061 (hereinafter referred to as ‘Platform Owner’, 'we', 'us', 'our')..",
+            "text": "The Platform is owned and operated by Net Time Systems (hereinafter referred to as 'Platform Owner', 'we', 'us' or 'our').",
             "title": "Platform owner"
           },
           {
@@ -205,7 +205,7 @@
       },
       {
         "kind": "paragraph",
-        "text": "Company name and address: Net Time Systems, 32, 13 FIRST MAIN ROAD NANGANALLUR CHENNAI - 600061."
+        "text": "Company name: Net Time Systems."
       },
       {
         "kind": "contact-email",

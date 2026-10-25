@@ -1,0 +1,26 @@
+﻿const fs=require('fs'),path=require('path'),vm=require('vm'),ts=require('typescript');
+const {chromium}=require(process.env.TEMP+'/stamp-layout-qa/node_modules/playwright');
+const cache=new Map();function load(name){if(!name.startsWith('@/'))return require(name);if(cache.has(name))return cache.get(name);let file=path.resolve(name.slice(2));if(name.endsWith('.json'))return JSON.parse(fs.readFileSync(file,'utf8'));file+=fs.existsSync(file+'.tsx')?'.tsx':'.ts';const target={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true,target:ts.ScriptTarget.ES2020}}).outputText,{module:target,exports:target.exports,require:load,Date,console});cache.set(name,target.exports);return target.exports;}
+(async()=>{
+fs.mkdirSync('tmp/pdfs',{recursive:true});fs.mkdirSync('output/pdf',{recursive:true});
+const html=await(await fetch('http://localhost:3000/rent-receipt')).text();const styles=[...html.matchAll(/href="([^"]+\.css[^\"]*)"/g)].map(m=>m[1].replaceAll('&amp;','&'));const css=(await Promise.all(styles.map(async u=>await(await fetch('http://localhost:3000'+u)).text()))).join('\n');
+const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),Doc=load('@/components/agreement/RentalAgreementDocument').RentalAgreementDocument;
+const b=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});const page=await b.newPage({viewport:{width:1000,height:1400}});await page.emulateMedia({media:'print'});
+const owner={fullName:'Arun Kumar',relativeName:'R. Kumar',relationship:'Son of',age:42,address:'Door No.12, Sample Street, Adyar, Chennai',pincode:'600020',phone:'9876543210',pan:'ABCDE1234F'};
+const tenant={fullName:'Priya Raman',relativeName:'S. Raman',relationship:'Daughter of',age:30,address:'Flat No.4, Example Avenue, Velachery, Chennai',pincode:'600042',phone:'9876543211'};
+const base={agreementType:'Rental',language:'English',monthlyRent:15000,securityDeposit:75000,maintenanceCharges:1500,rentIncreasePct:5,paymentDueDay:5,tenureMonths:11,noticePeriodDays:30,startDate:'2026-10-26',paintingDeduction:2500,deliveryRecipient:'Owner',deliveryLocation:'Within Chennai',includeNotary:false,extraCopies:0};
+const manifest=[];
+for(const [kind,label]of [['english-house','English residential rental'],['english-shop','English shop rental'],['tamil-house','Tamil residential rental'],['tamil-shop','Tamil shop rental'],['lease','English residential lease']])for(const stamp of [100,200]){
+ const terms={...base,stampPaperDenomination:stamp,language:kind.startsWith('tamil')?'Tamil':'English',...(kind==='lease'?{agreementType:'Lease',monthlyRent:0,rentIncreasePct:0,securityDeposit:150000}:{})};
+ const data={ownerDetails:owner,tenantDetails:tenant,propertyDetails:{fullAddress:'Door No.25, Model Road, Mylapore',city:'Chennai',pincode:'600004',propertyType:kind.endsWith('shop')?'Commercial Shop':'Flat',furnishing:'Unfurnished',businessName:'Sample Stores'},agreementTerms:terms};
+ const body=renderToStaticMarkup(React.createElement(Doc,{data,blankStampSpace:true}));
+ await page.setContent(`<html><head><base href="http://localhost:3000/"><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`,{waitUntil:'networkidle'});await page.evaluate(()=>document.fonts.ready);await page.evaluate(()=>{const doc=document.getElementById('printable-agreement-doc');document.body.replaceChildren(doc);});
+ const layout=await page.locator('.agreement-page').evaluateAll(ps=>ps.map(p=>({height:p.getBoundingClientRect().height,padding:getComputedStyle(p).paddingTop,stamped:!!p.querySelector('.stamp-paper-allowance')})));
+ const file=`tmp/pdfs/${kind}-${stamp}.pdf`;await page.pdf({path:file,format:'A4',preferCSSPageSize:true,printBackground:true,displayHeaderFooter:false});manifest.push({label:`${label} - Rs.${stamp} stamp paper`,file,layout});console.log(kind,stamp,JSON.stringify(layout));
+}
+// Use the actual receipt generator and its native print styling.
+await page.emulateMedia({media:'screen'});await page.goto('http://localhost:3000/rent-receipt',{waitUntil:'networkidle'});
+await page.getByLabel(/Monthly rent amount/).fill('15000');await page.getByLabel('Landlord name',{exact:true}).fill(owner.fullName);await page.getByLabel(/Landlord PAN/).fill(owner.pan);await page.getByLabel('Tenant name',{exact:true}).fill(tenant.fullName);await page.getByLabel('Property address',{exact:true}).fill('Door No.25, Model Road, Mylapore, Chennai - 600004');await page.getByLabel(/First rent period start date/).fill('2026-10-26');await page.getByRole('button',{name:'Generate receipts'}).click();await page.locator('.rent-receipt-page').waitFor();await page.evaluate(()=>document.fonts.ready);
+await page.emulateMedia({media:'print'});await page.evaluate(()=>{const area=document.querySelector('.rent-receipt-print-area');document.body.replaceChildren(area);});await page.pdf({path:'tmp/pdfs/rent-receipt.pdf',format:'A4',preferCSSPageSize:true,printBackground:true,displayHeaderFooter:false});manifest.push({label:'Rent receipt - landlord PAN and revenue stamp box',file:'tmp/pdfs/rent-receipt.pdf'});
+fs.writeFileSync('tmp/pdfs/manifest.json',JSON.stringify(manifest,null,2));await b.close();
+})();

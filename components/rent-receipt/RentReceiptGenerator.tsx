@@ -6,6 +6,7 @@ import { numberToWordsIndian } from '@/lib/number-to-words';
 
 interface ReceiptFormData {
   landlordName: string;
+  landlordPan: string;
   tenantName: string;
   propertyAddress: string;
   monthlyRent: string;
@@ -15,6 +16,7 @@ interface ReceiptFormData {
 
 interface RentReceiptData {
   landlordName: string;
+  landlordPan: string;
   tenantName: string;
   propertyAddress: string;
   monthlyRent: number;
@@ -24,6 +26,7 @@ interface RentReceiptData {
 
 const initialFormData: ReceiptFormData = {
   landlordName: '',
+  landlordPan: '',
   tenantName: '',
   propertyAddress: '',
   monthlyRent: '',
@@ -64,6 +67,7 @@ export function RentReceiptGenerator() {
     const receiptCount = Number(formData.months);
     const receiptData: RentReceiptData = {
       landlordName: formData.landlordName.trim(),
+      landlordPan: formData.landlordPan.trim().toUpperCase(),
       tenantName: formData.tenantName.trim(),
       propertyAddress: formData.propertyAddress.trim(),
       monthlyRent: Number(formData.monthlyRent),
@@ -118,6 +122,11 @@ export function RentReceiptGenerator() {
               autoComplete="name"
               className="mt-1.5 w-full rounded-xl border border-stone-300 px-3.5 py-3 text-sm text-stone-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
             />
+          </label>
+
+          <label className="block text-sm font-semibold text-stone-700">
+            Landlord PAN number *
+            <input type="text" required minLength={10} maxLength={10} pattern="[A-Z]{5}[0-9]{4}[A-Z]" title="Enter a valid 10-character PAN, for example ABCDE1234F" autoCapitalize="characters" spellCheck={false} value={formData.landlordPan} onChange={event => updateField('landlordPan', event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="ABCDE1234F" className="mt-1.5 w-full rounded-xl border border-stone-300 px-3.5 py-3 text-sm uppercase text-stone-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200" />
           </label>
 
           <label className="block text-sm font-semibold text-stone-700">
@@ -210,7 +219,7 @@ export function RentReceiptGenerator() {
             {receipts.map((receipt, index) => (
               <article
                 key={`${receipt.paymentDate.toISOString()}-${index}`}
-                className="rent-receipt-page mx-auto max-w-3xl rounded-xl border border-stone-200 bg-white p-6 shadow-sm sm:p-10"
+                className="rent-receipt-page mx-auto flex min-h-[297mm] max-w-3xl flex-col rounded-xl border border-stone-200 bg-white p-6 shadow-sm sm:p-10"
               >
                 <div className="rent-receipt-top-rule" aria-hidden="true">
                   <span />
@@ -242,17 +251,19 @@ export function RentReceiptGenerator() {
                   <div>
                     <h3 className="font-bold">Landlord Details</h3>
                     <p className="mt-8">{receipt.landlordName}</p>
+                    <p className="mt-2 text-base">PAN: <strong>{receipt.landlordPan}</strong></p>
                   </div>
                   <div className="text-right">
                     <h3 className="font-bold">Signature</h3>
                     <p className="mt-8">({receipt.landlordName})</p>
+                    <div className="revenue-stamp-box" aria-label="Space for revenue stamp">Revenue<br />Stamp</div>
                   </div>
                 </div>
 
-                <p className="mt-20 text-center text-base text-stone-400 sm:mt-24">
-                  This is a system-generated rent receipt from AgreementPrint.
-                </p>
-                <div className="rent-receipt-bottom-rule mt-12" aria-hidden="true" />
+                <div className="mt-auto pt-8">
+                  <div className="rent-receipt-bottom-rule" aria-hidden="true" />
+                  <p className="mt-3 text-center text-xs text-stone-500">This is a system-generated rent receipt from AgreementPrint.</p>
+                </div>
               </article>
             ))}
           </div>

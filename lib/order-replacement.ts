@@ -30,7 +30,18 @@ export async function settleReplacement(requestId: string, state: string, amount
     const request = (await tx.get(requestRef)).data();
     if (!request) throw new ApiInputError('Replacement not found.', 404);
     if (request.state === 'Completed') return { completed: true, replacementOrderId: request.replacementOrderId };
-    if (request.state === 'Failed') return { completed: false, state: 'Failed' };
+    if (request.state === 'Abandoned' || request.state === 'Failed') {
+      if (state === 'COMPLETED') {
+        if (amount !== request.quote.due * 100 || !transactionId) throw new ApiInputError('Late replacement payment needs verified amount and transaction reference.', 409);
+        if (!request.latePaymentTransactionId) {
+          const now = new Date().toISOString();
+          tx.update(requestRef, { latePaymentTransactionId: transactionId, latePaymentAt: now, refundStatus: 'Requested', refundAmount: amount / 100, updatedAt: now });
+          tx.create(db.collection('adminLogs').doc(), { orderId: request.originalOrderId, requestId, action: 'ABANDONED_REPLACEMENT_PAYMENT_REFUND_REQUIRED', transactionId, amount: amount / 100, timestamp: now });
+        }
+        return { completed: false, state: request.state, refundPending: true };
+      }
+      return { completed: false, state: request.state };
+    }
     if (request.state !== 'Awaiting payment' && request.state !== 'Ready') throw new ApiInputError('Replacement is not ready for payment.', 409);
     const originalRef = db.collection('orders').doc(request.originalOrderId), original = (await tx.get(originalRef)).data();
     if (!original || original.ownerUid !== request.ownerUid || original.payment?.status !== 'Paid' || original.replacementPendingId !== requestId) throw new ApiInputError('The original order has changed. Contact support.', 409);
@@ -67,5 +78,24 @@ export async function settleReplacement(requestId: string, state: string, amount
       refundAmount: 0, creditReturned: 0 });
     tx.create(db.collection('orderEditHistory').doc(requestId), { orderId: request.originalOrderId, replacementOrderId: request.replacementOrderId, actorUid: request.ownerUid, createdAt: now, before: { ownerDetails: original.ownerDetails, tenantDetails: original.tenantDetails, propertyDetails: original.propertyDetails, agreementTerms: original.agreementTerms }, after: request.details, quote: q });
     return { completed: true, replacementOrderId: request.replacementOrderId };
+  });
+}
+
+
+export async function abandonReplacement(orderId: string, actorUid: string, admin = false) {
+  const db = getAdminDb(), originalRef = db.collection('orders').doc(orderId);
+  return db.runTransaction(async tx => {
+    const original = (await tx.get(originalRef)).data();
+    if (!original || (!admin && original.ownerUid !== actorUid)) throw new ApiInputError('Order not found.', 404);
+    if (!original.replacementPendingId) throw new ApiInputError('No replacement is pending. Refresh the order.', 409);
+    const requestId = original.replacementPendingId, ref = db.collection('orderReplacements').doc(requestId);
+    const request = (await tx.get(ref)).data();
+    if (!request || request.originalOrderId !== orderId || request.ownerUid !== original.ownerUid || !['Awaiting payment', 'Ready', 'Failed'].includes(request.state)) throw new ApiInputError('Replacement changed. Refresh the order.', 409);
+    if (request.checkoutLeaseUntil > Date.now()) throw new ApiInputError('Checkout is opening. Wait a few seconds and retry.', 409);
+    const now = new Date().toISOString();
+    tx.update(ref, { state: 'Abandoned', abandonedAt: now, abandonedBy: actorUid, updatedAt: now });
+    tx.update(originalRef, { replacementPendingId: null, updatedAt: now });
+    tx.create(db.collection('adminLogs').doc(), { orderId, actorUid, action: 'REPLACEMENT_ABANDONED', replacementRequestId: requestId, timestamp: now });
+    return { ...original, replacementPendingId: null, updatedAt: now };
   });
 }

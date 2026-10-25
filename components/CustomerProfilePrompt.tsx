@@ -8,13 +8,13 @@ import { validateCustomerProfile, type CustomerProfile } from '@/lib/customer-pr
 export function CustomerProfilePrompt({ user, onSaved, onSignOut, onClose }: { user: User; onSaved: (profile: CustomerProfile) => void; onSignOut: () => Promise<void>; onClose?: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(user.displayName || '');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(user.phoneNumber?.replace(/^\+91/, '') || '');
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [retry, setRetry] = useState(0), [complete, setComplete] = useState(false);
   useEffect(() => {
-    if (!complete) dialog.current?.showModal();
+    if (!complete && (onClose || !loading)) dialog.current?.showModal();
     else dialog.current?.close();
-  }, [complete]);
+  }, [complete, loading, onClose]);
   useEffect(() => {
     let active = true;
     (async () => {

@@ -1,3 +1,4 @@
+import { customerReferralCapacity, assertCustomerReferralCapacity, CUSTOMER_REFERRAL_LIMIT } from '@/lib/customer-referral-limit';
 import { randomBytes } from 'crypto';
 import { type DocumentData, type Firestore } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
@@ -150,6 +151,10 @@ export async function confirmPaidOrderAndGrantReferral(
       throw new Error('An unrelated credit reservation cannot be consumed by this payment.');
     }
 
+    const customerCapacity = typeof referrerUid === 'string' && referralCodeSnapshot?.data()?.kind !== 'agent' && referralCodeSnapshot?.data()?.kind !== 'coupon'
+      ? await customerReferralCapacity(db, referrerUid, transaction) : null;
+    const capacityAvailable = !customerCapacity || customerCapacity.rewarded.includes(order.ownerUid) || Boolean(customerCapacity.pending[order.ownerUid]) || new Set([...customerCapacity.rewarded, ...Object.keys(customerCapacity.pending)]).size < CUSTOMER_REFERRAL_LIMIT;
+
     const paidOrderUpdate: Record<string, unknown> = {
       'payment.status': 'Paid',
       'payment.paidAt': order.payment?.paidAt || now,
@@ -200,7 +205,7 @@ export async function confirmPaidOrderAndGrantReferral(
       const validCode = codeData && !codeData.deletedAt && codeData.active !== false;
       // A code disabled after checkout began can still settle its reserved order.
       const reservedCode = expectedCouponCode && expectedCouponCode === referralCode && coupon?.orderId === orderId && coupon?.state === 'reserved';
-      if (!hasHistoricalPaidOrder && !rewardSnapshot.exists && (validCode || reservedCode) && (agentReferral || customerReferral)) {
+      if (!hasHistoricalPaidOrder && !rewardSnapshot.exists && (validCode || reservedCode) && (agentReferral || (customerReferral && capacityAvailable))) {
         rewardAmount = customerReferral ? getReferralRewardAmount(referralSettingsSnapshot?.data()) : 0;
         const credit = (account: NonNullable<typeof referrerAccountRef>, snapshot: NonNullable<typeof referrerAccountSnapshot>, amount: number) => {
           if (!snapshot.exists) throw new Error('Referral credit account is missing.');
@@ -208,6 +213,10 @@ export async function confirmPaidOrderAndGrantReferral(
           if (!Number.isSafeInteger(balance) || balance < 0 || !Number.isSafeInteger(balance + amount)) throw new Error('Invalid referral credit balance.');
           if (amount > 0) transaction.update(account, { balance: balance + amount, creditSequence: Number(snapshot.data()?.creditSequence || 0) + 1, updatedAt: now });
         };
+        if (customerReferral && customerCapacity) {
+          delete customerCapacity.pending[order.ownerUid];
+          transaction.set(customerCapacity.ref, { rewarded: [...new Set([...customerCapacity.rewarded, order.ownerUid])], pending: customerCapacity.pending });
+        }
         if (customerReferral && referrerAccountRef && referrerAccountSnapshot) {
           credit(referrerAccountRef, referrerAccountSnapshot, rewardAmount);
           if (rewardAmount > 0) transaction.create(db.collection('referralLedger').doc(`reward_${order.ownerUid}`), {
@@ -277,6 +286,10 @@ export async function reserveReferralCreditForOrder(
     const couponConfig = options?.coupon?.code ? await transaction.get(db.collection('referralCodes').doc(options.coupon.code)) : null;
     const couponSettings = options?.coupon?.code ? await transaction.get(db.collection('settings').doc('referrals')) : null;
     const legacyDiscounts = options?.coupon?.code ? await transaction.get(db.collection('settings').doc('coupons')) : null;
+    const customerCode = couponConfig?.data();
+    const customerCapacity = options?.coupon?.code && customerCode && customerCode.kind !== 'agent' && customerCode.kind !== 'coupon' && typeof customerCode.uid === 'string'
+      ? await customerReferralCapacity(db, customerCode.uid, transaction) : null;
+    if (customerCapacity) assertCustomerReferralCapacity(customerCapacity, uid);
     if (options && couponReservation?.data()?.state === 'reserved' && (couponReservation.data()?.orderId !== orderId || couponReservation.data()?.merchantOrderId !== options.merchantOrderId)) throw new Error('A first-order coupon is already reserved. Complete that checkout or wait for confirmed failure before starting another.');
     if (options?.coupon?.code) {
       const saved = couponConfig?.data();
@@ -306,6 +319,7 @@ export async function reserveReferralCreditForOrder(
       throw new Error('Your available referral credit changed. Refresh the balance and try again.');
     }
 
+    if (customerCapacity) transaction.set(customerCapacity.ref, { rewarded: customerCapacity.rewarded, pending: { ...customerCapacity.pending, [uid]: orderId } });
     if (options?.paymentAttempt) {
       transaction.create(db.collection('phonepePaymentAttempts').doc(options.merchantOrderId), options.paymentAttempt);
       transaction.update(orderRef, {
@@ -387,6 +401,14 @@ export async function releaseReferralReservation(orderId: string, merchantOrderI
     const accountRef = db.collection('referralAccounts').doc(order.ownerUid);
     const accountSnapshot = shouldRelease ? await transaction.get(accountRef) : null;
     if (shouldRelease && !accountSnapshot?.exists) throw new Error('Referral account is missing for a reserved credit.');
+
+    const releaseCoupon = attemptRef && couponReservation.data()?.state === 'reserved' && couponReservation.data()?.orderId === orderId && couponReservation.data()?.merchantOrderId === merchantOrderId;
+    const code = releaseCoupon && couponReservation.data()?.code ? (await transaction.get(db.collection('referralCodes').doc(couponReservation.data()!.code))).data() : null;
+    const capacity = code && code.kind !== 'agent' && code.kind !== 'coupon' && typeof code.uid === 'string' ? await customerReferralCapacity(db, code.uid, transaction) : null;
+    if (capacity && capacity.pending[order.ownerUid] === orderId) {
+      delete capacity.pending[order.ownerUid];
+      transaction.set(capacity.ref, { rewarded: capacity.rewarded, pending: capacity.pending });
+    }
 
     if (attemptRef) {
       transaction.update(attemptRef, { state: terminalState, updatedAt: now });

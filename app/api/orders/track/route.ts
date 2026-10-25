@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
       tx.set(globalRef, { minute, count: globalCount + 1 });
       tx.set(orderLimitRef, { minute, count: orderCount + 1, expiresAt: new Date(now + 86_400_000) });
     });
-    const snap = await db.collection('orders').doc(cleanOrderId).get();
+    const mapped = /^AP-\d{6}$/i.test(cleanOrderId) ? (await db.collection('publicOrderReferences').doc(cleanOrderId.toUpperCase()).get()).data()?.orderId : cleanOrderId;
+    const snap = await db.collection('orders').doc(mapped || '__not_found__').get();
     const notFound = () => NextResponse.json(
       { success: false, error: 'No matching order found. Check the reference and registered mobile number.' },
       { status: 404, headers: { 'Cache-Control': 'no-store' } },
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
       success: true,
       order: {
         orderId: data.orderId,
+        publicReference: data.publicReference,
         status: data.status,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,

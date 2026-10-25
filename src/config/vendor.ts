@@ -53,11 +53,11 @@ export const VENDOR_CONFIG: VendorConfig = {
   tradeName: 'AgreementPrint',
   licenceNumber: '',
   issuingAuthority: '',
-  addressLine1: '32, 13 First Main Road',
-  addressLine2: 'Nanganallur',
-  city: 'Chennai',
-  pincode: '600061',
-  state: 'Tamil Nadu, India',
+  addressLine1: '',
+  addressLine2: '',
+  city: '',
+  pincode: '',
+  state: '',
   phone: '',
   whatsappNumber: '+91 9444051575',
   whatsappPrefilledMessage: 'Hello AgreementPrint, I need help with an agreement.',
@@ -84,7 +84,7 @@ export const VENDOR_CONFIG: VendorConfig = {
   placeholdersTodoList: [],
 };
 
-export const VENDOR_SERVICE_TITLE = 'Authorised Non-Judicial Stamp Paper & e-Stamp Vendor';
+export const VENDOR_SERVICE_TITLE = 'Authorised Non-Judicial Stamp Paper & e-Stamp Paper Vendor';
 
 export const WHATSAPP_URL = `https://wa.me/${VENDOR_CONFIG.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(VENDOR_CONFIG.whatsappPrefilledMessage)}`;
 

@@ -36,7 +36,7 @@ export function MyOrdersClient() {
 }
 
 function MyOrdersBody() {
-  const { user, loading: authLoading, signInWithGoogle, authError } = useAuth();
+  const { user, loading: authLoading, signIn, authError } = useAuth();
   const [signingIn, setSigningIn] = useState(false);
   const [localSignInError, setLocalSignInError] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -135,7 +135,7 @@ function MyOrdersBody() {
   const needsPayment = (order: Order) => ['Pending', 'Failed'].includes(order.payment.status) && order.status !== 'Cancelled';
   const isCompleted = (order: Order) => ['Delivered', 'Cancelled'].includes(order.status);
   const matchesFilter = (order: Order, filter: string) => filter === 'all' || (filter === 'payment' ? needsPayment(order) : filter === 'completed' ? isCompleted(order) : !isCompleted(order) && !needsPayment(order));
-  const visibleOrders = orders.filter(order => matchesFilter(order, orderFilter) && [order.orderId, order.ownerDetails.fullName, order.tenantDetails.fullName, order.propertyDetails.fullAddress, order.propertyDetails.city].some(value => value.toLowerCase().includes(orderSearch.trim().toLowerCase())));
+  const visibleOrders = orders.filter(order => matchesFilter(order, orderFilter) && [order.orderId, order.publicReference ?? '', order.ownerDetails.fullName, order.tenantDetails.fullName, order.propertyDetails.fullAddress, order.propertyDetails.city].some(value => value.toLowerCase().includes(orderSearch.trim().toLowerCase())));
   const actionClass = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600';
 
   const handleOrderCancellation = async (order: Order) => {
@@ -149,13 +149,15 @@ function MyOrdersBody() {
     finally { setStartingPaymentOrderId(null); }
   };
 
-  const handleReplacementResume = async (order: Order, action: 'resume' | 'status') => {
+  const handleReplacementResume = async (order: Order, action: 'resume' | 'status' | 'abandon') => {
     if (!user) return;
+    if (action === 'abandon' && !window.confirm('Abandon this replacement and keep your original paid order? Any late replacement payment will require refund review.')) return;
     setStartingPaymentOrderId(order.orderId); setPaymentRetryError(null);
     try {
       const response = await fetch('/api/orders/replace', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action, orderId: order.orderId, requestId: order.replacementPendingId }) });
       const result = await readApiResponse(response);
       if (result.redirectUrl) { window.location.assign(result.redirectUrl); return; }
+      if (result.abandoned) { setOrders(previous => previous.map(item => item.orderId === order.orderId ? result.order as Order : item)); setCorrectionSuccess('Replacement abandoned. You can continue with the original paid order or cancel it to request a refund.'); return; }
       if (result.completed) { setOrders(previous => [result.order as Order, ...previous.filter(item => item.orderId !== result.order.orderId).map(item => item.orderId === order.orderId ? result.original as Order : item)]); setCorrectionSuccess('Replacement completed. The original order and payment history remain linked.'); }
       else if (result.failed) { window.alert(result.message); window.location.assign('/my-orders'); }
       else setPaymentRetryError({ orderId: order.orderId, message: 'Payment is awaiting confirmation. Please check again shortly.' });
@@ -203,7 +205,7 @@ function MyOrdersBody() {
           <div className="space-y-1">
             <h1 className="text-xl font-bold text-stone-900">Sign in to View Your Orders</h1>
             <p className="text-sm text-stone-600">
-              Sign in with your Google account to view your past rental agreements, tracking numbers, and correction requests.
+              Sign in with email and password or Google to view your past rental agreements, tracking numbers, and correction requests.
             </p>
           </div>
           { (authError || localSignInError) && (
@@ -216,7 +218,7 @@ function MyOrdersBody() {
               setLocalSignInError(null);
               setSigningIn(true);
               try {
-                await signInWithGoogle();
+                await signIn();
               } catch (err: unknown) {
                 const message = (err as { message?: string })?.message || 'Failed to sign in. Please verify popups are allowed.';
                 setLocalSignInError(message);
@@ -227,7 +229,7 @@ function MyOrdersBody() {
             disabled={signingIn}
             className="w-full bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl text-sm uppercase tracking-wider transition-colors cursor-pointer"
           >
-            {signingIn ? 'Opening Google Sign-In...' : 'Sign In with Google'}
+            {signingIn ? 'Opening sign-in...' : 'Sign In'}
           </button>
         </div>
       </div>
@@ -237,7 +239,7 @@ function MyOrdersBody() {
   if (editingOrder) return <div className="mx-auto max-w-4xl px-4 py-8"><ModifyReplaceOrder correctionMode={correctionMode} key={`${editingOrder.orderId}-${correctionMode}`} order={editingOrder} onCancel={() => window.location.assign('/my-orders')} onSaved={(updated, original) => {
     setOrders(previous => [updated, ...previous.filter(order => order.orderId !== updated.orderId).map(order => original && order.orderId === original.orderId ? original : order)]);
     setEditingOrder(null);
-    setCorrectionSuccess(correctionMode ? 'Customer corrections submitted. The same order is Under Verification; your payment is unchanged.' : 'Replacement submitted for verification. Your original order and payment history are preserved.');
+    setCorrectionSuccess(correctionMode || !original ? 'Customer corrections submitted. The same order is Under Verification; your payment is unchanged.' : 'Replacement submitted for verification. Your original order and payment history are preserved.');
   }} /></div>;
 
   if (selectedAgreementOrder) {
@@ -274,7 +276,7 @@ function MyOrdersBody() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-6">
       <Celebration eventKey={user && celebratedOrderId ? paidOrderCelebrationKey(user.uid, celebratedOrderId) : null} message="Payment confirmed! Your order is ready for our team." />
       <header className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        <div><p className="text-sm font-bold uppercase tracking-widest text-brand-700">Your account</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-stone-900 sm:text-4xl">My Orders</h1><p className="mt-2 text-sm text-stone-600">Track your agreements, manage details and find your payment records.</p><p className="mt-1 break-all text-sm text-stone-600">{user.email}</p></div>
+        <div><p className="text-sm font-bold uppercase tracking-widest text-brand-700">Your account</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-stone-900 sm:text-4xl">My Orders</h1><p className="mt-2 text-sm text-stone-600">Track your agreements, manage details and find your payment records.</p><p className="mt-1 break-all text-sm text-stone-600">{user.email || user.phoneNumber}</p></div>
         <Link href="/order" className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-800"><FileText className="h-4 w-4" />New Agreement</Link>
       </header>
       {!ordersLoading && !error && orders.length > 0 && <div className="space-y-4 rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
@@ -341,43 +343,15 @@ function MyOrdersBody() {
             >
               <summary className="flex cursor-pointer list-none flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6 [&::-webkit-details-marker]:hidden">
                 <div className="min-w-0"><p className="text-sm font-semibold uppercase tracking-wide text-stone-600">{ord.agreementTerms.agreementType === 'Lease' ? 'Lease agreement' : 'Rental agreement'}</p><h2 className="mt-1 break-all font-mono text-base font-bold text-stone-900"><OrderReference reference={ord.orderId} /></h2><p className="mt-1 text-sm text-stone-600">Placed {new Date(ord.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
-                <div className="flex flex-wrap items-center gap-2">{ord.replacedByOrderId ? <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-semibold text-stone-600">Replaced</span> : getStatusBadge(ord.status)}<span className={`rounded-full px-3 py-1 text-sm font-semibold ${ord.payment.status === 'Paid' ? 'bg-emerald-50 text-emerald-800' : ord.payment.status === 'Failed' ? 'bg-rose-50 text-rose-800' : 'bg-stone-100 text-stone-600'}`}>Payment: {ord.payment.status}</span>{ord.cancellationRefundId && <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-semibold text-stone-600">Refund: {ord.cancellationRefundStatus}</span>}<ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-stone-400 transition-transform group-open/order:rotate-90" /></div>
+                <div className="flex flex-wrap items-center gap-2">{ord.replacedByOrderId ? <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-semibold text-stone-600">Replaced</span> : getStatusBadge(ord.status)}{ord.payment.status !== 'Paid' && <span className={`rounded-full px-3 py-1 text-sm font-semibold ${ord.payment.status === 'Failed' ? 'bg-rose-50 text-rose-800' : 'bg-stone-100 text-stone-600'}`}>Payment: {ord.payment.status}</span>}{ord.cancellationRefundId && <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-semibold text-stone-600">Refund: {ord.cancellationRefundStatus}</span>}<ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-stone-400 transition-transform group-open/order:rotate-90" /></div>
               </summary>
               <div className="space-y-5 border-t border-stone-100 p-5 sm:p-6">
 
-              {(ord.replacesOrderId || ord.replacedByOrderId || ord.replacementAdjustment) && <details className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3"><summary className="cursor-pointer text-sm font-semibold text-stone-600">Replacement &amp; payment history</summary><div className="mt-3 space-y-2 break-words text-sm text-stone-600">              {(ord.replacesOrderId || ord.replacedByOrderId) && <div className="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">{ord.replacedByOrderId ? 'Replaced by ' : 'Replacement for '}<OrderReference reference={ord.replacedByOrderId || ord.replacesOrderId!} /><p className="mt-2">{ord.replacedByOrderId ? 'This original record is retained for payment history.' : 'Earlier payments were carried forward.'}</p></div>}
-              {ord.replacementAdjustment && <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900"><p>Additional payment collected: ₹{ord.replacementAdjustment.additionalPayment.toLocaleString('en-IN')}</p>{ord.replacementAdjustment.creditReturned > 0 && <p>Account credit returned: ₹{ord.replacementAdjustment.creditReturned.toLocaleString('en-IN')}</p>}{ord.replacementAdjustment.refundAmount > 0 && <p>Refund: ₹{ord.replacementAdjustment.refundAmount.toLocaleString('en-IN')} ({ord.replacementAdjustment.refundStatus === 'Refunded' ? 'processed' : 'awaiting admin processing'})</p>}</div>}
-</div></details>}
               {ord.modificationReviewOutcome && <p className="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">Admin review: {ord.modificationReviewOutcome}</p>}
               {ord.cancellationRefundId && <div className="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm"><p className="font-semibold">Cancellation refund: ₹{(ord.cancellationRefundAmount || 0).toLocaleString('en-IN')} · {ord.cancellationRefundStatus}</p><p>Refund to original payment method, subject to admin approval and the refund policy. Refunds are unavailable in test mode.</p>{(ord.cancellationRewardCreditsReturned || 0) > 0 && <p>Original referral rewards returned for orders: ₹{ord.cancellationRewardCreditsReturned}</p>}{ord.cancellationRefundNote && <p>{ord.cancellationRefundNote}</p>}<Link href="/order" className="inline-block font-semibold text-brand-700 underline">Place a New Order</Link></div>}
               {ord.modificationReviewId && <p className="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">Your change request has been sent for admin review.</p>}
-              {ord.replacementPendingId && <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm"><p className="font-semibold">Replacement payment pending</p><p>Preparation is on hold while the additional payment is confirmed. Your original payment remains recorded.</p><div className="flex flex-wrap gap-2"><button type="button" disabled={startingPaymentOrderId !== null} onClick={() => void handleReplacementResume(ord, 'resume')} className={actionClass}>Resume Replacement Payment</button><button type="button" disabled={startingPaymentOrderId !== null} onClick={() => void handleReplacementResume(ord, 'status')} className={actionClass}>Check Payment Status</button></div>{paymentRetryError?.orderId === ord.orderId && <p role="alert" className="text-rose-700">{paymentRetryError.message}</p>}</div>}
-              <p className="text-sm font-semibold text-stone-700">Printed copies: {1 + (ord.agreementTerms.extraCopies ?? 0)} total ({ord.agreementTerms.extraCopies ?? 0} extra), on ₹{ord.agreementTerms.stampPaperDenomination ?? 100} stamp paper.</p>
-              {/* Order Info Grid */}
-              <div className="grid grid-cols-1 gap-5 text-sm text-stone-600 sm:grid-cols-3">
-                <div>
-                  <span className="mb-1.5 block text-sm font-semibold text-stone-600">Owner & tenant</span>
-                  <strong className="text-stone-900">{ord.ownerDetails.fullName}</strong>
-                  <p className="text-stone-600">Tenant: {ord.tenantDetails.fullName}</p>
-                </div>
-
-                <div>
-                  <span className="mb-1.5 block text-sm font-semibold text-stone-600">Premises</span>
-                  <p className="break-words text-stone-800">{ord.propertyDetails.fullAddress}</p>
-                  <p className="text-stone-600">{ord.propertyDetails.city} ({ord.propertyDetails.propertyType})</p>
-                </div>
-
-                <div>
-                  <span className="mb-1.5 block text-sm font-semibold text-stone-600">Agreement terms</span>
-                  <strong className="text-stone-900">{ord.agreementTerms.agreementType === 'Lease' ? 'Lease — no separate monthly rent' : `₹${ord.agreementTerms.monthlyRent?.toLocaleString('en-IN')} / mo`}</strong>
-                  <p className="text-stone-600">{ord.agreementTerms.agreementType === 'Lease' ? 'Refundable advance' : 'Deposit'}: ₹{ord.agreementTerms.securityDeposit?.toLocaleString('en-IN')}</p>
-                </div>
-              </div>
-
-              {(ord.payment.amount !== undefined || ord.payment.totalBeforeCredits !== undefined || ord.payment.subtotal !== undefined) && <details className="group rounded-xl border border-stone-200 bg-stone-50">
-                <summary className="flex min-h-12 cursor-pointer flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-stone-700"><span className="inline-flex items-center gap-2"><ChevronRight aria-hidden="true" className="h-4 w-4 transition-transform group-open:rotate-90" />Payment breakdown</span><span>{ord.payment.status === 'Paid' ? 'Paid' : 'Payment amount'}: ₹{(ord.payment.amount ?? ord.payment.totalBeforeCredits ?? 0).toLocaleString('en-IN')}</span></summary>
-                <dl className="grid gap-3 border-t border-stone-200 px-4 py-4 text-sm sm:grid-cols-3"><div><dt className="text-sm text-stone-600">Package total</dt><dd className="mt-1 font-semibold text-stone-800">₹{(ord.payment.subtotal ?? ord.payment.totalBeforeCredits ?? ord.payment.amount ?? 0).toLocaleString('en-IN')}</dd></div><div><dt className="text-sm text-stone-600">Coupon discount{ord.payment.couponCode ? ` (${ord.payment.couponCode})` : ''}</dt><dd className="mt-1 font-semibold text-stone-800">₹{(ord.payment.couponDiscount ?? 0).toLocaleString('en-IN')}</dd></div><div><dt className="text-sm text-stone-600">Referral credit</dt><dd className="mt-1 font-semibold text-stone-800">₹{(ord.payment.referralCreditApplied ?? 0).toLocaleString('en-IN')}</dd></div></dl>
-              </details>}
+              {ord.replacementPendingId && <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm"><p className="font-semibold">Replacement payment pending</p><p>Preparation is on hold while the additional payment is confirmed. Your original payment remains recorded.</p><div className="flex flex-wrap gap-2"><button type="button" disabled={startingPaymentOrderId !== null} onClick={() => void handleReplacementResume(ord, 'resume')} className={actionClass}>Resume Replacement Payment</button><button type="button" disabled={startingPaymentOrderId !== null} onClick={() => void handleReplacementResume(ord, 'status')} className={actionClass}>Check Payment Status</button><button type="button" disabled={startingPaymentOrderId !== null} onClick={() => void handleReplacementResume(ord, 'abandon')} className={actionClass}>Abandon Replacement / Keep Original Order</button></div>{paymentRetryError?.orderId === ord.orderId && <p role="alert" className="text-rose-700">{paymentRetryError.message}</p>}</div>}
+              <div className="customer-order-brief"><div><p className="customer-order-name">{ord.ownerDetails.fullName} <span>&amp;</span> {ord.tenantDetails.fullName}</p><p className="customer-order-location">{ord.propertyDetails.city} &middot; {ord.propertyDetails.propertyType}</p></div><span className="customer-order-package">&#8377;{ord.agreementTerms.stampPaperDenomination ?? 100} stamp &middot; {1 + (ord.agreementTerms.extraCopies ?? 0)} {(ord.agreementTerms.extraCopies ?? 0) > 0 ? 'copies' : 'copy'}</span></div>
 
               {(ord.payment?.status === 'Pending' || ord.payment?.status === 'Failed') &&
                 ord.status !== 'Cancelled' && (
@@ -448,12 +422,47 @@ function MyOrdersBody() {
 
 
                 <div className="flex flex-col-reverse gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setSelectedAgreementOrder(ord)} className={actionClass}><Eye className="h-4 w-4" />View agreement</button><Link href={`/track?orderId=${encodeURIComponent(ord.orderId)}&phone=${encodeURIComponent(ord.ownerDetails.phone)}`} className={actionClass}><Truck className="h-4 w-4" />Track order</Link>{ord.payment.status === 'Paid' && <DownloadBillButton orderId={ord.orderId} />}</div>
-                  {ord.payment.status === 'Paid' && !ord.replacedByOrderId && ord.status !== 'Cancelled' && !ord.replacementPendingId && !ord.modificationReviewId && (['Submitted', 'Under verification', 'Documents needed', 'Drafting', 'Dispatched', 'Delivered'].includes(ord.status) || ord.preparationStartedAt) && <div className="sm:max-w-64 sm:text-right"><button type="button" onClick={() => { setCorrectionMode(false); setEditingOrder(ord); }} className="min-h-11 w-full rounded-xl bg-brand-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700">Modify / Replace Order</button><p className="mt-2 text-sm leading-relaxed text-stone-600">{ord.preparationStartedAt || ['Drafting', 'Dispatched', 'Delivered'].includes(ord.status) ? 'Changes require admin review after preparation begins.' : 'Change details or package before preparation begins.'}</p></div>}
+                  <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setSelectedAgreementOrder(ord)} className={actionClass}><Eye className="h-4 w-4" />View agreement</button><Link href={`/track?orderId=${encodeURIComponent(ord.orderId)}&phone=${encodeURIComponent(ord.ownerDetails.phone)}`} className="customer-order-track"><Truck className="h-4 w-4" />Track order</Link></div>
+                  {ord.payment.status === 'Paid' && !ord.replacedByOrderId && !['Cancelled', 'Drafting', 'Dispatched', 'Delivered'].includes(ord.status) && !ord.preparationStartedAt && !ord.courier && !ord.replacementPendingId && !ord.modificationReviewId && ['Submitted', 'Under verification', 'Documents needed'].includes(ord.status) && <div className="sm:max-w-64 sm:text-right"><button type="button" onClick={() => { setCorrectionMode(false); setEditingOrder(ord); }} className="min-h-11 w-full rounded-xl bg-brand-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700">Edit order</button></div>}
 
                 </div>
+
                 {ord.payment.status === 'Paid' && ['Submitted', 'Under verification', 'Documents needed'].includes(ord.status) && !ord.preparationStartedAt && !ord.courier && !ord.replacedByOrderId && !ord.replacementPendingId && !ord.modificationReviewId && <details className="rounded-xl border border-stone-200 px-4 py-3"><summary className="cursor-pointer text-sm font-medium text-stone-600">Cancellation options</summary><div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-stone-600">Need a cheaper package? Cancel before preparation begins, then place a new order.</p><button type="button" disabled={startingPaymentOrderId !== null} onClick={() => void handleOrderCancellation(ord)} className="min-h-11 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50">Cancel &amp; Request Refund</button></div></details>}
               </footer>
+              <details className="customer-order-details"><summary>Order details &amp; payment<ChevronRight aria-hidden="true" className="h-4 w-4" /></summary><div className="customer-order-details-body">
+              <p className="text-sm font-semibold text-stone-700">Printed copies: {1 + (ord.agreementTerms.extraCopies ?? 0)} total ({ord.agreementTerms.extraCopies ?? 0} extra), on ₹{ord.agreementTerms.stampPaperDenomination ?? 100} stamp paper.</p>
+              {/* Order Info Grid */}
+              <div className="grid grid-cols-1 gap-5 text-sm text-stone-600 sm:grid-cols-3">
+                <div>
+                  <span className="mb-1.5 block text-sm font-semibold text-stone-600">Owner & tenant</span>
+                  <strong className="text-stone-900">{ord.ownerDetails.fullName}</strong>
+                  <p className="text-stone-600">Tenant: {ord.tenantDetails.fullName}</p>
+                </div>
+
+                <div>
+                  <span className="mb-1.5 block text-sm font-semibold text-stone-600">Premises</span>
+                  <p className="break-words text-stone-800">{ord.propertyDetails.fullAddress}</p>
+                  <p className="text-stone-600">{ord.propertyDetails.city} ({ord.propertyDetails.propertyType})</p>
+                </div>
+
+                <div>
+                  <span className="mb-1.5 block text-sm font-semibold text-stone-600">Agreement terms</span>
+                  <strong className="text-stone-900">{ord.agreementTerms.agreementType === 'Lease' ? 'Lease — no separate monthly rent' : `₹${ord.agreementTerms.monthlyRent?.toLocaleString('en-IN')} / mo`}</strong>
+                  <p className="text-stone-600">{ord.agreementTerms.agreementType === 'Lease' ? 'Refundable advance' : 'Deposit'}: ₹{ord.agreementTerms.securityDeposit?.toLocaleString('en-IN')}</p>
+                </div>
+              </div>
+
+              {(ord.payment.amount !== undefined || ord.payment.totalBeforeCredits !== undefined || ord.payment.subtotal !== undefined) && <details className="group rounded-xl border border-stone-200 bg-stone-50">
+                <summary className="flex min-h-12 cursor-pointer flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-stone-700"><span className="inline-flex items-center gap-2"><ChevronRight aria-hidden="true" className="h-4 w-4 transition-transform group-open:rotate-90" />Payment breakdown</span><span>{ord.payment.status === 'Paid' ? 'Paid' : 'Payment amount'}: ₹{(ord.payment.amount ?? ord.payment.totalBeforeCredits ?? 0).toLocaleString('en-IN')}</span></summary>
+                <dl className="grid gap-3 border-t border-stone-200 px-4 py-4 text-sm sm:grid-cols-3"><div><dt className="text-sm text-stone-600">Package total</dt><dd className="mt-1 font-semibold text-stone-800">₹{(ord.payment.subtotal ?? ord.payment.totalBeforeCredits ?? ord.payment.amount ?? 0).toLocaleString('en-IN')}</dd></div><div><dt className="text-sm text-stone-600">Coupon discount{ord.payment.couponCode ? ` (${ord.payment.couponCode})` : ''}</dt><dd className="mt-1 font-semibold text-stone-800">₹{(ord.payment.couponDiscount ?? 0).toLocaleString('en-IN')}</dd></div><div><dt className="text-sm text-stone-600">Referral credit</dt><dd className="mt-1 font-semibold text-stone-800">₹{(ord.payment.referralCreditApplied ?? 0).toLocaleString('en-IN')}</dd></div></dl>
+              </details>}
+
+              {(ord.replacesOrderId || ord.replacedByOrderId || ord.replacementAdjustment) && <details className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3"><summary className="cursor-pointer text-sm font-semibold text-stone-600">Replacement &amp; payment history</summary><div className="mt-3 space-y-2 break-words text-sm text-stone-600">              {(ord.replacesOrderId || ord.replacedByOrderId) && <div className="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">{ord.replacedByOrderId ? 'Replaced by ' : 'Replacement for '}<OrderReference reference={ord.replacedByOrderId || ord.replacesOrderId!} /><p className="mt-2">{ord.replacedByOrderId ? 'This original record is retained for payment history.' : 'Earlier payments were carried forward.'}</p></div>}
+              {ord.replacementAdjustment && <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900"><p>Additional payment collected: ₹{ord.replacementAdjustment.additionalPayment.toLocaleString('en-IN')}</p>{ord.replacementAdjustment.creditReturned > 0 && <p>Account credit returned: ₹{ord.replacementAdjustment.creditReturned.toLocaleString('en-IN')}</p>}{ord.replacementAdjustment.refundAmount > 0 && <p>Refund: ₹{ord.replacementAdjustment.refundAmount.toLocaleString('en-IN')} ({ord.replacementAdjustment.refundStatus === 'Refunded' ? 'processed' : 'awaiting admin processing'})</p>}</div>}
+</div></details>}
+                {(ord.preparationStartedAt || ord.courier || ['Drafting', 'Dispatched', 'Delivered'].includes(ord.status)) && <p className="text-sm text-stone-600">Preparation has begun. Details can no longer be modified. Contact the admin team for assistance.</p>}
+                {ord.payment.status === 'Paid' && <DownloadBillButton orderId={ord.orderId} />}
+              </div></details>
               </div>
             </details>
           ))}

@@ -14,7 +14,7 @@ interface NavItem { label: string; href: string; }
 
 export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
   const { t } = useI18n();
-  const { user, loading, isAdmin, signOut, signInWithGoogle, editContactDetails } = useAuth();
+  const { user, loading, isAdmin, signOut, signIn: openSignIn, editContactDetails } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -72,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
   );
   const actionClass = 'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white';
   const start = () => { closeMenus(); onStartAgreement?.(); };
-  const signIn = () => { closeMenus(); void signInWithGoogle().catch(() => {}); };
+  const signIn = () => { closeMenus(); void openSignIn().catch(() => {}); };
   const editContact = () => { closeMenus(); editContactDetails(); };
   const signOutUser = () => { closeMenus(); void signOut(); };
 
@@ -120,7 +120,7 @@ export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
                 {user && <div className="border-b border-stone-100 px-3 py-2"><p className="truncate text-sm font-semibold text-stone-900">{user.displayName || 'My Account'}</p><p className="truncate text-xs text-stone-500">{user.email}</p></div>}
                 {account.map((link) => renderLink(link, true))}
                 {user && <button type="button" onClick={editContact} className="flex min-h-11 w-full items-center rounded-lg px-3 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-100">Edit contact details</button>}
-                <div className="mt-1 border-t border-stone-100 pt-1">{user ? <button type="button" onClick={signOutUser} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"><LogOut className="h-4 w-4" />Sign Out</button> : <button type="button" onClick={signIn} className="w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-amber-800 hover:bg-amber-50">Sign In with Google</button>}</div>
+                <div className="mt-1 border-t border-stone-100 pt-1">{user ? <button type="button" onClick={signOutUser} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"><LogOut className="h-4 w-4" />Sign Out</button> : <button type="button" onClick={signIn} className="w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-amber-800 hover:bg-amber-50">Sign In</button>}</div>
               </div>}
             </div>
             {onStartAgreement ? <button type="button" onClick={start} className={actionClass}><FileText className="h-4 w-4" />Start Agreement</button> : <Link href="/order" onClick={closeMenus} className={actionClass}><FileText className="h-4 w-4" />Start Agreement</Link>}
@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
         <div className="mx-auto max-w-3xl space-y-5">
           <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">{primary.map((link) => renderLink(link, true))}</div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {[...groups, { id: 'account', label: 'My Account', links: account }].map((group) => <section key={group.id} aria-labelledby={`mobile-${group.id}`} className="rounded-xl border border-stone-200 bg-white p-3"><h2 id={`mobile-${group.id}`} className="px-3 pb-2 pt-1 text-xs font-bold uppercase tracking-wide text-stone-500">{group.label}</h2>{group.links.map((link) => renderLink(link, true))}{group.id === 'account' && user && <button type="button" onClick={editContact} className="flex min-h-11 w-full items-center rounded-lg px-3 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-100">Edit contact details</button>}{group.id === 'account' && <div className="mt-2 border-t border-stone-100 px-3 pt-3">{user ? <><p className="mb-2 truncate text-xs text-stone-500">{user.displayName || user.email}</p><button type="button" onClick={signOutUser} className="text-sm font-semibold text-stone-700">Sign Out</button></> : <button type="button" onClick={signIn} className="text-sm font-semibold text-amber-800">Sign In with Google</button>}</div>}</section>)}
+            {[...groups, { id: 'account', label: 'My Account', links: account }].map((group) => <section key={group.id} aria-labelledby={`mobile-${group.id}`} className="rounded-xl border border-stone-200 bg-white p-3"><h2 id={`mobile-${group.id}`} className="px-3 pb-2 pt-1 text-xs font-bold uppercase tracking-wide text-stone-500">{group.label}</h2>{group.links.map((link) => renderLink(link, true))}{group.id === 'account' && user && <button type="button" onClick={editContact} className="flex min-h-11 w-full items-center rounded-lg px-3 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-100">Edit contact details</button>}{group.id === 'account' && <div className="mt-2 border-t border-stone-100 px-3 pt-3">{user ? <><p className="mb-2 truncate text-xs text-stone-500">{user.displayName || user.email || user.phoneNumber}</p><button type="button" onClick={signOutUser} className="text-sm font-semibold text-stone-700">Sign Out</button></> : <button type="button" onClick={signIn} className="text-sm font-semibold text-amber-800">Sign In</button>}</div>}</section>)}
           </div>
           {onStartAgreement ? <button type="button" onClick={start} className={`${actionClass} w-full`}>Start Your Agreement</button> : <Link href="/order" onClick={closeMenus} className={`${actionClass} w-full`}>Start Your Agreement</Link>}
         </div>

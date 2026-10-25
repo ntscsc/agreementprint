@@ -1,3 +1,4 @@
+import { customerReferralCapacity, assertCustomerReferralCapacity } from '@/lib/customer-referral-limit';
 import type { Firestore } from 'firebase-admin/firestore';
 import { ApiInputError } from '@/lib/api-input';
 import { couponTotal, isValidCouponCode, couponDiscountAmount } from '@/lib/coupon';
@@ -21,6 +22,7 @@ export async function getCouponQuote(db: Firestore, uid: string, code: string, s
   if (firstPaid.exists || orders.docs.some(doc => doc.data().payment?.status === 'Paid')) throw new ApiInputError('Coupons are available on your first paid order only.', 409);
   if (orders.docs.some(doc => doc.id !== orderId && doc.data().payment?.status === 'Pending' && (doc.data().payment?.phonepeMerchantOrderId || doc.data().payment?.reservationKey))) throw new ApiInputError('Another order has a pending checkout. Check its payment status before using a first-order coupon.', 409);
   if (reservation.data()?.state === 'reserved' && reservation.data()?.orderId !== orderId) throw new ApiInputError('Your first-order coupon is already reserved for another checkout. Complete it or wait for confirmed payment failure before using a different order.', 409);
+  if (data.kind !== 'agent' && typeof data.uid === 'string') assertCustomerReferralCapacity(await customerReferralCapacity(db, data.uid), uid);
   let discountAmount;
   try { discountAmount = couponDiscountAmount(data, { ...legacyDiscounts.data(), ...settings.data() }); }
   catch { throw new ApiInputError('This coupon is temporarily unavailable.', 503); }

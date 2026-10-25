@@ -1,5 +1,6 @@
 'use client';
 
+import { WalkInCounter } from '@/components/admin/WalkInCounter';
 import { PaymentGatewaySettings } from '@/components/admin/PaymentGatewaySettings';
 import { AdminReportDownload } from '@/components/admin/AdminReportDownload';
 import { EnvelopePrint } from '@/components/admin/EnvelopePrint';
@@ -93,7 +94,7 @@ function AdminBody() {
   const [localSignInError, setLocalSignInError] = useState<string | null>(null);
 
   // Active Admin Console tab
-  const [activeTab, setActiveTab] = useState<'orders' | 'enquiries' | 'pricing' | 'support' | 'couriers' | 'referrals' | 'custom' | 'reports' | 'reviews' | 'changes' | 'refunds' | 'payments'>('orders');
+  const [activeTab, setActiveTab] = useState<'counter' | 'orders' | 'enquiries' | 'pricing' | 'support' | 'couriers' | 'referrals' | 'custom' | 'reports' | 'reviews' | 'changes' | 'refunds' | 'payments'>('orders');
 
   // Pricing State
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
@@ -139,7 +140,6 @@ function AdminBody() {
 
   // Status Change State
   const [newStatus, setNewStatus] = useState<OrderStatus>('Under verification');
-  const [statusNotes, setStatusNotes] = useState<string>('');
   const [updatingStatus, setUpdatingStatus] = useState<boolean>(false);
 
   // Correction Request State
@@ -341,6 +341,23 @@ function AdminBody() {
   }, [user, isAdmin]);
 
   // Handle Status Update
+  const handleCancelUnpaidReplacement = async () => {
+    if (!selectedOrder || !user || updatingStatus) return;
+    if (!window.confirm('Abandon this replacement and release the original paid order? Any late replacement payment will be flagged for refund review.')) return;
+    setUpdatingStatus(true);
+    try {
+      const result = await readApiResponse(await fetch('/api/admin/order-replacements', {
+        method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: selectedOrder.orderId }),
+      }));
+      const updated = result.order as Order;
+      setSelectedOrder(updated);
+      setOrders(previous => previous.map(order => order.orderId === updated.orderId ? updated : order));
+      alert(result.message);
+    } catch (error) { alert(error instanceof Error ? error.message : 'Unable to resolve replacement payment.'); }
+    finally { setUpdatingStatus(false); }
+  };
+
   const handleUpdateStatus = async () => {
     if (!selectedOrder || !user) return;
     if (selectedOrder.replacementPendingId || selectedOrder.replacedByOrderId) { alert('This order is on hold for replacement or has already been replaced.'); return; }
@@ -362,11 +379,9 @@ function AdminBody() {
     }
     setUpdatingStatus(true);
     const nowIso = new Date().toISOString();
-    const trimmedStatusNote = statusNotes.trim();
     const statusUpdate: {
       status: OrderStatus;
       updatedAt: string;
-      notes?: string;
       preparationStartedAt?: string;
     } = {
       status: newStatus,
@@ -377,9 +392,6 @@ function AdminBody() {
       statusUpdate.preparationStartedAt = selectedOrder.preparationStartedAt || nowIso;
     }
 
-    if (trimmedStatusNote) {
-      statusUpdate.notes = `${selectedOrder.notes || ''}\n[${nowIso}] ${trimmedStatusNote}`.trim();
-    }
 
     try {
       const orderRef = doc(db, 'orders', selectedOrder.orderId);
@@ -396,11 +408,9 @@ function AdminBody() {
       ...(statusUpdate.preparationStartedAt ? { preparationStartedAt: statusUpdate.preparationStartedAt } : {}),
       status: newStatus,
       updatedAt: nowIso,
-      ...(trimmedStatusNote ? { notes: statusUpdate.notes } : {}),
     };
     setSelectedOrder(updated);
     setOrders((prev) => prev.map((o) => (o.orderId === updated.orderId ? updated : o)));
-    setStatusNotes('');
 
     try {
       const logId = `LOG_${Date.now()}`;
@@ -412,7 +422,7 @@ function AdminBody() {
         action: 'STATUS_CHANGE',
         previousStatus: selectedOrder.status,
         newStatus,
-        notes: trimmedStatusNote || 'Status updated from admin console',
+        notes: 'Status updated from admin console',
         timestamp: nowIso,
       });
       alert(`Status updated to ${newStatus}`);
@@ -644,6 +654,7 @@ function AdminBody() {
     const matchesSearch =
       !q ||
       o.orderId.toLowerCase().includes(q) ||
+      Boolean(o.publicReference?.toLowerCase().includes(q)) ||
       o.ownerDetails.fullName.toLowerCase().includes(q) ||
       o.ownerDetails.phone.includes(q) ||
       o.tenantDetails.fullName.toLowerCase().includes(q) ||
@@ -738,7 +749,7 @@ function AdminBody() {
     );
   }
 
-  const navigationGroups = [{ label: 'Daily work', items: [{ id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: orders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Business tools & settings', items: [{ id: 'reports' as const, label: 'Reports & Analytics', icon: FileText }, { id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'payments' as const, label: 'Payment Gateway', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Dispatch & Envelopes', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }, { label: 'Reviews & order requests', items: [{ id: 'reviews' as const, label: 'Customer Reviews', icon: MessageSquare }, { id: 'changes' as const, label: 'Order Change Requests', icon: FileText }, { id: 'refunds' as const, label: 'Cancellation Refunds', icon: RotateCcw }] }];
+  const navigationGroups = [{ label: 'Daily work', items: [{ id: 'counter' as const, label: 'Walk-in Counter', icon: Printer }, { id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: filteredOrders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Business tools & settings', items: [{ id: 'reports' as const, label: 'Reports & Analytics', icon: FileText }, { id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'payments' as const, label: 'Payment Gateway', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Dispatch & Envelopes', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }, { label: 'Reviews & order requests', items: [{ id: 'reviews' as const, label: 'Customer Reviews', icon: MessageSquare }, { id: 'changes' as const, label: 'Order Change Requests', icon: FileText }, { id: 'refunds' as const, label: 'Cancellation Refunds', icon: RotateCcw }] }];
 
   return (
     <div className="admin-portal admin-tidy max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" data-section={activeTab}>
@@ -755,7 +766,7 @@ function AdminBody() {
       </nav>
 
       <div className="admin-workspace space-y-5">
-      {activeTab === 'payments' ? <PaymentGatewaySettings /> : activeTab === 'reports' ? (
+      {activeTab === 'counter' ? <WalkInCounter /> : activeTab === 'payments' ? <PaymentGatewaySettings /> : activeTab === 'reports' ? (
         <section className="space-y-5" aria-label="Reports and analytics">
           <header><h2 className="text-2xl font-bold text-stone-900">Reports &amp; Analytics</h2><p className="mt-2 text-sm text-stone-600">Download your business records or view website activity.</p></header>
           <AdminReportDownload />
@@ -1535,9 +1546,9 @@ function AdminBody() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {(selectedOrder.payment?.referralCreditApplied ?? 0) > 0 && (
-                    <div>Referral credit: <strong>−₹{selectedOrder.payment.referralCreditApplied?.toLocaleString('en-IN')}</strong></div>
+                    <div>Referral credit: <strong>-₹{selectedOrder.payment.referralCreditApplied?.toLocaleString('en-IN')}</strong></div>
                   )}
-                  {(selectedOrder.payment?.couponDiscount ?? 0) > 0 && <div className="col-span-2">Coupon ({selectedOrder.payment.couponCode}): <strong>−₹{selectedOrder.payment.couponDiscount?.toLocaleString('en-IN')}</strong></div>}
+                  {(selectedOrder.payment?.couponDiscount ?? 0) > 0 && <div className="col-span-2">Coupon ({selectedOrder.payment.couponCode}): <strong>-₹{selectedOrder.payment.couponDiscount?.toLocaleString('en-IN')}</strong></div>}
                   <div>Agreement type: <strong>{selectedOrder.agreementTerms.agreementType || 'Rental'}</strong></div>
                   <div>Rent: <strong>{selectedOrder.agreementTerms.agreementType === 'Lease' ? 'No separate monthly rent' : `₹${selectedOrder.agreementTerms.monthlyRent?.toLocaleString('en-IN')}`}</strong></div>
                   <div>{selectedOrder.agreementTerms.agreementType === 'Lease' ? 'Refundable lease advance' : 'Advance'}: <strong>₹{selectedOrder.agreementTerms.securityDeposit?.toLocaleString('en-IN')}</strong></div>
@@ -1584,77 +1595,56 @@ function AdminBody() {
             )}
             <div className="border-t border-stone-200 pt-4 space-y-4">
               <h3 className="font-bold text-stone-900 text-xs">Fulfillment Workflow Actions</h3>
-              {(selectedOrder.replacementPendingId || selectedOrder.replacedByOrderId) && <p className="text-sm text-amber-800">{selectedOrder.replacedByOrderId ? <>Replaced by <OrderReference reference={selectedOrder.replacedByOrderId} />. This record is retained for history.</> : 'Preparation is on hold until replacement payment is resolved.'}</p>}
+              {selectedOrder.replacedByOrderId && <p className="text-sm text-amber-800">Replaced by <OrderReference reference={selectedOrder.replacedByOrderId} />. This record is retained for history.</p>}
+              {selectedOrder.replacementPendingId && <section className="replacement-hold-panel" aria-labelledby="replacement-hold-title">
+                <div className="replacement-hold-heading">
+                  <span className="replacement-hold-icon"><AlertCircle aria-hidden="true" className="h-6 w-6" /></span>
+                  <div><p className="replacement-hold-eyebrow">Action required</p><h4 id="replacement-hold-title">Order preparation is on hold</h4></div>
+                  <span className="replacement-hold-badge"><Lock aria-hidden="true" className="h-3.5 w-3.5" /> Payment pending</span>
+                </div>
+                <p className="replacement-hold-description">Resolve the replacement payment to continue processing the original order.</p>
+                <button type="button" disabled={updatingStatus} onClick={() => void handleCancelUnpaidReplacement()} className="replacement-hold-action">
+                  <RefreshCw aria-hidden="true" className={`h-4 w-4 shrink-0 ${updatingStatus ? 'animate-spin motion-reduce:animate-none' : ''}`} />
+                  {updatingStatus ? 'Checking payment...' : 'Abandon Replacement / Release Original Order'}
+                  {!updatingStatus && <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0" />}
+                </button>
+                <p className="replacement-hold-help">Releases the original paid order. Any late replacement payment is flagged for refund review.</p>
+              </section>}
               {selectedOrder.payment?.status !== 'Paid' && <p className="text-sm text-amber-800">Payment must be confirmed before drafting, dispatch or delivery.</p>}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="admin-order-status" className="block text-xs font-semibold text-stone-700 mb-1">
-                    Transition Order Status
-                  </label>
-                  <select id="admin-order-status"
-                    value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value as OrderStatus)}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs text-stone-900 bg-white"
-                  >
-                    <option value="Under verification">Under verification</option>
-                    {selectedOrder.payment?.status === 'Paid' && <option value="Drafting">Drafting on Stamp Paper</option>}
-                    {selectedOrder.payment?.status === 'Paid' && <option value="Delivered">Delivered</option>}
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
+              <section className="fulfillment-status-card" aria-labelledby="fulfillment-status-title">
+                <div className="fulfillment-action-heading"><span className="fulfillment-action-icon"><RefreshCw aria-hidden="true" className="h-5 w-5" /></span><div><h4 id="fulfillment-status-title">Update order status</h4><p>Choose the next stage and apply the change.</p></div></div>
+                <div className="fulfillment-status-controls">
+                  <div className="fulfillment-status-field">
+                    <label htmlFor="admin-order-status">Order status</label>
+                    <select id="admin-order-status"
+                      disabled={updatingStatus || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId}
+                      value={newStatus} onChange={(e) => setNewStatus(e.target.value as OrderStatus)}>
+                      <option value="Under verification">Under verification</option>
+                      {selectedOrder.payment?.status === 'Paid' && <option value="Drafting">Drafting on Stamp Paper</option>}
+                      {selectedOrder.payment?.status === 'Paid' && <option value="Delivered">Delivered</option>}
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <button type="button" disabled={updatingStatus || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId} onClick={handleUpdateStatus} className="fulfillment-apply-button">{updatingStatus ? 'Updating...' : 'Apply Status Change'}</button>
                 </div>
-
-                <div>
-                  <label htmlFor="admin-order-note" className="block text-xs font-semibold text-stone-700 mb-1">
-                    Administrative Note (Logged into audit trail)
-                  </label>
-                  <input id="admin-order-note"
-                    type="text"
-                    value={statusNotes}
-                    onChange={(e) => setStatusNotes(e.target.value)}
-                    placeholder="e.g. EB bill verified, printing on stamp paper"
-                    className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs text-stone-900 bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button
-                  type="button"
-                  disabled={updatingStatus || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId}
-                  onClick={handleUpdateStatus}
-                  className="bg-stone-900 hover:bg-stone-800 text-white font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer"
-                >
-                  {updatingStatus ? 'Updating...' : 'Apply Status Change'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCorrectionForm(!showCorrectionForm);
-                    setShowCourierForm(false);
-                  }}
-                  className="border border-rose-300 hover:bg-rose-50 text-rose-800 font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer"
-                >
-                  Request Correction from Customer
-                </button>
-
-                <button
-                  type="button"
-                  disabled={selectedOrder.payment?.status !== 'Paid' || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId}
-                  onClick={() => {
-                    setShowCourierForm(!showCourierForm);
-                    setShowCorrectionForm(false);
-                  }}
-                  className="border border-sky-300 hover:bg-sky-50 text-sky-800 font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer"
-                >
-                  Dispatch & Assign Courier Tracking
-                </button>
+              </section>
+              <div className="fulfillment-secondary-actions">
+                <section className="fulfillment-option-card fulfillment-correction-card">
+                  <div className="fulfillment-action-heading"><span className="fulfillment-action-icon"><MessageSquare aria-hidden="true" className="h-5 w-5" /></span><h4>Customer corrections</h4></div>
+                  <p>Ask the customer to correct agreement details.</p>
+                  <button type="button" aria-expanded={showCorrectionForm} aria-controls="admin-correction-form" onClick={() => { setShowCorrectionForm(!showCorrectionForm); setShowCourierForm(false); }} className="fulfillment-option-button">{showCorrectionForm ? 'Close Correction Form' : 'Request Customer Correction'}<ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
+                </section>
+                <section className="fulfillment-option-card fulfillment-dispatch-card">
+                  <div className="fulfillment-action-heading"><span className="fulfillment-action-icon"><Truck aria-hidden="true" className="h-5 w-5" /></span><h4>Dispatch order</h4></div>
+                  <p>Add courier details and share shipment tracking.</p>
+                  <button type="button" aria-expanded={showCourierForm} aria-controls="admin-courier-form" disabled={selectedOrder.payment?.status !== 'Paid' || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId} onClick={() => { setShowCourierForm(!showCourierForm); setShowCorrectionForm(false); }} className="fulfillment-option-button">{showCourierForm ? 'Close Dispatch Form' : 'Dispatch & Add Tracking'}<ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
+                </section>
               </div>
 
               {/* Correction Form */}
               {showCorrectionForm && (
-                <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl space-y-3">
+                <div id="admin-correction-form" className="p-4 bg-rose-50 border border-rose-200 rounded-2xl space-y-3">
                   <h4 className="font-bold text-rose-900 text-xs">Customer Correction Message</h4>
                   <textarea
                     rows={2}
@@ -1676,7 +1666,7 @@ function AdminBody() {
 
               {/* Courier Form */}
               {showCourierForm && selectedOrder.payment?.status === 'Paid' && (
-                <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl space-y-3">
+                <div id="admin-courier-form" className="p-4 bg-sky-50 border border-sky-200 rounded-2xl space-y-3">
                   <h4 className="font-bold text-sky-900 text-xs">Consignment Courier Details</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
