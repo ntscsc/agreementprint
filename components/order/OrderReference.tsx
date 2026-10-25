@@ -6,12 +6,13 @@ import { Copy, Check } from 'lucide-react';
 const referenceCache = new Map<string, Promise<string>>();
 
 export function OrderReference({ reference }: { reference: string }) {
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState(false);
-  const [publicReference, setPublicReference] = useState(/^AP-\d{6}$/.test(reference) ? reference : '');
+  const [resolved, setResolved] = useState<{ reference: string; value?: string; failed?: boolean } | null>(null);
+  const [clipboard, setClipboard] = useState<{ reference: string; status: 'copied' | 'failed' } | null>(null);
+  const publicReference = /^AP-\d{6}$/.test(reference) ? reference : resolved?.reference === reference ? resolved.value || '' : '';
+  const copied = clipboard?.reference === reference && clipboard.status === 'copied';
+  const error = (resolved?.reference === reference && resolved.failed) || (clipboard?.reference === reference && clipboard.status === 'failed');
   useEffect(() => {
     let active = true;
-    setPublicReference(/^AP-\d{6}$/.test(reference) ? reference : '');
     if (/^AP-\d{6}$/.test(reference)) return;
     if (!referenceCache.has(reference)) referenceCache.set(reference, (async () => {
       const { auth } = await import('@/lib/firebase');
@@ -21,7 +22,7 @@ export function OrderReference({ reference }: { reference: string }) {
       if (!response.ok) throw new Error('Unable to load reference');
       return (await response.json()).reference as string;
     })());
-    referenceCache.get(reference)!.then(value => { if (active) setPublicReference(value); }).catch(() => { referenceCache.delete(reference); if (active) setError(true); });
+    referenceCache.get(reference)!.then(value => { if (active) setResolved({ reference, value }); }).catch(() => { referenceCache.delete(reference); if (active) setResolved({ reference, failed: true }); });
     return () => { active = false; };
   }, [reference]);
 
@@ -29,8 +30,8 @@ export function OrderReference({ reference }: { reference: string }) {
     <span className="whitespace-nowrap font-mono text-sm font-semibold text-stone-900">{publicReference || 'Loading reference...'}</span>
     <button type="button" disabled={!publicReference} aria-label={`Copy order reference ${publicReference}`} title="Copy reference" onClick={async event => {
       event.preventDefault(); event.stopPropagation();
-      try { await navigator.clipboard.writeText(publicReference); setCopied(true); setError(false); setTimeout(() => setCopied(false), 2000); }
-      catch { setError(true); }
+      try { await navigator.clipboard.writeText(publicReference); setClipboard({ reference, status: 'copied' }); setTimeout(() => setClipboard(previous => previous?.reference === reference ? null : previous), 2000); }
+      catch { setClipboard({ reference, status: 'failed' }); }
     }} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 hover:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700">
       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
     </button>

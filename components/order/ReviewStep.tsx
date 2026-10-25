@@ -108,12 +108,9 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
   const [phonePeSdkError, setPhonePeSdkError] = useState<string | null>(null);
   const checkoutAttemptRef = useRef<string | null>(null);
   const [feeReload, setFeeReload] = useState(0);
-  const [couponQuote, setCouponQuote] = useState<{ code: string; key: string; total: number; couponDiscount: number } | null>(null);
-  const [couponBusy, setCouponBusy] = useState(false), [couponError, setCouponError] = useState('');
+  const [couponResult, setCouponResult] = useState<{ requestKey: string; quote?: { code: string; key: string; total: number; couponDiscount: number }; error?: string } | null>(null);
   const quoteKey = JSON.stringify([termsData.stampPaperDenomination, termsData.deliveryLocation, termsData.includeNotary, termsData.extraCopies, submissionError, feeReload]);
   const normalizedCoupon = referralCode.trim().toUpperCase().replace(/[\s-]/g, '');
-  const couponApplied = canApplyReferralCode && couponQuote?.code === normalizedCoupon && couponQuote?.key === quoteKey;
-  const totalAfterCoupon = couponApplied ? couponQuote.total : null;
   const [feeState, setFeeState] = useState<FeeState>({
     loading: true,
     feesConfigured: false,
@@ -126,15 +123,18 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
     statusMessage: '',
     paymentAllowed: false,
   });
+  const couponRequestKey = JSON.stringify([user?.uid, normalizedCoupon, quoteKey, paymentOrderId, feeState.totalPayable]);
+  const couponQuote = canApplyReferralCode && couponResult?.requestKey === couponRequestKey ? couponResult.quote : undefined;
+  const couponApplied = couponQuote?.code === normalizedCoupon && couponQuote?.key === quoteKey;
+  const totalAfterCoupon = couponApplied ? couponQuote.total : null;
+  const canValidateCoupon = Boolean(user && canApplyReferralCode && normalizedCoupon && !phonePeCheckout && !feeState.loading && feeState.quoteKey === quoteKey && feeState.paymentAllowed);
+  const couponBusy = canValidateCoupon && couponResult?.requestKey !== couponRequestKey;
+  const couponError = canValidateCoupon && couponResult?.requestKey === couponRequestKey ? couponResult.error || '' : '';
   const payableTotal = totalAfterCoupon ?? feeState.totalPayable ?? 0;
   useEffect(() => {
-    setCouponQuote(null);
-    setCouponError('');
-    setCouponBusy(false);
-    if (!user || !canApplyReferralCode || !normalizedCoupon || phonePeCheckout || feeState.loading || feeState.quoteKey !== quoteKey || !feeState.paymentAllowed) return;
+    if (!user || !canValidateCoupon) return;
     let active = true;
     const controller = new AbortController();
-    setCouponBusy(true);
     const timer = setTimeout(async () => {
       try {
         const response = await fetch('/api/referrals/validate', {
@@ -151,14 +151,14 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           setFeeReload(value => value + 1);
           throw new Error('The package price changed. Checking your coupon against the refreshed price.');
         }
-        setCouponQuote({ code: normalizedCoupon, key: quoteKey, total: quote.total, couponDiscount: quote.couponDiscount });
+        setCouponResult({ requestKey: couponRequestKey, quote: { code: normalizedCoupon, key: quoteKey, total: quote.total, couponDiscount: quote.couponDiscount } });
         setCreditAmount(value => String(Math.min(Number(value) || 0, quote.total)));
       } catch (err) {
-        if (active) setCouponError(err instanceof Error ? err.message : 'Could not check coupon.');
-      } finally { if (active) setCouponBusy(false); }
+        if (active) setCouponResult({ requestKey: couponRequestKey, error: err instanceof Error ? err.message : 'Could not check coupon.' });
+      }
     }, 500);
     return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [user, canApplyReferralCode, normalizedCoupon, phonePeCheckout, paymentOrderId, quoteKey,
+  }, [user, canValidateCoupon, couponRequestKey, normalizedCoupon, paymentOrderId, quoteKey,
     feeState.loading, feeState.quoteKey, feeState.paymentAllowed, feeState.totalPayable,
     termsData.stampPaperDenomination, termsData.deliveryLocation, termsData.extraCopies, termsData.includeNotary]);
 
@@ -434,7 +434,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <span className="mt-1 block font-normal text-stone-500">
             Use a customer or agent coupon for a discount on this first order.
           </span>
-          {couponBusy && <span role="status" className="mt-2 block font-normal text-stone-600">Checking coupon?</span>}
+          {couponBusy && <span role="status" className="mt-2 block font-normal text-stone-600">Checking coupon...</span>}
           {couponApplied && <span role="status" className="mt-2 block font-semibold text-emerald-800">Coupon applied: ₹{couponQuote.couponDiscount.toLocaleString('en-IN')} off this order.</span>}
           {couponError && <span role="alert" className="mt-2 block font-normal text-rose-800">{couponError}</span>}
         </label>
