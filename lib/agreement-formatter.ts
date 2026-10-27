@@ -123,3 +123,21 @@ export function formatPropertyDescription(type?: string, furnishing?: string, bu
       return `${furn}${type} premises`;
   }
 }
+/** Only an explicitly entered, finite positive deduction belongs in the agreement. */
+export function printablePaintingDeduction(value?: number): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/** Preserve whole-rupee display, but always show both paise digits for fractions. */
+export function formatAgreementAmount(value?: number): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+  return value.toLocaleString('en-IN', {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+export function paintingDeductionSummary(value?: number): string {
+  const amount = printablePaintingDeduction(value);
+  return amount === undefined ? 'None (₹0)' : `₹${formatAgreementAmount(amount)}`;
+}

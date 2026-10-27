@@ -8,12 +8,16 @@ import {
   ArrowLeft,
   Sparkles,
   Layers,
+  Download,
 } from 'lucide-react';
 import { PersonDetails, PropertyDetails, AgreementTerms } from '@/lib/types';
 import { amountInWords } from '@/lib/number-to-words';
 import { TamilRentalAgreement } from '@/components/agreement/TamilRentalAgreement';
+import { PaginatedAgreement } from '@/components/agreement/PaginatedAgreement';
 import { LeaseAgreement } from '@/components/agreement/LeaseAgreement';
 import { 
+  formatAgreementAmount,
+  printablePaintingDeduction,
   formatExecutionDate, 
   formatLegalDate, 
   calculateAgreementEndDate, 
@@ -28,6 +32,7 @@ export interface AgreementDocumentData {
   propertyDetails?: Partial<PropertyDetails>;
   agreementTerms?: Partial<AgreementTerms>;
   orderId?: string;
+  publicReference?: string;
   createdAt?: string;
 }
 
@@ -56,6 +61,8 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
 }) => {
   const [highlightFields, setHighlightFields] = useState<boolean>(true);
   const [stampPaperSpace, setStampPaperSpace] = useState<boolean>(true);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
 
   const owner = data.ownerDetails || {};
   const tenant = data.tenantDetails || {};
@@ -67,7 +74,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
     return addr.trim().replace(/,\s*India$/i, '').trim();
   };
 
-  const executionDate = formatExecutionDate(terms.startDate || data.createdAt);
+  const executionDate = formatExecutionDate(terms.executionDate || terms.startDate || data.createdAt);
   const ownerName = owner.fullName || '';
   const ownerFather = owner.relativeName || '';
   const ownerAge = owner.age ? `${owner.age}` : '';
@@ -81,18 +88,19 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
   const propertyDesc = formatPropertyDescription(prop.propertyType, prop.furnishing, prop.businessName);
   const propertyFullAddress = formatPropertyAddress(prop.fullAddress, prop.city, prop.pincode);
 
-  const rentAmount = terms.monthlyRent ? terms.monthlyRent.toLocaleString('en-IN') : '';
+  const rentAmount = terms.monthlyRent ? formatAgreementAmount(terms.monthlyRent) : '';
   const rentWords = amountInWords(terms.monthlyRent);
   const dueDay = terms.paymentDueDay ? getOrdinal(terms.paymentDueDay) : '5th';
 
   const depositAmount = terms.securityDeposit !== undefined && terms.securityDeposit !== null 
-    ? terms.securityDeposit.toLocaleString('en-IN') 
+    ? formatAgreementAmount(terms.securityDeposit)
     : '';
   const depositWords = terms.securityDeposit === 0 ? 'Zero Rupees' : amountInWords(terms.securityDeposit);
 
   const validFrom = formatLegalDate(terms.startDate);
   const validTo = calculateAgreementEndDate(terms.startDate, terms.tenureMonths || 11);
 
+  const painting = printablePaintingDeduction(terms.paintingDeduction);
   const isEnglish200 = terms.stampPaperDenomination === 200;
   const noticeDays = terms.noticePeriodDays ?? 30;
   const noticePeriod = noticeDays > 0 && noticeDays % 30 === 0
@@ -110,7 +118,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
   const renderBlank = (value: React.ReactNode, isFilled: boolean, emptyWidthClass = 'w-36') => {
     if (!isFilled || !value) {
       return (
-        <span className={`inline-block border-b-2 border-stone-400 ${emptyWidthClass} h-4 align-bottom mx-1`}></span>
+        <span className={`inline-block border-b-2 border-stone-700 ${emptyWidthClass} h-4 align-bottom mx-1`}></span>
       );
     }
     return (
@@ -126,18 +134,27 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
     );
   };
 
-  const handlePrint = () => {
+  const handlePrint = () => { void handleDownload(); };
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    setDownloadError('');
     try {
-      window.print();
-    } catch (err) {
-      console.error('Print trigger error:', err);
+      const source = document.getElementById('agreement-template-source');
+      if (!source) throw new Error('Agreement preview is unavailable.');
+      const { downloadAgreementPdf } = await import('@/lib/agreement-pdf-client');
+      await downloadAgreementPdf(source, data.publicReference || data.orderId || 'counter');
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : 'Unable to download the agreement. Try again.');
+    } finally {
+      setDownloading(false);
     }
   };
 
   const partySignatures = (
-    <div className="mt-8 grid grid-cols-2 gap-8 text-sm">
-      <div><div className="mb-2 border-b border-stone-400 pt-8" /><p className="font-bold">OWNER</p><p className="text-xs">{ownerName}</p></div>
-      <div className="text-right"><div className="mb-2 border-b border-stone-400 pt-8" /><p className="font-bold">TENANT</p><p className="text-xs">{tenantName}</p></div>
+    <div className="agreement-signatures mt-8 grid grid-cols-2 gap-8 text-sm">
+      <div><div className="mb-2 border-b border-stone-700 pt-8" /><p className="font-bold">OWNER</p><p className="text-xs">{ownerName}</p></div>
+      <div className="text-right"><div className="mb-2 border-b border-stone-700 pt-8" /><p className="font-bold">TENANT</p><p className="text-xs">{tenantName}</p></div>
     </div>
   );
 
@@ -176,7 +193,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
 
   return (
     <div
-      className={`w-full max-w-4xl mx-auto space-y-6 ${customerPreview ? 'customer-agreement-preview select-none' : ''}`}
+      className={`w-full min-w-0 max-w-4xl mx-auto space-y-6 ${customerPreview ? 'customer-agreement-preview select-none' : ''}`}
       onContextMenu={customerPreview ? (event) => event.preventDefault() : undefined}
       onCopy={customerPreview ? (event) => event.preventDefault() : undefined}
       onCut={customerPreview ? (event) => event.preventDefault() : undefined}
@@ -236,6 +253,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
           </button>}
 
           {/* Print Action */}
+          {!customerPreview && <button type="button" disabled={downloading} onClick={() => void handleDownload()} className="flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 py-2 text-xs font-bold text-stone-800 disabled:opacity-50"><Download className="h-4 w-4" />{downloading ? 'Preparing PDF...' : 'Save Agreement as PDF'}</button>}
           {!customerPreview && !!terms.extraCopies && <span className="text-sm font-semibold text-stone-800">Print {1 + terms.extraCopies} copies total on ₹{terms.stampPaperDenomination ?? 100} stamp paper. Set the copy count in the print dialog.</span>}
           {!customerPreview && (
             <button
@@ -251,8 +269,9 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
         </div>
       </div>
 
+      {downloadError && <p role="alert" className="no-print rounded-xl bg-rose-50 p-3 text-sm text-rose-900">{downloadError}</p>}
       {/* DOCUMENT CONTAINER */}
-      <div id="printable-agreement-doc" className={`agreement-document-wrapper space-y-8 print:space-y-0 ${customerPreview ? 'customer-agreement-document' : ''}`}>
+      <PaginatedAgreement customerPreview={customerPreview}>
         {terms.agreementType === 'Lease' ? (
           <LeaseAgreement data={data} stampPaperSpace={stampPaperSpace} stampMargin={renderStampPaperAllowance} watermark={customerPreview ? <SampleDraftWatermark /> : undefined} highlightFields={highlightFields} />
         ) : terms.language === 'Tamil' ? (
@@ -279,7 +298,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
             </div>
 
             {/* Execution Clause */}
-            <div className={isEnglish200 ? "space-y-4 text-justify text-[14px] [&_.leading-loose]:leading-[1.6]" : "space-y-6 text-justify"}>
+            <div data-agreement-introductions className="space-y-4 text-justify">
               <p className="leading-loose">
                 This Rental Agreement is executed on the{' '}
                 {renderBlank(executionDate, !!executionDate, 'w-48')}
@@ -312,9 +331,9 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
             </div>
           </div>
 
-          {isEnglish200 && <div className="mt-4 text-justify text-[14px] [&_.leading-loose]:leading-[1.6]">{propertyPreamble}</div>}
+          {isEnglish200 && <div className="mt-4 text-justify">{propertyPreamble}</div>}
           {partySignatures}
-          <div className="text-center pt-8 border-t border-stone-100 text-xs text-stone-400 font-sans print:hidden">
+          <div className="text-center pt-8 border-t border-stone-100 text-xs text-stone-600 font-sans agreement-page-number">
             Page 1 of 3 (Tamil Nadu Non-Judicial Stamping Format)
           </div>
         </section>
@@ -340,7 +359,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
               only) on or before the{' '}
               {renderBlank(dueDay, true, 'w-16')}{' '}
               of every month.
-              {' '}The TENANT shall also pay monthly maintenance of ₹ {renderBlank((terms.maintenanceCharges ?? 0).toLocaleString('en-IN'), true)}/-.
+              {' '}The TENANT shall also pay monthly maintenance of ₹ {renderBlank(formatAgreementAmount(terms.maintenanceCharges ?? 0), true)}/-.
             </p>
 
             {/* Clause 2: Security Deposit */}
@@ -350,7 +369,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
               ({' '}
               {renderBlank(depositWords, !!depositWords, 'w-64')}{' '}
               only) as an interest-free security deposit and advance to the OWNER. When the TENANT vacates the premises, the OWNER shall refund the balance after deducting the cost of any damage and any other amounts due from the TENANT.
-              {prop.propertyType !== 'Commercial Shop' && typeof terms.paintingDeduction === 'number' && terms.paintingDeduction > 0 && <>{' '}The TENANT agrees that ₹ {renderBlank(terms.paintingDeduction.toLocaleString('en-IN'), true)}/- towards painting charges shall be deducted from the security deposit when vacating the premises.</>}
+              {painting !== undefined && <>{' '}The TENANT agrees that ₹ {renderBlank(formatAgreementAmount(painting), true)}/- towards painting charges shall be deducted from the security deposit when vacating the premises.</>}
             </p>
 
             {/* Clause 3: Structural maintenance */}
@@ -362,7 +381,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
           </div>
 
           {partySignatures}
-          <div className="text-center pt-8 border-t border-stone-100 text-xs text-stone-400 font-sans print:hidden">
+          <div className="text-center pt-8 border-t border-stone-100 text-xs text-stone-600 font-sans agreement-page-number">
             Page 2 of 3 (Terms & Conditions)
           </div>
         </section>
@@ -373,7 +392,7 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
           style={{ fontFamily: '"Agreement Symbols", Georgia, Cambria, "Times New Roman", Times, serif' }}
         >
           {customerPreview && <SampleDraftWatermark />}
-          <div className={isEnglish200 ? "space-y-3 text-justify text-[14px] [&_.leading-loose]:leading-[1.6]" : "space-y-6 text-justify"}>
+          <div className={"space-y-4 text-justify"}>
             {isEnglish200 && validityClauses}
             {/* Clause 7 */}
             <p className="leading-loose">
@@ -405,64 +424,25 @@ export const RentalAgreementDocument: React.FC<RentalAgreementDocumentProps> = (
               <strong>12.</strong> If the TENANT fails to pay rent for two consecutive months, the OWNER may ask the TENANT to vacate the premises immediately and deduct the unpaid rent from the advance.
             </p>
 
+            <div data-agreement-closing>
             <div className="pt-6">
               <p className="leading-loose">
                 IN WITNESS WHEREOF the parties have signed this Rental Agreement on the day, month and year first written above in the presence of:
               </p>
             </div>
 
-            {/* Witness & Signature Block */}
-            <div className={`${isEnglish200 ? 'pt-6' : 'pt-10'} grid grid-cols-2 gap-8 text-sm`}>
-              {/* Left Column: Witness */}
-              <div className="space-y-12">
-                <div className="font-bold underline tracking-wider uppercase">
-                  Witness
-                </div>
-                <div className="space-y-8">
-                  <div>
-                    <span className="font-bold">1.</span>
-                    <div className="mt-8 border-b border-stone-400 w-4/5"></div>
-                  </div>
-                  <div>
-                    <span className="font-bold">2.</span>
-                    <div className="mt-8 border-b border-stone-400 w-4/5"></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column: Owner & Tenant Signatures */}
-              <div className={`${isEnglish200 ? 'space-y-10' : 'space-y-16'} text-right sm:pr-8`}>
-                <div>
-                  <div className="mt-8 border-b border-stone-400 w-3/4 ml-auto"></div>
-                  <p className="font-bold tracking-wider uppercase mt-2">
-                    OWNER
-                  </p>
-                  <p className="text-xs text-stone-500 font-sans mt-0.5">
-                    ({owner.fullName || 'Landlord Signature'})
-                  </p>
-                </div>
-
-                <div>
-                  <div className="mt-8 border-b border-stone-400 w-3/4 ml-auto"></div>
-                  <p className="font-bold tracking-wider uppercase mt-2">
-                    TENANT
-                  </p>
-                  <p className="text-xs text-stone-500 font-sans mt-0.5">
-                    ({tenant.fullName || 'Tenant Signature'})
-                  </p>
-                </div>
-              </div>
+            <div className="pt-6 space-y-8"><p className="font-bold">WITNESSES:</p><p>1. ______________________________</p><p>2. ______________________________</p></div>
             </div>
-
           </div>
 
-          <div className="text-center pt-8 border-t border-stone-100 text-xs text-stone-400 font-sans print:hidden">
+          {partySignatures}
+          <div className="text-center pt-8 border-t border-stone-100 text-xs text-stone-600 font-sans agreement-page-number">
             Page 3 of 3 (Witness & Signatures)
           </div>
         </section>
 
         </>)}
-      </div>
+      </PaginatedAgreement>
     </div>
   );
 };

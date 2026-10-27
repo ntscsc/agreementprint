@@ -59,7 +59,7 @@ export async function settleReplacement(requestId: string, state: string, amount
     const replacement = {
       orderId: request.replacementOrderId, ownerUid: original.ownerUid, customerEmail: original.customerEmail,
       customerPhone: request.details.ownerDetails.phone, proofUploads: original.proofUploads || {},
-      ...request.details, status: 'Under verification', createdAt: now, updatedAt: now,
+      ...request.details, status: 'Under verification', stageChangedAt: now, createdAt: now, updatedAt: now,
       replacesOrderId: request.originalOrderId, replacementRequestId: requestId,
       replacementAdjustment: { additionalPayment: q.due, creditReturned: 0,
         refundAmount: 0,

@@ -10,6 +10,13 @@ export const maxDuration = 300;
 export async function GET(req: NextRequest) {
   try {
     if (!(await customIdentity(req)).admin) throw new ApiInputError('Administrator access required.', 403);
+    const requestedId = req.nextUrl.searchParams.get('requestId');
+    if (requestedId) {
+      if (!/^CREF[a-f0-9]{32}$/.test(requestedId)) throw new ApiInputError('Invalid refund request.');
+      const record = await getAdminDb().collection('creditRefundRequests').doc(requestedId).get();
+      if (!record.exists) throw new ApiInputError('Refund request not found.', 404);
+      return NextResponse.json({ refundsAvailable: gatewayCredentials('PhonePe')?.production === true || gatewayCredentials('Razorpay')?.production === true, requests: [{ ...record.data(), requestId: record.id }] }, { headers: { 'Cache-Control': 'no-store' } });
+    }
     const docs = await getAdminDb().collection('creditRefundRequests').where('state', 'in', ['Awaiting approval', 'Processing']).limit(100).get();
     return NextResponse.json({ refundsAvailable: gatewayCredentials('PhonePe')?.production === true || gatewayCredentials('Razorpay')?.production === true, requests: docs.docs.map(doc => doc.data()).sort((a, b) => a.createdAt.localeCompare(b.createdAt)) }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) { return customError(error); }

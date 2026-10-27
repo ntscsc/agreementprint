@@ -352,11 +352,11 @@
     padding-top: 6in !important;
     height: auto !important;
     display: block !important;
-    font-size: 12px !important;
-    line-height: 1.4 !important;
+    font-size: 14px !important;
+    line-height: 1.65 !important;
   }
   .agreement-page:has(.stamp-paper-allowance) :is(p, .leading-loose) {
-    line-height: 1.4 !important;
+    line-height: 1.65 !important;
   }
   .agreement-page:has(.stamp-paper-allowance) [class*="space-y-"] > :not(:last-child):not(.stamp-paper-allowance) {
     margin-block-end: 1.5mm !important;
@@ -514,3 +514,57 @@
 .google-signin-button:hover:not(:disabled) { background-color: #185abc; }
 .google-signin-button:disabled { opacity: .5; cursor: wait; }
 .google-signin-logo { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 6px; background: #ffffff; }
+
+/* Shared document metrics for both stamp denominations. Never scale text to fit. */
+.agreement-page { font-size: 14px; line-height: 1.65; }
+.agreement-page .leading-loose { line-height: 1.65; }
+.agreement-signatures { flex-shrink: 0; min-height: 30mm; break-inside: avoid; }
+.agreement-signatures > div > div { padding-top: 15mm !important; border-color: #44403c !important; }
+.agreement-page-number { flex-shrink: 0; color: #44403c; }
+
+/* Fit the physical sheet to the screen without changing document pagination. */
+.agreement-preview-viewport { width: 100%; min-width: 0; }
+@media screen {
+  .agreement-preview-viewport { overflow: hidden; }
+  .agreement-preview-viewport > .agreement-document-wrapper {
+    width: 210mm;
+    margin-inline: auto;
+    zoom: var(--agreement-preview-scale, 1);
+  }
+}
+@media print {
+  .agreement-preview-viewport { overflow: visible; }
+  .agreement-document-wrapper { zoom: 1 !important; }
+}
+
+/* A quiet entrance and a slim colour accent for customer request details. */
+.customer-request-panel { animation: request-panel-enter 180ms ease-out both; }
+.customer-request-panel::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, #0284c7, #6366f1, #a5b4fc);
+}
+@keyframes request-panel-enter {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer-request-panel { animation: none; }
+}
+
+/* Keep form edges in the same palette as their admin request section. */
+.custom-request-admin [aria-label="Manage request"] :is(input, select, textarea, fieldset) {
+  border-color: #c7d2fe;
+}
+.custom-request-admin [aria-label="Courier delivery"] :is(input, select, textarea) {
+  border-color: #7dd3fc;
+}
+
+/* Match link and disabled-button sizing beneath workflow icons. */
+.workflow-whatsapp-action,
+.admin-portal .workflow-whatsapp-action {
+  min-height: 24px;
+  padding: 2px 6px;
+  font-size: 10px;
+  line-height: 14px;
+  box-sizing: border-box;
+}

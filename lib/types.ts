@@ -35,10 +35,11 @@ export interface AgreementTerms {
   /** Missing on older orders means Rental. */
   agreementType?: 'Rental' | 'Lease';
   language?: 'English' | 'Tamil'; // Missing on legacy orders means English.
-  paintingDeduction?: number; // Residential rental painting deduction; not used in shop or lease templates.
+  paintingDeduction?: number; // Printed for all agreement variants only when positive.
   monthlyRent: number;
   securityDeposit: number;
   maintenanceCharges: number;
+  executionDate?: string; // Signing date; legacy agreements fall back to the start date.
   startDate: string;
   tenureMonths: number; // typically 11 months
   noticePeriodDays: number;
@@ -63,6 +64,9 @@ export interface ProofUploads {
 }
 
 export interface OrderPayment {
+  checkoutClosed?: boolean;
+  retryAvailable?: boolean;
+  reviewRequired?: boolean;
   carriedFromOrderId?: string;
   carriedCash?: number;
   carriedCredit?: number;
@@ -100,6 +104,11 @@ export interface OrderCourier {
 }
 
 export interface Order {
+  stageChangedAt?: string;
+  detailsVerifiedAt?: string;
+  preparationCompletedAt?: string;
+  preparationChecks?: { details: boolean; stampAndCopies: boolean; signingSpace: boolean };
+  completedAt?: string;
   publicReference?: string;
   cancellationRefundId?: string;
   cancellationRefundAmount?: number;

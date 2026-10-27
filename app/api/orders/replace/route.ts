@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         }
         const now = new Date().toISOString();
         if (quote.total === quote.alreadyPaid) {
-          const updates = { ...details, customerPhone: body.ownerDetails.phone, status: 'Under verification', updatedAt: now };
+          const updates = { ...details, customerPhone: body.ownerDetails.phone, status: 'Under verification', stageChangedAt: now, updatedAt: now };
           const before = Object.fromEntries(['ownerDetails', 'tenantDetails', 'propertyDetails', 'agreementTerms'].map(key => [key, original[key]]));
           tx.update(originalRef, updates);
           tx.create(editHistoryRef, { orderId: body.orderId, actorUid: user.uid, sameOrderEdit: true, createdAt: now, before, after: details, quote });

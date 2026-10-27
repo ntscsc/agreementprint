@@ -1,4 +1,4 @@
-export const CUSTOM_STATUSES = ['Submitted', 'Under Review', 'Clarification Required', 'Quote Sent', 'Quoted / Awaiting Payment', 'Accepted', 'In Progress', 'Completed', 'Declined', 'Cancelled'] as const;
+export const CUSTOM_STATUSES = ['Submitted', 'Under Review', 'Clarification Required', 'Quote Sent', 'Quoted / Awaiting Payment', 'Accepted', 'In Progress', 'Awaiting Approval', 'Ready', 'Dispatched', 'Completed', 'Declined', 'Cancelled'] as const;
 export type CustomStatus = typeof CUSTOM_STATUSES[number];
 export const MAX_SAMPLE_SIZE = 10 * 1024 * 1024;
 export const SAMPLE_TYPES: Record<string, string> = {
@@ -13,11 +13,22 @@ export interface CustomInput {
 }
 export interface SampleDescriptor { id: string; name: string; size: number; contentType: string; path: string; }
 export interface CustomRequest extends CustomInput {
+  courier?: { courierName: string; trackingNumber: string; dispatchedAt: string };
+  deliveredAt?: string;
+  publicReference?: string;
+  acceptedAt?: string;
+  quoteValidUntil?: string; quoteBreakdown?: QuoteBreakdown | null; quoteHistory?: QuoteRevision[];
+  deadlineHistory?: { date: string; previousDate: string; reason: string; at: string }[];
+  documents?: CustomDocument[];
+  customerApproval?: { status: 'Pending' | 'Approved' | 'Changes requested'; documentId: string; at: string; message?: string };
   requestId: string; status: CustomStatus | 'Uploading'; createdAt: string; updatedAt: string;
   files: Record<string, SampleDescriptor>; quoteAmount?: number; quoteBaseAmount?: number; extraCopyFee?: number; expectedDate?: string;
-  payment?: { status: 'Pending' | 'Paid' | 'Failed'; amount: number; merchantOrderId: string };
+  payment?: { status: 'Pending' | 'Paid' | 'Failed'; amount: number; merchantOrderId: string; startedAt?: string; checkoutClosed?: boolean; retryAvailable?: boolean; reviewRequired?: boolean; lastCheckedAt?: string };
   customerMessage?: string; customerReply?: string; internalNotes?: string; assignedTo?: string;
 }
+export interface QuoteBreakdown { drafting: number; stampPaper: number; notary: number; delivery: number; }
+export interface QuoteRevision { at: string; amount: number; baseAmount: number; extraCopyFee: number; validUntil: string; breakdown?: QuoteBreakdown; }
+export interface CustomDocument extends SampleDescriptor { kind: 'draft' | 'final'; uploadedAt: string; version: number; publishedAt?: string; }
 
 // Older reviews could save a quote while leaving the request Submitted.
 export function customQuoteStatus(request: { status?: string; quoteAmount?: number; quoteBaseAmount?: number; extraCopyFee?: number; payment?: { status?: string } }): string | undefined {
@@ -48,7 +59,7 @@ export function validateCustomInput(value: unknown): CustomInput {
     phone: bounded(d.phone, 'Mobile number', 10, 10), email: bounded(d.email ?? '', 'Email', 0, 254),
     preferredDate: bounded(d.preferredDate ?? '', 'Preferred date', 0, 10), contactConsent: d.contactConsent === true, includeNotary: d.includeNotary === true,
   };
-  if (!['English', 'Tamil', 'Both', 'Other'].includes(result.language)) throw new Error('Select a preferred language.');
+  if (!['English', 'Tamil'].includes(result.language)) throw new Error('Select a preferred language.');
   if (!/^[6-9]\d{9}$/.test(result.phone)) throw new Error('Enter a valid 10-digit Indian mobile number.');
   if (result.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result.email)) throw new Error('Enter a valid email address.');
   if (result.preferredDate && !validDate(result.preferredDate)) throw new Error('Enter a valid preferred date.');
@@ -71,7 +82,8 @@ const transitions: Record<CustomStatus, readonly CustomStatus[]> = {
   'Clarification Required': ['Under Review', 'Declined', 'Cancelled'],
   'Quote Sent': ['Accepted', 'Quoted / Awaiting Payment', 'Under Review', 'Declined', 'Cancelled'],
   'Quoted / Awaiting Payment': ['Accepted', 'Under Review', 'Declined', 'Cancelled'],
-  Accepted: ['In Progress', 'Cancelled'], 'In Progress': ['Completed', 'Cancelled'],
+  Accepted: ['In Progress', 'Cancelled'], 'In Progress': ['Awaiting Approval', 'Cancelled'],
+  'Awaiting Approval': ['In Progress', 'Ready', 'Cancelled'], Ready: ['Dispatched', 'Cancelled'], Dispatched: ['Completed'],
   Completed: [], Declined: [], Cancelled: [],
 };
 export function canTransition(from: CustomStatus, to: CustomStatus) { return from === to || transitions[from]?.includes(to) === true; }

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test tests/validation.test.ts tests/fee-calculation.test.ts tests/security-rules-validation.test.ts tests/agreement-document.test.ts tests/pincode-utils.test.ts tests/referral.test.ts tests/agent-referral.test.ts tests/draft-sanitization.test.ts tests/payment-attempt.test.ts tests/payment-gateway.test.ts tests/high-severity.test.ts tests/pricing-validation.test.ts tests/clean.test.mjs tests/dependency-safety.test.mjs tests/checkout-client.test.ts tests/custom-agreements.test.ts tests/api-response.test.ts tests/file-storage.test.ts tests/phonepe-test-product.test.ts tests/order-bill.test.ts tests/tamil-agreement.test.ts tests/lease-agreement.test.ts tests/agreement-regressions.test.ts tests/admin-display.test.ts tests/admin-reports.test.ts tests/report-analytics.test.ts",
+    "test": "node --experimental-strip-types --test tests/validation.test.ts tests/fee-calculation.test.ts tests/security-rules-validation.test.ts tests/agreement-document.test.ts tests/pincode-utils.test.ts tests/referral.test.ts tests/agent-referral.test.ts tests/agent-dashboard.test.ts tests/draft-sanitization.test.ts tests/payment-attempt.test.ts tests/payment-gateway.test.ts tests/high-severity.test.ts tests/pricing-validation.test.ts tests/clean.test.mjs tests/dependency-safety.test.mjs tests/checkout-client.test.ts tests/custom-agreements.test.ts tests/api-response.test.ts tests/file-storage.test.ts tests/phonepe-test-product.test.ts tests/order-bill.test.ts tests/tamil-agreement.test.ts tests/lease-agreement.test.ts tests/agreement-regressions.test.ts tests/admin-display.test.ts tests/admin-workflow.test.ts tests/admin-reports.test.ts tests/report-analytics.test.ts tests/rent-receipt.test.ts",
     "clean": "node scripts/clean.mjs",
     "test:rules": "firebase emulators:exec --config firebase.test.json --project demo-stampsure-tests --only firestore,storage \"node --test tests/firebase-rules.emulator.test.mjs\"",
     "postinstall": "node scripts/patch-braces.mjs"
@@ -21,6 +21,8 @@
     "clsx": "^2.1.1",
     "firebase": "^12.19.0",
     "firebase-admin": "^14.5.0",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.553.0",
     "motion": "^12.23.24",
     "next": "^15.4.9",

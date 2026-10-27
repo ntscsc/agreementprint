@@ -11,7 +11,6 @@ export function validateCounterAgreement(value: Record<string, any>) {
   validatePerson(value.ownerDetails, 'owner');
   validatePerson(value.tenantDetails, 'tenant');
   validateProperty(value.propertyDetails);
-  validateTerms(value.agreementTerms);
-  if (value.agreementTerms.agreementType === 'Lease' && !['House', 'Flat'].includes(value.propertyDetails.propertyType)) throw new ApiInputError('Lease agreements are available for residential properties only.');
-  if (value.agreementTerms.language === 'Tamil' && value.propertyDetails.propertyType !== 'Commercial Shop' && (typeof value.agreementTerms.paintingDeduction !== 'number' || !Number.isFinite(value.agreementTerms.paintingDeduction) || value.agreementTerms.paintingDeduction < 0 || value.agreementTerms.paintingDeduction > 1e9)) throw new ApiInputError('Enter a valid painting deduction, or 0 for none.');
+  validateTerms(value.agreementTerms, true);
+  if (value.agreementTerms.agreementType !== 'Lease' && value.agreementTerms.language === 'Tamil' && value.propertyDetails.propertyType !== 'Commercial Shop' && (typeof value.agreementTerms.paintingDeduction !== 'number' || !Number.isFinite(value.agreementTerms.paintingDeduction) || value.agreementTerms.paintingDeduction < 0 || value.agreementTerms.paintingDeduction > 1e9)) throw new ApiInputError('Enter a valid painting deduction, or 0 for none.');
 }

@@ -1,13 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { customIdentity, customError } from '@/lib/custom-request-server';
-import { ApiInputError, readJsonObject } from '@/lib/api-input';
+import { ApiInputError, readJsonObject, validDocumentId } from '@/lib/api-input';
 
 export const runtime = 'nodejs';
 export async function GET(req: NextRequest) {
   try {
     if (!(await customIdentity(req)).admin) throw new ApiInputError('Administrator access required.', 403);
     const collection = getAdminDb().collection('orderReplacements');
+    const orderId = req.nextUrl.searchParams.get('orderId');
+    if (orderId) {
+      if (!validDocumentId(orderId)) throw new ApiInputError('Invalid order reference.');
+      const snapshots = await Promise.all([collection.where('originalOrderId', '==', orderId).limit(101).get(), collection.where('replacementOrderId', '==', orderId).limit(101).get()]);
+      const records = new Map(snapshots.flatMap(snapshot => snapshot.docs).map(doc => [doc.id, { ...doc.data(), requestId: doc.id }]));
+      if (records.size > 100) throw new ApiInputError('This order has more than 100 changes. Contact support for its full history.', 409);
+      return NextResponse.json({ requests: [...records.values()].sort((a, b) => String((b as Record<string, any>).createdAt || '').localeCompare(String((a as Record<string, any>).createdAt || ''))) }, { headers: { 'Cache-Control': 'no-store' } });
+    }
+    const requestedId = req.nextUrl.searchParams.get('requestId');
+    if (requestedId) {
+      if (!/^REPLPAY[a-f0-9]{32}$/.test(requestedId)) throw new ApiInputError('Invalid change request.');
+      const record = await collection.doc(requestedId).get();
+      if (!record.exists) throw new ApiInputError('Change request not found.', 404);
+      return NextResponse.json({ requests: [{ ...record.data(), requestId: record.id }] }, { headers: { 'Cache-Control': 'no-store' } });
+    }
     const [reviews, refunds] = await Promise.all([
       collection.where('state', '==', 'Review required').limit(100).get(),
       collection.where('refundStatus', '==', 'Requested').limit(100).get(),
@@ -23,10 +38,13 @@ export async function PATCH(req: NextRequest) {
     const body = await readJsonObject(req);
     if (!/^REPLPAY[a-f0-9]{32}$/.test(body.requestId || '') || typeof body.notes !== 'string' || body.notes.trim().length < 5 || body.notes.length > 2000) throw new ApiInputError('Select a request and enter review notes or the refund transfer reference.');
     const db = getAdminDb(), ref = db.collection('orderReplacements').doc(body.requestId);
-    await db.runTransaction(async tx => {
+    const order = await db.runTransaction(async tx => {
       const record = (await tx.get(ref)).data();
       if (!record) throw new ApiInputError('Request not found.', 404);
       const originalRef = db.collection('orders').doc(record.originalOrderId), original = (await tx.get(originalRef)).data();
+      if (body.orderId !== undefined && body.orderId !== record.originalOrderId && body.orderId !== record.replacementOrderId) throw new ApiInputError('This change request does not belong to the selected order.', 409);
+      const selectedReplacement = body.orderId === record.replacementOrderId && body.orderId !== record.originalOrderId;
+      const selected = selectedReplacement ? (await tx.get(db.collection('orders').doc(record.replacementOrderId))).data() : original;
       const now = new Date().toISOString();
       if (body.action === 'refund-recorded' && ['Completed', 'Abandoned', 'Failed'].includes(record.state) && record.refundStatus === 'Requested' && record.refundAmount > 0) {
         tx.update(ref, { refundStatus: 'Refunded', refundReference: body.notes.trim(), refundedAt: now, refundedBy: identity.uid, updatedAt: now });
@@ -36,7 +54,11 @@ export async function PATCH(req: NextRequest) {
         if (original?.modificationReviewId === body.requestId) tx.update(originalRef, { modificationReviewId: null, modificationReviewOutcome: body.notes.trim(), updatedAt: now });
       } else throw new ApiInputError('This action is not available for the request.', 409);
       tx.create(db.collection('adminLogs').doc(), { orderId: record.originalOrderId, requestId: body.requestId, adminUid: identity.uid, action: body.action, notes: body.notes.trim(), timestamp: now });
+      return selected ? { ...selected, orderId: selectedReplacement ? record.replacementOrderId : record.originalOrderId,
+        ...(body.action === 'reviewed' && selected.modificationReviewId === body.requestId ? { modificationReviewId: null, modificationReviewOutcome: body.notes.trim(), updatedAt: now } : {}),
+        ...(selectedReplacement && body.action === 'refund-recorded' && record.state === 'Completed' ? { replacementAdjustment: { ...selected.replacementAdjustment, refundStatus: 'Refunded' }, updatedAt: now } : {}),
+      } : null;
     });
-    return NextResponse.json({ saved: true });
+    return NextResponse.json({ saved: true, order });
   } catch (error) { return customError(error); }
 }

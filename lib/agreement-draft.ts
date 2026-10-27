@@ -4,7 +4,7 @@ export function restoreAgreementTerms(saved: Partial<AgreementTerms> = {}): Part
   return {
     agreementType: 'Rental',
     language: 'English',
-    paintingDeduction: 5000,
+    paintingDeduction: 0,
     monthlyRent: undefined,
     securityDeposit: undefined,
     maintenanceCharges: 0,

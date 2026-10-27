@@ -207,3 +207,12 @@
   .admin-tidy .admin-hero { flex-direction: row; align-items: center; flex-wrap: wrap; }
   .admin-tidy .admin-hero h1 { font-size: 20px; }
 }
+
+/* Header actions share clear pointer, hover and keyboard feedback. */
+.admin-tidy .admin-website-link,
+.admin-tidy .admin-refresh { cursor: pointer; }
+.admin-tidy .admin-website-link:hover { background: #dbeafe; border-color: #93c5fd; }
+.admin-tidy .admin-refresh:hover:not(:disabled) { background: #094d83; box-shadow: 0 3px 8px rgb(11 94 158 / 18%); }
+.admin-tidy .admin-website-link:focus-visible,
+.admin-tidy .admin-refresh:focus-visible { outline: 2px solid #0284c7; outline-offset: 3px; }
+.admin-tidy .admin-refresh:disabled { cursor: wait; }

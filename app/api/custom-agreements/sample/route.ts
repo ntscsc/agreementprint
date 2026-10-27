@@ -8,12 +8,16 @@ export async function GET(req: NextRequest) {
   try {
     const identity = await customIdentity(req);
     const id = requestReference(req.nextUrl.searchParams.get('requestId')), sampleId = req.nextUrl.searchParams.get('sampleId') ?? '';
-    if (!/^sample-[1-3]$/.test(sampleId)) throw new ApiInputError('Invalid sample reference.');
+    const documentId = req.nextUrl.searchParams.get('documentId');
+    if (!documentId && !/^sample-[1-3]$/.test(sampleId)) throw new ApiInputError('Invalid sample reference.');
     const data = (await getAdminDb().collection('customAgreementRequests').doc(id).get()).data();
     if (!data || (!identity.admin && data.ownerUid !== identity.uid)) throw new ApiInputError('Sample not found.', 404);
-    if ((data.verificationStatus !== 'Validated' && data.scanStatus !== 'Clean') || !data.files[sampleId]) throw new ApiInputError('Samples are unavailable until verification completes.', 409);
-    const sample = data.files[sampleId];
-    const url = await createPrivateDownloadUrl(sample.path, sample.name);
+    const sample = documentId ? data.documents?.find((d: { id: string }) => d.id === documentId) : data.files?.[sampleId];
+    if (documentId && sample?.kind === 'draft' && !identity.admin && !sample.publishedAt) throw new ApiInputError('Draft not shared for approval yet.', 404);
+    if (!sample || (!documentId && data.verificationStatus !== 'Validated' && data.scanStatus !== 'Clean')) throw new ApiInputError('The file is unavailable until verification completes.', 409);
+    const inline = req.nextUrl.searchParams.get('preview') === '1';
+    if (inline && !['application/pdf', 'image/jpeg', 'image/png'].includes(sample.contentType)) throw new ApiInputError('Preview is available for PDFs and images.');
+    const url = await createPrivateDownloadUrl(sample.path, sample.name, inline);
     return NextResponse.json({ url }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) { return customError(error); }
 }

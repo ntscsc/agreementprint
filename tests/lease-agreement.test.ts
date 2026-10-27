@@ -56,3 +56,34 @@ test('Lease validation rejects rent, escalation, Tamil, zero advance and commerc
   assert.ok(checkoutDetailsChanged({ agreementTerms: rental }, { agreementTerms: terms }));
   assert.equal(restoreAgreementTerms({ agreementType: 'Lease' }).agreementType, 'Lease');
 });
+
+
+test('Counter accepts home/shop leases in both languages and stamp values with an independent execution date', () => {
+  const { validateCounterAgreement } = load('@/lib/counter-order');
+  const person = { fullName: 'Example Person', relativeName: 'Example Parent', age: 30, address: '12 Example Street Chennai', pincode: '600001', phone: '9876543210' };
+  for (const language of ['English', 'Tamil']) for (const propertyType of ['House', 'Commercial Shop']) for (const stampPaperDenomination of [100, 200]) {
+    const data = { ownerDetails: person, tenantDetails: person,
+      propertyDetails: { fullAddress: '12 Example Street Chennai', city: 'Chennai', pincode: '600001', propertyType, furnishing: 'Unfurnished', businessName: 'Example Stores' },
+      agreementTerms: { ...terms, language, stampPaperDenomination, executionDate: '2026-10-15' } };
+    assert.doesNotThrow(() => validateCounterAgreement(data));
+    const React = require('react'), { renderToStaticMarkup } = require('react-dom/server');
+    const html = renderToStaticMarkup(React.createElement(load('@/components/agreement/RentalAgreementDocument').RentalAgreementDocument, { data, blankStampSpace: true }));
+    const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    assert.ok(text.includes('15'), 'execution day');
+    assert.ok(text.includes('17'), 'start day');
+    assert.ok(text.includes('2,50,000'));
+    assert.doesNotMatch(text, /\?{3}/);
+    assert.equal((html.match(/class="agreement-page /g) || []).length, 3);
+    assert.equal((html.match(/class="stamp-paper-allowance/g) || []).length, stampPaperDenomination === 200 ? 2 : 1);
+    if (propertyType === 'Commercial Shop') {
+      assert.ok(text.includes('Example Stores'));
+      assert.doesNotMatch(text, /only for residential|shall not carry on any business/);
+    }
+    if (language === 'Tamil') {
+      const ta = require('../src/content/tamil-lease-template.json');
+      assert.ok(text.includes(ta.title));
+      if (propertyType === 'Commercial Shop') assert.ok(!text.includes(ta.noBusiness));
+    }
+    for (const patch of [{ executionDate: '2026-02-30' }, { executionDate: '' }, { monthlyRent: 1 }, { securityDeposit: 0 }]) assert.throws(() => validateCounterAgreement({ ...data, agreementTerms: { ...data.agreementTerms, ...patch } }));
+  }
+});

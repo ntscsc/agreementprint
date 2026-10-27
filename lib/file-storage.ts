@@ -30,9 +30,9 @@ export async function uploadPrivateFile(path: string, bytes: Buffer, contentType
   if (existing.contentType !== contentType || !existing.bytes.equals(bytes)) throw new ApiInputError('This sample has already been uploaded with different contents.', 409);
 }
 
-export async function createPrivateDownloadUrl(path: string, fileName: string): Promise<string> {
+export async function createPrivateDownloadUrl(path: string, fileName: string, inline = false): Promise<string> {
   const name = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const { data, error } = await getFileStorage().createSignedUrl(path, 60, { download: name });
+  const { data, error } = await getFileStorage().createSignedUrl(path, 60, inline ? {} : { download: name });
   if (error || !data?.signedUrl) throw new ApiInputError('Your download could not be prepared. Please try again.', 503);
   return data.signedUrl;
 }

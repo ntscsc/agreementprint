@@ -29,6 +29,19 @@ const db = (uid = 'customer', claims = {}) => env.authenticatedContext(uid, clai
 const admin = () => db('admin', { email: 'pradeep1992official@gmail.com', email_verified: true });
 const seed = async (path, data) => env.withSecurityRulesDisabled(async (context) => setDoc(doc(context.firestore(), path), data));
 
+test('workflow stage and check fields cannot be changed by direct admin client writes', async () => {
+  await seed('orders/order-1', { ...order(), status: 'Under verification', payment: { status: 'Paid', amount: 350 } });
+  const target = doc(admin(), 'orders/order-1');
+  for (const changes of [
+    { status: 'Delivered', preparationStartedAt: '2026-10-26T00:00:00Z' },
+    { status: 'Dispatched', courier: { courierName: 'Courier', trackingNumber: 'ABC', dispatchedAt: '2026-10-26T00:00:00Z' } },
+    { detailsVerifiedAt: '2026-10-26T00:00:00Z' },
+    { preparationCompletedAt: '2026-10-26T00:00:00Z', preparationChecks: { details: true, stampAndCopies: true, signingSpace: true } },
+    { stageChangedAt: '2026-10-26T00:00:00Z' },
+  ]) await assertFails(updateDoc(target, changes));
+  await assertSucceeds(updateDoc(target, { notes: 'Internal follow-up note.' }));
+});
+
 test('Tamil order language and painting deduction are validated without breaking legacy orders', async () => {
   const legacy = order();
   const tamil = { ...legacy, agreementTerms: { ...legacy.agreementTerms, language: 'Tamil', paintingDeduction: 0 } };
@@ -43,6 +56,24 @@ test('Tamil order language and painting deduction are validated without breaking
   await assertFails(create({ ...tamil, agreementTerms: missing }));
   await assertSucceeds(create({ ...tamil, agreementTerms: missing, propertyDetails: { ...tamil.propertyDetails, propertyType: 'Commercial Shop', businessName: 'Test shop' } }));
   await assertFails(create({ ...tamil, agreementTerms: missing, propertyDetails: { ...tamil.propertyDetails, propertyType: 'Commercial Shop', businessName: '' } }));
+});
+
+test('Painting deduction is capped by the deposit on customer creation and admin edits', async () => {
+  const base = order();
+  for (const [index, paintingDeduction] of [0, 50000, 50000.01, 50001].entries()) {
+    const orderId = `painting-${index}`;
+    const value = { ...base, orderId, agreementTerms: { ...base.agreementTerms, securityDeposit: 50000, paintingDeduction } };
+    const write = setDoc(doc(db(), 'orders', orderId), value);
+    if (paintingDeduction <= 50000) await assertSucceeds(write);
+    else await assertFails(write);
+  }
+  const orderId = 'painting-admin';
+  await seed(`orders/${orderId}`, { ...base, orderId, agreementTerms: { ...base.agreementTerms, securityDeposit: 50000, paintingDeduction: 50000 } });
+  const target = doc(admin(), 'orders', orderId);
+  await assertFails(updateDoc(target, { 'agreementTerms.paintingDeduction': 50001 }));
+  await assertFails(updateDoc(target, { 'agreementTerms.securityDeposit': 49999 }));
+  await assertSucceeds(updateDoc(target, { 'agreementTerms.paintingDeduction': 0, 'agreementTerms.securityDeposit': 0 }));
+  await assertFails(updateDoc(target, { 'agreementTerms.paintingDeduction': 0.01 }));
 });
 
 test('agent attribution and rewards cannot be read or forged through client SDKs', async () => {

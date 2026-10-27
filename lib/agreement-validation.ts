@@ -46,22 +46,31 @@ export function validateProperty(value: unknown) {
   if (data.propertyType === 'Commercial Shop') text(data.businessName, 'business name', 2, 200);
 }
 
-export function validateTerms(value: unknown) {
+export function paintingDeductionError(deduction: unknown, deposit: unknown): string | undefined {
+  if (typeof deduction === 'number' && Number.isFinite(deduction) && typeof deposit === 'number' && Number.isFinite(deposit) && deduction > deposit) {
+    return 'Painting deduction cannot exceed the security deposit or refundable lease advance.';
+  }
+}
+
+export function validateTerms(value: unknown, allowExpandedLease = false) {
   const data = object(value, 'Agreement terms');
   if (data.agreementType !== undefined) choice(data.agreementType, 'agreement type', ['Rental', 'Lease']);
   const isLease = data.agreementType === 'Lease';
-  if (isLease && data.language !== 'English') throw new ApiInputError('Lease agreements are available in English.');
+  if (isLease && !allowExpandedLease && data.language !== 'English') throw new ApiInputError('Lease agreements are available in English.');
   if (isLease && (data.monthlyRent !== 0 || data.rentIncreasePct !== 0)) throw new ApiInputError('Lease agreements have no separate monthly rent or annual rent increase.');
   if (isLease) number(data.securityDeposit, 'refundable lease advance', 0.01, 1e9);
   if (data.language !== undefined) choice(data.language, 'agreement language', ['English', 'Tamil']);
   if (data.paintingDeduction !== undefined) number(data.paintingDeduction, 'painting deduction', 0, 1e9);
   number(data.monthlyRent, 'monthly rent', isLease ? 0 : 0.01, 1e9);
   for (const key of ['securityDeposit', 'maintenanceCharges']) number(data[key], key, 0, 1e9);
+  const paintingError = paintingDeductionError(data.paintingDeduction, data.securityDeposit);
+  if (paintingError) throw new ApiInputError(paintingError);
   number(data.tenureMonths, 'tenure', 1, 120, true);
   number(data.noticePeriodDays, 'notice period', 0, 365, true);
   number(data.rentIncreasePct, 'rent increase', 0, 100);
   if (data.paymentDueDay !== undefined) number(data.paymentDueDay, 'payment due day', 1, 31, true);
   if (typeof data.startDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.startDate) || !Number.isFinite(Date.parse(data.startDate)) || new Date(data.startDate).toISOString().slice(0, 10) !== data.startDate) throw new ApiInputError('Enter a valid agreement start date.');
+  if (data.executionDate !== undefined && (typeof data.executionDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.executionDate) || !Number.isFinite(Date.parse(data.executionDate)) || new Date(data.executionDate).toISOString().slice(0, 10) !== data.executionDate)) throw new ApiInputError('Enter a valid execution date.');
   if (data.extraCopies !== undefined && (typeof data.extraCopies !== 'number' || !Number.isSafeInteger(data.extraCopies) || data.extraCopies < 0 || data.extraCopies > 100)) throw new ApiInputError('Choose a whole number of extra copies between 0 and 100.');
   choice(data.stampPaperDenomination, 'stamp denomination', [100, 200]);
   choice(data.deliveryLocation, 'delivery region', ['Within Chennai', 'Within Tamil Nadu']);

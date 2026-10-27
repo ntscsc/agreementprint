@@ -1,0 +1,1 @@
+const fs=require('fs');let s=fs.readFileSync('tmp/verify-pdf-fixes.cjs','utf8');const a=s.indexOf("for(const [kind,label]of ");const b=s.indexOf('for(const stamp',a);s=s.slice(0,a)+"for(const [kind,label]of [['tamil-lease-shop','Tamil shop lease']])"+s.slice(b);fs.writeFileSync('tmp/verify-tamil-fix.cjs',s);

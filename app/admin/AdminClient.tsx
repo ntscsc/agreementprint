@@ -1,5 +1,9 @@
 'use client';
+import { ListFilters, DateFilterFields, useListDates } from '@/components/ui/ListFilters';
+import { paintingDeductionSummary } from '@/lib/agreement-formatter';
 
+import { AdminWorkQueue } from '@/components/admin/AdminWorkQueue';
+import { OrderWorkflowPanel } from '@/components/admin/OrderWorkflowPanel';
 import { WalkInCounter } from '@/components/admin/WalkInCounter';
 import { PaymentGatewaySettings } from '@/components/admin/PaymentGatewaySettings';
 import { AdminReportDownload } from '@/components/admin/AdminReportDownload';
@@ -11,20 +15,19 @@ import { readApiResponse } from '@/lib/api-response';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { 
-  ShieldCheck, 
-  Search, 
-  Filter, 
-  Clock, 
-  CheckCircle2, 
-  AlertCircle, 
-  Truck, 
-  FileText, 
-  Eye, 
-  Send, 
-  RefreshCw, 
-  Lock, 
-  UserCheck, 
+import {
+  ShieldCheck,
+  Search,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Truck,
+  FileText,
+  Eye,
+  Send,
+  RefreshCw,
+  Lock,
+  UserCheck,
   X,
   ExternalLink,
   ChevronRight,
@@ -48,19 +51,18 @@ import { AdminMilestone } from '@/components/AdminMilestone';
 import { CreditRefundRequests } from '@/components/admin/CreditRefundRequests';
 import { OrderCorrectionHistory } from '@/components/order/OrderCorrectionHistory';
 import { OrderReplacementRequests } from '@/components/admin/OrderReplacementRequests';
-import { AdminVisitorStats } from '@/components/admin/AdminVisitorStats';
 import { CustomRequests } from '@/components/custom-agreements/CustomRequests';
 import { db } from '@/lib/firebase';
-import { 
-  collection, 
+import {
+  collection,
   getDocs,
   onSnapshot,
   deleteDoc,
-  doc, 
-  updateDoc, 
+  doc,
+  updateDoc,
   setDoc
 } from 'firebase/firestore';
-import { Order, OrderStatus } from '@/lib/types';
+import { Order } from '@/lib/types';
 import { checkIsAdmin } from '@/lib/order-service';
 import { ADMIN_EMAIL, isUserAdmin } from '@/src/config/admin';
 import { RentalAgreementDocument } from '@/components/agreement/RentalAgreementDocument';
@@ -68,7 +70,7 @@ import { DEFAULT_PRICING, PricingConfig, PRICING_MINIMUMS, MAX_PRICING_AMOUNT, P
 import { getPricingConfig, savePricingConfig } from '@/lib/pricing-service';
 
 import { DEFAULT_SUPPORT_EMAIL, getSupportEmail, saveSupportEmail } from '@/lib/support-email';
-import { DEFAULT_COURIER_PARTNERS, getCourierPartners, saveCourierPartners } from '@/lib/courier-service';
+import { DEFAULT_COURIER_PARTNERS, getCourierSettings, saveCourierPartners } from '@/lib/courier-service';
 
 interface Enquiry {
   enquiryId: string;
@@ -94,8 +96,9 @@ function AdminBody() {
   const [localSignInError, setLocalSignInError] = useState<string | null>(null);
 
   // Active Admin Console tab
-  const [activeTab, setActiveTab] = useState<'counter' | 'orders' | 'enquiries' | 'pricing' | 'support' | 'couriers' | 'referrals' | 'custom' | 'reports' | 'reviews' | 'changes' | 'refunds' | 'payments'>('orders');
+  const [activeTab, setActiveTab] = useState<'counter' | 'orders' | 'enquiries' | 'pricing' | 'support' | 'couriers' | 'referrals' | 'custom' | 'reports' | 'reviews' | 'refunds' | 'payments'>('orders');
 
+  const orderDates = useListDates(), enquiryDates = useListDates();
   // Pricing State
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
   const pricingErrors = Object.fromEntries((Object.keys(PRICING_MINIMUMS) as PricingField[]).map(key => [key, pricingFieldError(key, pricingConfig[key])]));
@@ -105,6 +108,7 @@ function AdminBody() {
   const [supportEmail, setSupportEmail] = useState(DEFAULT_SUPPORT_EMAIL);
   const [savingSupportEmail, setSavingSupportEmail] = useState<boolean>(false);
   const [supportEmailSavedToast, setSupportEmailSavedToast] = useState<boolean>(false);
+  const [courierTrackingLinks, setCourierTrackingLinks] = useState<Record<string, string>>({});
   const [courierPartners, setCourierPartners] = useState<string[]>(DEFAULT_COURIER_PARTNERS);
   const [newCourierPartner, setNewCourierPartner] = useState('');
   const [savingCourierPartners, setSavingCourierPartners] = useState(false);
@@ -139,7 +143,12 @@ function AdminBody() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   // Status Change State
-  const [newStatus, setNewStatus] = useState<OrderStatus>('Under verification');
+  const [selectedChangeRequest, setSelectedChangeRequest] = useState('');
+  const [changeQueueRevision, setChangeQueueRevision] = useState(0);
+  const [queueFocus, setQueueFocus] = useState('');
+  const [sectionRefreshKey, setSectionRefreshKey] = useState(0);
+  const [sectionRefreshError, setSectionRefreshError] = useState('');
+  const sectionRefreshSequence = useRef(0);
   const [updatingStatus, setUpdatingStatus] = useState<boolean>(false);
 
   // Correction Request State
@@ -147,9 +156,6 @@ function AdminBody() {
   const [showCorrectionForm, setShowCorrectionForm] = useState<boolean>(false);
 
   // Courier Dispatch State
-  const [courierName, setCourierName] = useState(DEFAULT_COURIER_PARTNERS[0]);
-  const [trackingNumber, setTrackingNumber] = useState<string>('');
-  const [showCourierForm, setShowCourierForm] = useState<boolean>(false);
 
   // Stamping Agreement View State
   const [showAgreementPrint, setShowAgreementPrint] = useState<boolean>(false);
@@ -165,7 +171,7 @@ function AdminBody() {
     orderDialogRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setSelectedOrder(null); setShowAgreementPrint(false); setShowCorrectionForm(false); setShowCourierForm(false);
+        setSelectedOrder(null); setSelectedChangeRequest(''); setShowAgreementPrint(false); setShowCorrectionForm(false);
       }
       if (event.key !== 'Tab') return;
       const elements = Array.from(orderDialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') ?? []).filter((element) => element.getClientRects().length > 0);
@@ -175,7 +181,7 @@ function AdminBody() {
       else if (!event.shiftKey && (document.activeElement === last || document.activeElement === orderDialogRef.current)) { event.preventDefault(); first.focus(); }
     };
     document.addEventListener('keydown', onKeyDown);
-    return () => { document.removeEventListener('keydown', onKeyDown); document.body.style.overflow = previousOverflow; previousFocus?.focus(); };
+  return () => { document.removeEventListener('keydown', onKeyDown); document.body.style.overflow = previousOverflow; previousFocus?.focus(); };
   }, [selectedOrderId, showAgreementPrint, adminUserId]);
 
   const fetchOrderList = useCallback(async () => {
@@ -298,10 +304,9 @@ function AdminBody() {
           const configuredSupportEmail = await getSupportEmail();
           if (isMounted) setSupportEmail(configuredSupportEmail);
           try {
-            const configuredCourierPartners = await getCourierPartners();
+            const configuredCourierPartners = await getCourierSettings();
             if (isMounted) {
-              setCourierPartners(configuredCourierPartners);
-              setCourierName(configuredCourierPartners[0] ?? DEFAULT_COURIER_PARTNERS[0]);
+              setCourierPartners(configuredCourierPartners.partners); setCourierTrackingLinks(configuredCourierPartners.trackingLinks);
             }
           } catch (error) {
             console.warn('Could not load courier partner settings:', error);
@@ -358,80 +363,20 @@ function AdminBody() {
     finally { setUpdatingStatus(false); }
   };
 
-  const handleUpdateStatus = async () => {
-    if (!selectedOrder || !user) return;
-    if (selectedOrder.replacementPendingId || selectedOrder.replacedByOrderId) { alert('This order is on hold for replacement or has already been replaced.'); return; }
-    if (newStatus === 'Cancelled' && selectedOrder.payment?.status === 'Paid') {
-      if (!window.confirm('Cancel this paid order before preparation and request a refund to its original payment method?')) return;
-      setUpdatingStatus(true);
-      try {
-        const result = await readApiResponse(await fetch('/api/orders/cancel', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: selectedOrder.orderId, updatedAt: selectedOrder.updatedAt }) }));
-        const updated = result.order as Order;
-        setSelectedOrder(updated); setOrders(previous => previous.map(order => order.orderId === updated.orderId ? updated : order));
-        alert('Order cancelled. The source-payment refund is awaiting admin approval; refunds are unavailable in test mode.');
-      } catch (reason) { alert(reason instanceof Error ? reason.message : 'Unable to cancel this order.'); }
-      finally { setUpdatingStatus(false); }
-      return;
-    }
-    if (selectedOrder.payment?.status !== 'Paid' && ['Drafting', 'Dispatched', 'Delivered'].includes(newStatus)) {
-      alert('Payment must be confirmed before fulfilment.');
-      return;
-    }
+  const handleCancelOrder = async () => {
+    if (!selectedOrder || !user || updatingStatus) return;
+    if (!window.confirm('Cancel this order? Paid orders use the original-payment refund review process.')) return;
     setUpdatingStatus(true);
-    const nowIso = new Date().toISOString();
-    const statusUpdate: {
-      status: OrderStatus;
-      updatedAt: string;
-      preparationStartedAt?: string;
-    } = {
-      status: newStatus,
-      updatedAt: nowIso,
-    };
-
-    if (['Drafting', 'Dispatched', 'Delivered'].includes(newStatus) || ['Drafting', 'Dispatched', 'Delivered'].includes(selectedOrder.status)) {
-      statusUpdate.preparationStartedAt = selectedOrder.preparationStartedAt || nowIso;
-    }
-
-
     try {
-      const orderRef = doc(db, 'orders', selectedOrder.orderId);
-      await updateDoc(orderRef, statusUpdate);
-    } catch (err) {
-      console.error('Status update error:', err);
-      alert('Failed to update order status. Please verify the deployed Firestore rules and try again.');
-      setUpdatingStatus(false);
-      return;
-    }
-
-    const updated = {
-      ...selectedOrder,
-      ...(statusUpdate.preparationStartedAt ? { preparationStartedAt: statusUpdate.preparationStartedAt } : {}),
-      status: newStatus,
-      updatedAt: nowIso,
-    };
-    setSelectedOrder(updated);
-    setOrders((prev) => prev.map((o) => (o.orderId === updated.orderId ? updated : o)));
-
-    try {
-      const logId = `LOG_${Date.now()}`;
-      await setDoc(doc(db, 'adminLogs', logId), {
-        logId,
-        orderId: selectedOrder.orderId,
-        adminUid: user.uid,
-        adminEmail: user.email || 'admin',
-        action: 'STATUS_CHANGE',
-        previousStatus: selectedOrder.status,
-        newStatus,
-        notes: 'Status updated from admin console',
-        timestamp: nowIso,
-      });
-      alert(`Status updated to ${newStatus}`);
-    } catch (err) {
-      console.error('Status updated but audit log write failed:', err);
-      alert(`Status updated to ${newStatus}, but the audit log could not be saved. Please check admin log permissions.`);
-    } finally {
-      setUpdatingStatus(false);
-    }
+      const paid = selectedOrder.payment.status === 'Paid';
+      const result = await readApiResponse(await fetch(paid ? '/api/orders/cancel' : '/api/admin/order-workflow', {
+        method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: selectedOrder.orderId, updatedAt: selectedOrder.updatedAt, ...(paid ? {} : { channel: 'Online', action: 'cancel' }) }),
+      }));
+      const updated = result.order as Order;
+      setSelectedOrder(updated); setOrders(previous => previous.map(order => order.orderId === updated.orderId ? updated : order));
+    } catch (reason) { alert(reason instanceof Error ? reason.message : 'Unable to cancel this order.'); }
+    finally { setUpdatingStatus(false); }
   };
 
   // Handle Request Correction
@@ -446,66 +391,6 @@ function AdminBody() {
       alert('Correction request sent. The customer can correct and resubmit the same order from My Orders.');
     } catch (reason) { alert(reason instanceof Error ? reason.message : 'Unable to send correction request.'); }
     finally { setUpdatingStatus(false); }
-  };
-
-  // Handle Courier Dispatch
-  const handleDispatchCourier = async () => {
-    if (!selectedOrder || !user || !trackingNumber.trim()) return;
-    if (selectedOrder.replacementPendingId || selectedOrder.replacedByOrderId) { alert('This order is on hold for replacement or has already been replaced.'); return; }
-    if (selectedOrder.payment?.status !== 'Paid') {
-      alert('Payment must be confirmed before dispatch.');
-      return;
-    }
-    setUpdatingStatus(true);
-    try {
-      const orderRef = doc(db, 'orders', selectedOrder.orderId);
-      const nowIso = new Date().toISOString();
-
-      const courierData = {
-        courierName,
-        trackingNumber: trackingNumber.trim(),
-        dispatchedAt: nowIso,
-      };
-
-      await updateDoc(orderRef, {
-        status: 'Dispatched' as OrderStatus,
-        preparationStartedAt: selectedOrder.preparationStartedAt || nowIso,
-        courier: courierData,
-        updatedAt: nowIso,
-      });
-
-      // Admin log
-      const logId = `LOG_${Date.now()}`;
-      await setDoc(doc(db, 'adminLogs', logId), {
-        logId,
-        orderId: selectedOrder.orderId,
-        adminUid: user.uid,
-        adminEmail: user.email || 'admin',
-        action: 'COURIER_DISPATCHED',
-        previousStatus: selectedOrder.status,
-        newStatus: 'Dispatched',
-        notes: `Dispatched with ${courierName}, Tracking: ${trackingNumber.trim()}`,
-        timestamp: nowIso,
-      });
-
-      const updated = {
-        ...selectedOrder,
-        status: 'Dispatched' as OrderStatus,
-        preparationStartedAt: selectedOrder.preparationStartedAt || nowIso,
-        courier: courierData,
-        updatedAt: nowIso,
-      };
-      setSelectedOrder(updated);
-      setOrders((prev) => prev.map((o) => (o.orderId === updated.orderId ? updated : o)));
-      setShowCourierForm(false);
-      setTrackingNumber('');
-      alert('Order marked as Dispatched with tracking code.');
-    } catch (err) {
-      console.error('Courier dispatch error:', err);
-      alert('Failed to update courier tracking.');
-    } finally {
-      setUpdatingStatus(false);
-    }
   };
 
   // Handle Save Pricing Rates
@@ -598,7 +483,6 @@ function AdminBody() {
       return;
     }
     setCourierPartners((current) => [...current, partner]);
-    setCourierName(partner);
     setNewCourierPartner('');
     setCourierPartnersSavedToast(false);
   };
@@ -610,7 +494,6 @@ function AdminBody() {
     }
     const nextPartners = courierPartners.filter((existing) => existing !== partner);
     setCourierPartners(nextPartners);
-    if (courierName === partner) setCourierName(nextPartners[0]);
     setCourierPartnersSavedToast(false);
   };
 
@@ -619,7 +502,7 @@ function AdminBody() {
     setSavingCourierPartners(true);
     setCourierPartnersSavedToast(false);
     try {
-      await saveCourierPartners(courierPartners, user.email || ADMIN_EMAIL);
+      await saveCourierPartners(courierPartners, user.email || ADMIN_EMAIL, courierTrackingLinks);
       const logId = `LOG_${Date.now()}`;
       await setDoc(doc(db, 'adminLogs', logId), {
         logId,
@@ -634,7 +517,7 @@ function AdminBody() {
       setTimeout(() => setCourierPartnersSavedToast(false), 4000);
     } catch (error) {
       console.error('Failed to save courier partners:', error);
-      alert('Failed to save courier partners. Please check permissions and try again.');
+      alert(error instanceof Error ? error.message : 'Failed to save courier partners. Please try again.');
     } finally {
       setSavingCourierPartners(false);
     }
@@ -659,7 +542,7 @@ function AdminBody() {
       o.ownerDetails.phone.includes(q) ||
       o.tenantDetails.fullName.toLowerCase().includes(q) ||
       o.propertyDetails.city.toLowerCase().includes(q);
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesSearch && orderDates.matches(o.createdAt);
   });
 
   // Daily Summary Calculations
@@ -679,7 +562,7 @@ function AdminBody() {
       enquiry.message,
       enquiry.enquiryId,
     ].some((value) => value.toLowerCase().includes(query));
-    return matchesSearch && (enquiryStatusFilter === 'ALL' || enquiry.status === enquiryStatusFilter);
+    return enquiryDates.matches(enquiry.createdAt) && matchesSearch && (enquiryStatusFilter === 'ALL' || enquiry.status === enquiryStatusFilter);
   });
 
   if (authLoading || (user && checkingRole)) {
@@ -749,28 +632,53 @@ function AdminBody() {
     );
   }
 
-  const navigationGroups = [{ label: 'Daily work', items: [{ id: 'counter' as const, label: 'Walk-in Counter', icon: Printer }, { id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: filteredOrders.length }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }, { id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Business tools & settings', items: [{ id: 'reports' as const, label: 'Reports & Analytics', icon: FileText }, { id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'payments' as const, label: 'Payment Gateway', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Dispatch & Envelopes', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }, { label: 'Reviews & order requests', items: [{ id: 'reviews' as const, label: 'Customer Reviews', icon: MessageSquare }, { id: 'changes' as const, label: 'Order Change Requests', icon: FileText }, { id: 'refunds' as const, label: 'Cancellation Refunds', icon: RotateCcw }] }];
+  const navigationGroups = [{ label: 'Daily work', items: [{ id: 'counter' as const, label: 'Walk-in Counter', icon: Printer }, { id: 'orders' as const, label: 'Agreement Orders', icon: FileText, count: pendingVerificationCount }, { id: 'custom' as const, label: 'Custom Requests', icon: Printer }] }, { label: 'Customer support', items: [{ id: 'enquiries' as const, label: 'Enquiries', icon: MessageSquare, count: enquiries.filter((item) => item.status === 'New').length }] }, { label: 'Business tools & settings', items: [{ id: 'reports' as const, label: 'Reports & Analytics', icon: FileText }, { id: 'pricing' as const, label: 'Pricing', icon: IndianRupee }, { id: 'payments' as const, label: 'Payment Gateway', icon: IndianRupee }, { id: 'referrals' as const, label: 'Referrals', icon: Gift }, { id: 'couriers' as const, label: 'Dispatch & Envelopes', icon: Package }, { id: 'support' as const, label: 'Support Email', icon: Mail }] }, { label: 'Reviews & order requests', items: [{ id: 'reviews' as const, label: 'Customer Reviews', icon: MessageSquare }, { id: 'refunds' as const, label: 'Cancellation Refunds', icon: RotateCcw }] }];
+
+    const secondaryActionReason = !selectedOrder ? ''
+    : selectedOrder.replacedByOrderId ? 'This order has been replaced.'
+    : selectedOrder.cancellationRefundId ? 'Cancellation or refund is already in progress.'
+    : selectedOrder.status === 'Cancelled' ? 'This order is cancelled.'
+    : selectedOrder.status === 'Delivered' ? 'This order is complete.'
+    : selectedOrder.replacementPendingId ? 'Resolve the pending replacement first.'
+    : selectedOrder.preparationStartedAt ? 'Unavailable after preparation has started.'
+    : '';
+
+  async function openAdminSection(section: typeof activeTab) {
+    const sequence = ++sectionRefreshSequence.current;
+    setQueueFocus(''); setSectionRefreshError(''); setSelectedOrder(null); setSelectedChangeRequest(''); setShowCorrectionForm(false); setShowAgreementPrint(false);
+    setActiveTab(section); setSectionRefreshKey(previous => previous + 1);
+    try {
+      if (section === 'orders') { setSearchQuery(''); setStatusFilter('ALL'); orderDates.clear(); await fetchOrderList(); }
+      else if (section === 'enquiries') { setEnquirySearch(''); setEnquiryStatusFilter('ALL'); enquiryDates.clear(); setEnquiryNotice(null); await fetchEnquiries(); }
+      else if (section === 'referrals') await loadReferralSettings();
+      else if (section === 'pricing') { setPricingSavedToast(false); const value = await getPricingConfig(); if (sequence === sectionRefreshSequence.current) setPricingConfig(value); }
+      else if (section === 'support') { setSupportEmailSavedToast(false); const value = await getSupportEmail(); if (sequence === sectionRefreshSequence.current) setSupportEmail(value); }
+      else if (section === 'couriers') { setCourierPartnersSavedToast(false); setNewCourierPartner(''); const value = await getCourierSettings(); if (sequence === sectionRefreshSequence.current) { setCourierPartners(value.partners); setCourierTrackingLinks(value.trackingLinks); } }
+      // Other sections fetch their data on mount when the workspace key changes.
+    } catch { if (sequence === sectionRefreshSequence.current) setSectionRefreshError('Could not refresh this section. Click it again to retry.'); }
+  }
 
   return (
     <div className="admin-portal admin-tidy max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" data-section={activeTab}>
       <AdminMilestone uid={user.uid} paidOrders={orders.filter(order => order.payment?.status === 'Paid').length} ready={!loadingOrders && !ordersError} />
       <header className="admin-hero">
         <div className="admin-hero-copy"><span className="admin-eyebrow"><ShieldCheck aria-hidden="true" className="h-4 w-4" />AgreementPrint Administration</span><h1>Administration</h1><p>Manage agreements, preparation, delivery and customer requests.</p><span className="admin-account"><span aria-hidden="true" /><SupportEmailLink className="rounded-sm hover:underline" /></span></div>
-        <div className="admin-hero-actions"><Link href="/" className="admin-website-link"><ExternalLink aria-hidden="true" className="h-4 w-4" />View website</Link>{(activeTab === 'orders' || activeTab === 'enquiries') && <button type="button" onClick={activeTab === 'orders' ? fetchOrderList : fetchEnquiries} disabled={activeTab === 'orders' ? loadingOrders : loadingEnquiries || updatingEnquiryId !== null || deletingEnquiryId !== null} className="admin-refresh"><RefreshCw aria-hidden="true" className={`h-4 w-4 ${(activeTab === 'orders' ? loadingOrders : loadingEnquiries) ? 'animate-spin' : ''}`} />Refresh {activeTab === 'orders' ? 'orders' : 'enquiries'}</button>}</div>
+        <div className="admin-hero-actions"><Link href="/" className="admin-website-link"><ExternalLink aria-hidden="true" className="h-4 w-4" />View website</Link></div>
       </header>
-      <label className="admin-mobile-section">Admin section<select value={activeTab} onChange={event => setActiveTab(event.target.value as typeof activeTab)}>{navigationGroups.map(group => <optgroup key={group.label} label={group.label}>{group.items.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</optgroup>)}</select></label>
+      <label className="admin-mobile-section">Admin section<select value={activeTab} onChange={event => { void openAdminSection(event.target.value as typeof activeTab); }}>{navigationGroups.map(group => <optgroup key={group.label} label={group.label}>{group.items.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</optgroup>)}</select></label>
       <nav aria-label="Admin sections" className="admin-navigation">
         <div className="grid gap-6 lg:grid-cols-[1fr_1.25fr]">
-          {navigationGroups.map((group) => <div key={group.label} className={group.label === 'Reviews & order requests' ? 'border-t border-stone-200 pt-4 lg:col-span-2' : undefined}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => setActiveTab(item.id)} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
+          {navigationGroups.map((group) => <div key={group.label} className={group.label === 'Reviews & order requests' ? 'border-t border-stone-200 pt-4 lg:col-span-2' : undefined}><h2 className="admin-nav-heading">{group.label}</h2><div className="admin-nav-items">{group.items.map((item) => <button key={item.id} type="button" data-section={item.id} aria-pressed={activeTab === item.id} onClick={() => { void openAdminSection(item.id); }} className="admin-nav-item"><span className="admin-nav-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-nav-label">{item.label}</span>{'count' in item && <span className="admin-nav-count">{item.count}</span>}</button>)}</div></div>)}
         </div>
       </nav>
 
-      <div className="admin-workspace space-y-5">
+      <div key={`${activeTab}-${sectionRefreshKey}`} className="admin-workspace space-y-5">
+      {sectionRefreshError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-900">{sectionRefreshError}</p>}
       {activeTab === 'counter' ? <WalkInCounter /> : activeTab === 'payments' ? <PaymentGatewaySettings /> : activeTab === 'reports' ? (
         <section className="space-y-5" aria-label="Reports and analytics">
-          <header><h2 className="text-2xl font-bold text-stone-900">Reports &amp; Analytics</h2><p className="mt-2 text-sm text-stone-600">Download your business records or view website activity.</p></header>
+          <header><h2 className="text-2xl font-bold text-stone-900">Reports &amp; Analytics</h2><p className="mt-2 text-sm text-stone-600">View pending work and collections, or download essential business and agent reports.</p></header>
+          <AdminWorkQueue summaryOnly />
           <AdminReportDownload />
-          <details className="rounded-2xl border border-stone-200 bg-white p-5"><summary className="cursor-pointer text-sm font-semibold text-stone-700">Website visitor activity</summary><div className="mt-5"><AdminVisitorStats /></div></details>
         </section>
       ) : activeTab === 'reviews' ? (
         <section className="space-y-5" aria-label="Customer reviews">
@@ -778,17 +686,12 @@ function AdminBody() {
           <CustomerReviewModeration />
 
         </section>
-      ) : activeTab === 'changes' ? (
-        <section className="space-y-5" aria-label="Order change requests">
-          <header><h2 className="text-2xl font-bold text-stone-900">Order Change Requests</h2><p className="mt-2 text-sm text-stone-600">Review changes to prepared orders and record related refund adjustments.</p></header>
-          <OrderReplacementRequests />
-        </section>
       ) : activeTab === 'refunds' ? (
         <section className="space-y-5" aria-label="Cancellation refunds and legacy reconciliation">
           <header><h2 className="text-2xl font-bold text-stone-900">Cancellation Refunds</h2><p className="mt-2 text-sm text-stone-600">Review cancelled-order refunds, check payment gateway status and reconcile legacy records.</p></header>
-          <CreditRefundRequests />
+          <CreditRefundRequests key={queueFocus} focusRequestId={queueFocus} />
         </section>
-      ) : activeTab === 'custom' ? <CustomRequests admin /> : activeTab === 'enquiries' ? (
+      ) : activeTab === 'custom' ? <CustomRequests admin focusRequestId={queueFocus.startsWith('CUSTOM_') ? queueFocus : undefined} /> : activeTab === 'enquiries' ? (
         <section className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5 animate-in fade-in duration-200">
           <div className="border-b border-stone-200 pb-5">
             <span className="text-xs font-bold uppercase tracking-wider text-indigo-800 bg-indigo-100 px-2.5 py-0.5 rounded-full">
@@ -800,33 +703,7 @@ function AdminBody() {
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-              <input
-                type="search"
-                value={enquirySearch}
-                onChange={(event) => setEnquirySearch(event.target.value)}
-                placeholder="Search name, phone, district, message, or reference"
-                aria-label="Search enquiries"
-                className="w-full rounded-xl border border-stone-300 bg-white py-2.5 pl-9 pr-3 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </label>
-            <label className="relative block">
-              <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-              <select
-                value={enquiryStatusFilter}
-                onChange={(event) => setEnquiryStatusFilter(event.target.value as typeof enquiryStatusFilter)}
-                aria-label="Filter enquiries by status"
-                className="w-full appearance-none rounded-xl border border-stone-300 bg-white py-2.5 pl-9 pr-3 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="ALL">All statuses</option>
-                <option value="New">New</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Resolved">Resolved</option>
-              </select>
-            </label>
-          </div>
+          <div className="flex items-center gap-2"><label className="min-w-0 flex-1"><span className="sr-only">Search enquiries</span><input type="search" value={enquirySearch} onChange={event => setEnquirySearch(event.target.value)} placeholder="Search name, phone or reference" className="min-h-11 w-full rounded-lg border border-stone-300 px-3 text-sm" /></label><ListFilters activeCount={enquiryDates.activeCount + Number(enquiryStatusFilter !== 'ALL')} onClear={() => { enquiryDates.clear(); setEnquiryStatusFilter('ALL'); }}><label className="block text-sm font-semibold">Status<select aria-label="Filter enquiries by status" value={enquiryStatusFilter} onChange={event => setEnquiryStatusFilter(event.target.value as typeof enquiryStatusFilter)} className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 px-3"><option value="ALL">All statuses</option><option>New</option><option>In Progress</option><option>Resolved</option></select></label><DateFilterFields {...enquiryDates} /></ListFilters></div>
 
           {enquiryNotice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{enquiryNotice}</p>}
           {enquiriesError && (
@@ -917,74 +794,18 @@ function AdminBody() {
           )}
         </section>
       ) : activeTab === 'referrals' ? (
-        <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in duration-200">
-          <header><p className="text-xs font-bold uppercase tracking-wider text-brand-700">Growth</p><h1 className="mt-1 text-2xl font-bold text-stone-900">Referrals</h1><p className="mt-2 text-sm text-stone-600">Reward the referrer after payment and discount the first order for the new customer.</p></header>
-          <nav aria-label="Referral management" className="flex flex-wrap gap-2 border-b border-stone-200 pb-4">
-            {([{ id: 'agents', label: 'Agents' }, { id: 'customers', label: 'Customers' }] as const).map(section => <button key={section.id} type="button" aria-current={referralSection === section.id ? 'page' : undefined} onClick={() => setReferralSection(section.id)} className={`min-h-11 rounded-xl px-5 py-2 text-sm font-semibold ${referralSection === section.id ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}>{section.label}</button>)}
+        <div className="space-y-4">
+          <header><h1 className="text-2xl font-bold text-stone-900">Referrals</h1><p className="mt-1 text-sm text-stone-500">Agent commissions and customer referral credits.</p></header>
+          <nav aria-label="Referral management" className="inline-flex flex-wrap gap-1 rounded-xl border border-stone-200 bg-white p-1">
+            {([{ id: 'agents', label: 'Agents' }, { id: 'customers', label: 'Customers' }] as const).map(section => <button key={section.id} type="button" aria-current={referralSection === section.id ? 'page' : undefined} onClick={() => setReferralSection(section.id)} className={`inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${referralSection === section.id ? 'bg-sky-700 text-white' : 'bg-white text-stone-600 hover:bg-sky-50'}`}>{section.id === 'agents' ? <UserCheck aria-hidden="true" className="h-3.5 w-3.5" /> : <Gift aria-hidden="true" className="h-3.5 w-3.5" />}{section.label}</button>)}
           </nav>
-          {referralSection === 'customers' && <section className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-stone-600">Shared rates for customer-generated coupons.</p><button type="button" disabled={savingReferralSettings || loadingReferralSettings} onClick={() => void loadReferralSettings()} className="min-h-11 rounded-xl border border-stone-300 px-4 py-2 text-sm font-semibold disabled:opacity-50">{loadingReferralSettings ? 'Refreshing...' : 'Refresh settings & totals'}</button></div>
-          {loadingReferralSettings && <p role="status" className="text-sm text-stone-600">Loading saved settings and confirmed referral totals...</p>}
-          {referralSettingsError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{referralSettingsError}</p>}
-          <div className="border-b border-stone-200 pb-5">
-            <span className="text-xs font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2.5 py-0.5 rounded-full">
-              Customers
-            </span>
-            <h2 className="text-xl font-bold text-stone-900 mt-1">Customer referral rewards</h2>
-            <p className="text-xs text-stone-500 mt-0.5">
-              The new customer receives a discount on their first order. After successful payment, the customer who referred them earns credits. Set both shared amounts below.
-            </p>
-          </div>
-
-          {referralSettingsSavedToast && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold" role="status">
-              Customer referral credit and first-order discount saved.
-            </div>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Successful customer referrals</p>
-              <p className="mt-2 text-2xl font-black text-stone-900">{referralSettingsLoaded && !loadingReferralSettings ? referralStats.rewardedReferrals : '\u2014'}</p>
-            </div>
-            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Total customer referrer credits</p>
-              <p className="mt-2 text-2xl font-black text-stone-900">{referralSettingsLoaded && !loadingReferralSettings ? `\u20b9${referralStats.totalCreditsIssued.toLocaleString('en-IN')}` : '\u2014'}</p>
-            </div>
-          </div>
-
-          <p className="text-sm text-stone-600">The totals above count completed first payments. The amounts below are settings for future referrals, not money already issued.</p>
-          <form id="customer-referral-settings" onSubmit={event => { event.preventDefault(); void handleSaveReferralSettings(); }}>
-            <fieldset disabled={savingReferralSettings || loadingReferralSettings || !referralSettingsLoaded} className="grid gap-5 sm:grid-cols-2">
-              <label htmlFor="referral-reward-amount" className="block text-sm font-semibold text-stone-700">Referrer earns in credits (INR)
-                <input id="referral-reward-amount" required type="number" min={0} max={100000} step={1} value={referralRewardAmount} onChange={event => { setReferralRewardAmount(event.target.value); setReferralSettingsSavedToast(false); }} aria-describedby="referral-credit-help" className="mt-2 min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
-                <span id="referral-credit-help" className="mt-2 block text-sm font-normal text-stone-600">Added as credits after the new customer pays for their first order. Use 0 to disable new credits.</span>
-              </label>
-              <label htmlFor="referee-discount-amount" className="block text-sm font-semibold text-stone-700">New customer saves on first order (INR)
-                <input id="referee-discount-amount" required type="number" min={0} max={100000} step={1} value={refereeDiscountAmount} onChange={event => { setRefereeDiscountAmount(event.target.value); setReferralSettingsSavedToast(false); }} aria-describedby="referral-discount-help" className="mt-2 min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
-                <span id="referral-discount-help" className="mt-2 block text-sm font-normal text-stone-600">Deducted before payment, up to the order total. Use 0 for no discount. Already-started checkouts keep their reserved price.</span>
-              </label>
-            </fieldset>
-          </form>
-
-          <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
-            <p><strong className="text-stone-900">How it works:</strong> A customer shares their coupon. A new customer uses it and pays for their first order. The new customer gets the discount on that order. After payment, the customer who shared the code earns account credits.</p>
-            <p className="mt-2">Customer codes are managed as one group. Agent referrals have separate amounts in Agents. Each new customer can use the first-order discount only once.</p>
-          </div>
-
-          <div className="flex justify-end border-t border-stone-200 pt-5">
-            <button
-              type="submit"
-              form="customer-referral-settings"
-              disabled={savingReferralSettings || loadingReferralSettings || !referralSettingsLoaded || !validReferralAmounts}
-              className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
-            >
-              {savingReferralSettings
-                ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                : <Save className="h-3.5 w-3.5" />}
-              <span>{savingReferralSettings ? 'Saving…' : 'Save customer amounts'}</span>
-            </button>
-          </div>
+          {referralSection === 'customers' && <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-bold text-stone-900">Customer referral overview</h2><p className="mt-1 text-xs text-stone-500">Confirmed first payments and the credits they earned.</p></div><button type="button" disabled={savingReferralSettings || loadingReferralSettings} onClick={() => void loadReferralSettings()} className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-800 hover:bg-sky-50 disabled:opacity-50"><RefreshCw aria-hidden="true" className={`h-3.5 w-3.5 ${loadingReferralSettings ? 'animate-spin' : ''}`} />{loadingReferralSettings ? 'Refreshing...' : 'Refresh'}</button></div>
+            {referralSettingsError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">{referralSettingsError}</p>}
+            {referralSettingsSavedToast && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">Customer referral amounts saved.</p>}
+            <div className="grid grid-cols-2 gap-3"><div className="rounded-xl border border-sky-200 bg-sky-50 p-4"><div className="flex items-center justify-between gap-2"><p className="text-xs text-sky-800">Successful referrals</p><CheckCircle2 aria-hidden="true" className="h-4 w-4 text-sky-700" /></div><p className="mt-2 text-2xl font-bold text-sky-950">{referralSettingsLoaded && !loadingReferralSettings ? referralStats.rewardedReferrals : '--'}</p><p className="mt-1 text-[11px] text-sky-800">Customers who completed their first payment</p></div><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex items-center justify-between gap-2"><p className="text-xs text-emerald-800">Referral credits issued</p><Gift aria-hidden="true" className="h-4 w-4 text-emerald-700" /></div><p className="mt-2 text-2xl font-bold text-emerald-950">{referralSettingsLoaded && !loadingReferralSettings ? `${String.fromCharCode(8377)}${referralStats.totalCreditsIssued.toLocaleString('en-IN')}` : '--'}</p><p className="mt-1 text-[11px] text-emerald-800">Credits earned by referring customers</p></div></div>
+            
+            <details className="group/customer-rates rounded-xl border border-stone-200 bg-white"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden"><div><h3 className="text-sm font-semibold text-stone-900">Reward & discount settings</h3><p className="mt-1 text-xs text-stone-500">Rates for future referrals. Existing issued credits stay unchanged.</p></div><ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-stone-400 transition-transform group-open/customer-rates:rotate-90" /></summary><form onSubmit={event => { event.preventDefault(); void handleSaveReferralSettings(); }} className="space-y-4 border-t border-stone-100 p-4"><fieldset disabled={savingReferralSettings || loadingReferralSettings || !referralSettingsLoaded} className="grid gap-4 border-0 sm:grid-cols-2"><label htmlFor="referral-reward-amount" className="text-xs font-semibold text-stone-700">Referrer credit (Rs.)<input id="referral-reward-amount" required type="number" min={0} max={100000} step={1} value={referralRewardAmount} onChange={event => { setReferralRewardAmount(event.target.value); setReferralSettingsSavedToast(false); }} className="mt-1.5 min-h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" /><span className="mt-1 block text-[11px] font-normal text-stone-500">Issued after the new customer&apos;s first successful payment. Use 0 to disable.</span></label><label htmlFor="referee-discount-amount" className="text-xs font-semibold text-stone-700">New customer discount (Rs.)<input id="referee-discount-amount" required type="number" min={0} max={100000} step={1} value={refereeDiscountAmount} onChange={event => { setRefereeDiscountAmount(event.target.value); setReferralSettingsSavedToast(false); }} className="mt-1.5 min-h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" /><span className="mt-1 block text-[11px] font-normal text-stone-500">Applied to the first order, up to its total. Use 0 for no discount.</span></label></fieldset><div className="flex justify-end border-t border-stone-100 pt-3"><button type="submit" disabled={savingReferralSettings || loadingReferralSettings || !referralSettingsLoaded || !validReferralAmounts} className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-700 px-4 text-xs font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"><Save aria-hidden="true" className="h-3.5 w-3.5" />{savingReferralSettings ? 'Saving...' : 'Save amounts'}</button></div></form></details>
           </section>}
           {referralSection === 'agents' && <AgentReferralAdmin />}
         </div>
@@ -1008,10 +829,11 @@ function AdminBody() {
           )}
 
           <div className="max-w-xl space-y-4">
+            <p className="text-xs text-stone-600">Add the courier?s HTTPS tracking page. If it supports prefilled tracking, use {'{trackingNumber}'} where the consignment number belongs in the link.</p>
             <ul className="space-y-2">
               {courierPartners.map((partner) => (
-                <li key={partner} className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-sm">
-                  <span className="font-semibold text-stone-800">{partner}</span>
+                <li key={partner} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-sm">
+                  <span className="font-semibold text-stone-800">{partner}</span><label className="order-last block w-full text-xs text-stone-600">Tracking link<input type="url" value={courierTrackingLinks[partner] || ''} onChange={event => { setCourierTrackingLinks(previous => ({ ...previous, [partner]: event.target.value })); setCourierPartnersSavedToast(false); }} placeholder="https://courier.example/track" maxLength={2000} className="mt-1 min-h-10 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label>
                   <button
                     type="button"
                     onClick={() => handleRemoveCourierPartner(partner)}
@@ -1364,78 +1186,27 @@ function AdminBody() {
         <>
       <header className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-2xl font-bold tracking-tight text-stone-900">Order desk</h2><p className="mt-1 text-sm text-stone-500">Review active work, payment status and order history.</p></div><span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-semibold text-stone-600">{orders.length} records</span></header>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {[{ label: 'New orders', status: 'Submitted', count: submittedCount, hint: 'Ready for review', tone: 'sky', icon: FileText }, { label: 'Under review', status: 'Under verification', count: pendingVerificationCount, hint: 'Details being checked', tone: 'violet', icon: ShieldCheck }, { label: 'Waiting for customer', status: 'Documents needed', count: documentsNeededCount, hint: 'Corrections requested', tone: 'amber', icon: Clock }, { label: 'Being prepared', status: 'Drafting', count: draftingCount, hint: 'Preparation and printing', tone: 'pink', icon: Printer }, { label: 'Sent by courier', status: 'Dispatched', count: dispatchedCount, hint: 'On the way to customers', tone: 'teal', icon: Truck }].map((item) => <button key={item.status} type="button" data-tone={item.tone} aria-pressed={statusFilter === item.status} onClick={() => { setStatusFilter(statusFilter === item.status ? 'ALL' : item.status); setSearchQuery(''); }} className="admin-summary-card"><span className="admin-summary-top"><span className="admin-summary-icon"><item.icon aria-hidden="true" className="h-5 w-5" /></span><span className="admin-summary-arrow" aria-hidden="true"><ChevronRight className="h-4 w-4" /></span></span><span className="admin-summary-number">{item.count}</span><span className="admin-summary-label">{item.label}</span><span className="admin-summary-hint">{item.hint}</span></button>)}
-      </div>
-      {ordersError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{ordersError}<button type="button" onClick={fetchOrderList} className="ml-3 font-semibold underline">Retry</button></div>}
-
-
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <label htmlFor="admin-order-search" className="mb-2 block text-sm font-semibold">Search orders</label>
-          <div className="relative"><Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            id="admin-order-search"
-            placeholder="Search order number, owner, tenant, phone or city"
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
-          />
+      <AdminWorkQueue revision={`${changeQueueRevision}|${orders.map(order => order.updatedAt).join('|')}`}
+        onOpenOrder={(order, requestId) => { setSelectedChangeRequest(requestId || ''); setSelectedOrder(order); }}
+        onOpenSection={(section, requestId) => { setQueueFocus(requestId); setActiveTab(section === 'changes' ? 'orders' : section); }} />
+      <details className="group/order-history rounded-xl border border-stone-200 bg-white"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-stone-800 [&::-webkit-details-marker]:hidden"><span className="inline-flex items-center gap-2"><FileText aria-hidden="true" className="h-4 w-4 text-sky-700" />Online orders <span className="ml-1 font-normal text-stone-500">({orders.length})</span></span><ChevronRight aria-hidden="true" className="h-4 w-4 text-stone-400 transition-transform group-open/order-history:rotate-90" /></summary>
+        <div className="space-y-3 border-t border-stone-100 p-3 sm:p-4">
+          <div className="flex flex-wrap gap-2">{[{ label: 'New', status: 'Submitted', count: submittedCount, icon: FileText }, { label: 'Review', status: 'Under verification', count: pendingVerificationCount, icon: ShieldCheck }, { label: 'Corrections', status: 'Documents needed', count: documentsNeededCount, icon: AlertCircle }, { label: 'Preparing', status: 'Drafting', count: draftingCount, icon: Printer }, { label: 'Dispatched', status: 'Dispatched', count: dispatchedCount, icon: Truck }].map(item => <button key={item.status} type="button" aria-pressed={statusFilter === item.status} onClick={() => setStatusFilter(statusFilter === item.status ? 'ALL' : item.status)} className={`inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors ${statusFilter === item.status ? 'border-sky-300 bg-sky-50 text-sky-800' : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'}`}><item.icon aria-hidden="true" className="h-3.5 w-3.5" />{item.label}<span className="font-semibold tabular-nums">{item.count}</span></button>)}</div>
+          <div className="flex items-center gap-2"><label className="relative min-w-0 flex-1"><span className="sr-only">Search orders</span><Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-stone-400" /><input id="admin-order-search" type="search" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} placeholder="Reference, name, phone or city" className="min-h-10 w-full rounded-lg border border-stone-200 bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-200" /></label><ListFilters activeCount={orderDates.activeCount + Number(statusFilter !== 'ALL')} onClear={() => { orderDates.clear(); setStatusFilter('ALL'); }}><label className="block text-sm font-semibold">Status<select id="admin-order-status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)} className="mt-1 min-h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm">{['ALL', 'Submitted', 'Under verification', 'Documents needed', 'Drafting', 'Dispatched', 'Delivered', 'Cancelled'].map(value => <option key={value} value={value}>{value === 'ALL' ? 'All statuses' : value}</option>)}</select></label><DateFilterFields {...orderDates} /></ListFilters></div>
+          <div className="flex items-center justify-between gap-2 text-xs text-stone-500"><p aria-live="polite">{loadingOrders ? 'Loading orders...' : `${filteredOrders.length} of ${orders.length} orders`}</p>{(searchQuery || statusFilter !== 'ALL' || orderDates.activeCount > 0) && <button type="button" onClick={() => { setSearchQuery(''); setStatusFilter('ALL'); orderDates.clear(); }} className="cursor-pointer font-semibold text-sky-700 hover:underline">Clear filters</button>}</div>
+          {ordersError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs text-rose-800">{ordersError}<button type="button" onClick={fetchOrderList} className="ml-2 cursor-pointer font-semibold underline">Retry</button></p>}
+          {loadingOrders ? <p role="status" className="py-6 text-center text-sm text-stone-500">Loading orders...</p> : !filteredOrders.length ? <p className="py-6 text-center text-sm text-stone-500">{orders.length ? 'No orders match these filters.' : 'No online orders yet.'}</p> : <div className="overflow-hidden rounded-lg border border-stone-200">
+            <div aria-hidden="true" className="hidden grid-cols-[1.1fr_1.5fr_1fr_0.8fr_auto] gap-3 border-b border-stone-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 md:grid"><span>Order</span><span>Customer</span><span>Status</span><span>Payment</span><span className="w-20" /></div>
+            <div className="divide-y divide-stone-100">{filteredOrders.map(order => <article key={order.orderId} className="grid grid-cols-2 items-center gap-3 px-3 py-3 transition-colors hover:bg-sky-50/40 md:grid-cols-[1.1fr_1.5fr_1fr_0.8fr_auto]">
+              <div className="min-w-0"><OrderReference reference={order.publicReference || order.orderId} compact /><p className="mt-1 text-[11px] text-stone-500">{order.agreementTerms.agreementType || 'Rental'} / {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}</p></div>
+              <div className="min-w-0"><p className="break-words text-xs font-semibold text-stone-900">{order.ownerDetails.fullName} <span className="font-normal text-stone-400">&amp;</span> {order.tenantDetails.fullName}</p><p className="mt-1 text-[11px] text-stone-500">{order.propertyDetails.city}</p></div>
+              <div><span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ${order.status === 'Cancelled' ? 'bg-red-50 text-red-800' : order.status === 'Delivered' ? 'bg-emerald-50 text-emerald-800' : order.status === 'Dispatched' ? 'bg-indigo-50 text-indigo-800' : 'bg-sky-50 text-sky-800'}`}>{order.replacedByOrderId ? 'Replaced' : order.status}</span>{order.correctionStatus === 'Submitted' && <p className="mt-1 text-[11px] text-sky-800">Corrections received</p>}{order.replacementPendingId && <p className="mt-1 text-[11px] text-amber-800">Replacement pending</p>}{order.cancellationRefundStatus && <p className="mt-1 text-[11px] text-stone-500">Refund: {order.cancellationRefundStatus}</p>}</div>
+              <div className="text-xs"><p className={`font-medium ${order.payment.status === 'Paid' ? 'text-emerald-700' : order.payment.status === 'Failed' ? 'text-red-700' : 'text-amber-800'}`}>{order.payment.status}</p>{order.payment.amount !== undefined && <p className="mt-1 tabular-nums text-stone-600">{String.fromCharCode(8377)}{order.payment.amount.toLocaleString('en-IN')}</p>}</div>
+              <button type="button" aria-label={`View details for order ${order.publicReference || order.orderId}`} onClick={() => { setSelectedChangeRequest(''); setSelectedOrder(order); }} className="inline-flex min-h-9 w-fit cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 text-xs font-semibold text-sky-800 transition-colors hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600"><Eye aria-hidden="true" className="h-3.5 w-3.5" />View details</button>
+            </article>)}</div>
+          </div>}
         </div>
-
-        </div>
-        <div><label htmlFor="admin-order-status" className="mb-2 block text-sm font-semibold">Status</label>
-        <select
-          id="admin-order-status"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
-        >
-          <option value="ALL">All Statuses</option>
-          <option value="Submitted">Submitted</option>
-          <option value="Under verification">Under Verification</option>
-          <option value="Documents needed">Documents Needed</option>
-          <option value="Drafting">Drafting on Stamp</option>
-          <option value="Dispatched">Dispatched</option>
-          <option value="Delivered">Delivered</option>
-          <option value="Cancelled">Cancelled</option>
-        </select></div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-stone-600"><p aria-live="polite">{loadingOrders ? 'Loading orders...' : `${filteredOrders.length} of ${orders.length} orders shown`}</p>{(searchQuery || statusFilter !== 'ALL') && <button type="button" onClick={() => { setSearchQuery(''); setStatusFilter('ALL'); }} className="rounded-lg border border-stone-300 bg-white px-3 py-2 font-semibold text-stone-700">Clear Filters</button>}</div>
-      {/* Order List Table */}
-      <div className="bg-white border border-stone-200 rounded-3xl shadow-sm overflow-hidden">
-        {loadingOrders ? (
-          <div className="py-16 text-center text-xs text-stone-500 space-y-2">
-            <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p>Loading application queue...</p>
-          </div>
-        ) : filteredOrders.length === 0 ? (
-          <div className="py-16 text-center text-xs text-stone-500">
-            {orders.length === 0 ? 'No orders yet. New customer orders will appear here.' : 'No orders match the selected search or filter criteria.'}
-          </div>
-        ) : (
-          <>
-          <div className="grid gap-3 p-4 md:hidden">
-            {filteredOrders.map(order => <article key={order.orderId} className="space-y-4 rounded-xl border border-stone-200 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold text-stone-500">{order.agreementTerms.agreementType || 'Rental'} agreement</p><h3 className="mt-1 break-all font-mono text-xs font-bold leading-relaxed text-stone-800"><OrderReference reference={order.orderId} /></h3></div><span className="shrink-0 rounded-lg bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-600">{order.replacedByOrderId ? 'Replaced' : order.status}</span></div><div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs text-stone-500">Owner</p><p className="mt-1 break-words font-semibold">{order.ownerDetails.fullName}</p></div><div><p className="text-xs text-stone-500">Tenant</p><p className="mt-1 break-words font-semibold">{order.tenantDetails.fullName}</p></div><div><p className="text-xs text-stone-500">Property</p><p className="mt-1">{order.propertyDetails.city}</p></div><div><p className="text-xs text-stone-500">Payment</p><p className={`mt-1 font-semibold ${order.payment.status === 'Paid' ? 'text-emerald-700' : 'text-stone-700'}`}>{order.payment.status}{order.payment.amount !== undefined ? ` / ₹${order.payment.amount.toLocaleString('en-IN')}` : ''}</p></div></div><button type="button" aria-label={`Review order ${order.orderId}`} onClick={() => setSelectedOrder(order)} className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700">Review Order</button></article>)}
-          </div>
-          <div className="hidden overflow-x-auto md:block" tabIndex={0} role="region" aria-label="Agreement order table, scroll to see all columns">
-            <table className="admin-order-records w-full min-w-[760px] table-fixed text-left text-sm text-stone-700">
-              <thead className="border-b border-stone-200 bg-stone-50 text-xs font-semibold text-stone-500"><tr><th scope="col" className="w-[28%] px-5 py-4">Order record</th><th scope="col" className="w-[27%] px-5 py-4">Customer &amp; property</th><th scope="col" className="w-[20%] px-5 py-4">Progress</th><th scope="col" className="w-[15%] px-5 py-4">Payment</th><th scope="col" className="w-[10%] px-4 py-4 text-right"><span className="sr-only">Actions</span></th></tr></thead>
-              <tbody className="divide-y divide-stone-100">{filteredOrders.map(ord => <tr key={ord.orderId} className="align-top transition-colors hover:bg-stone-50">
-                <td className="px-5 py-5"><p className="text-xs font-semibold text-stone-500">{ord.agreementTerms.agreementType || 'Rental'} agreement</p><p className="mt-1 break-all font-mono text-xs font-semibold leading-relaxed text-stone-800"><OrderReference reference={ord.orderId} /></p><p className="mt-2 text-xs text-stone-500">{new Date(ord.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p></td>
-                <td className="px-5 py-5"><p className="break-words font-semibold text-stone-900">{ord.ownerDetails.fullName}</p><p className="mt-1 break-words text-xs text-stone-500">Tenant: {ord.tenantDetails.fullName}</p><p className="mt-3 text-xs text-stone-600">{ord.propertyDetails.city} / {ord.propertyDetails.propertyType}</p></td>
-                <td className="px-5 py-5"><span className="inline-flex rounded-lg bg-stone-100 px-2.5 py-1.5 text-xs font-semibold text-stone-700">{ord.replacedByOrderId ? 'Replaced' : ord.status}</span>{ord.correctionStatus === 'Submitted' && <p className="mt-2 text-xs font-semibold text-sky-800">Customer corrections submitted</p>}{ord.replacementPendingId && <p className="mt-2 text-xs font-medium text-amber-800">Replacement on hold</p>}{ord.cancellationRefundStatus && <p className="mt-2 text-xs text-stone-500">Refund: {ord.cancellationRefundStatus}</p>}</td>
-                <td className="px-5 py-5"><span className={`inline-flex rounded-lg px-2.5 py-1.5 text-xs font-semibold ${ord.payment.status === 'Paid' ? 'bg-emerald-50 text-emerald-800' : ord.payment.status === 'Failed' ? 'bg-rose-50 text-rose-800' : 'bg-stone-100 text-stone-600'}`}>{ord.payment.status}</span>{ord.payment.amount !== undefined && <p className="mt-2 font-semibold tabular-nums text-stone-800">₹{ord.payment.amount.toLocaleString('en-IN')}</p>}</td>
-                <td className="px-4 py-5 text-right"><button type="button" aria-label={`Review order ${ord.orderId}`} onClick={() => setSelectedOrder(ord)} className="min-h-11 rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100">Review</button></td>
-              </tr>)}</tbody>
-            </table>
-          </div>
-          </>
-        )}
-      </div>
+      </details>
         </>
       )}
 
@@ -1493,9 +1264,9 @@ function AdminBody() {
                   <button
                     aria-label="Close order details"
                     onClick={() => {
-                      setSelectedOrder(null);
+                      setSelectedOrder(null); setSelectedChangeRequest('');
                       setShowCorrectionForm(false);
-                      setShowCourierForm(false);
+
                     }}
                     className="p-2 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 cursor-pointer"
                   >
@@ -1504,7 +1275,22 @@ function AdminBody() {
                 </div>
               </div>
 
-            {selectedOrder.payment.status === 'Paid' && selectedOrder.status !== 'Cancelled' && !selectedOrder.replacedByOrderId && <EnvelopePrint key={`${selectedOrder.orderId}-${selectedOrder.updatedAt}`} order={selectedOrder} />}
+            <OrderWorkflowPanel key={`${selectedOrder.orderId}-${selectedOrder.updatedAt}`} order={selectedOrder} courierPartners={courierPartners} onSaved={updated => { setSelectedOrder(updated); setOrders(previous => previous.map(order => order.orderId === updated.orderId ? updated : order)); }} />
+            <details key={`changes-${selectedOrder.orderId}-${selectedChangeRequest}`} open={!!selectedChangeRequest || !!selectedOrder.modificationReviewId} className="rounded-xl border border-stone-200 bg-white p-4"><summary className="cursor-pointer text-sm font-semibold">Change requests{selectedOrder.modificationReviewId && <span className="ml-2 text-amber-800">Review needed</span>}</summary><div className="mt-4"><OrderReplacementRequests key={selectedOrder.orderId} orderId={selectedOrder.orderId} focusRequestId={selectedChangeRequest || selectedOrder.modificationReviewId || undefined} onSaved={updated => { if (updated) { setSelectedOrder(previous => previous?.orderId === updated.orderId ? updated : previous); setOrders(previous => previous.map(order => order.orderId === updated.orderId ? updated : order)); } setChangeQueueRevision(previous => previous + 1); }} /></div></details>
+            <details
+              key={`${selectedOrder.orderId}-${selectedOrder.detailsVerifiedAt || 'unverified'}-${selectedOrder.status}`}
+              open={['Submitted', 'Under verification', 'Documents needed', 'Dispatched', 'Delivered'].includes(selectedOrder.status) || (selectedOrder.status === 'Drafting' && !selectedOrder.detailsVerifiedAt)}
+              className="rounded-xl border border-stone-200 bg-white"
+            >
+              <summary className="cursor-pointer rounded-xl p-4 text-sm font-bold text-stone-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700">
+                Agreement details
+                <span className="mt-2 block break-words text-xs font-normal leading-relaxed text-stone-600">
+                  {selectedOrder.ownerDetails.fullName} → {selectedOrder.tenantDetails.fullName}
+                  <span className="mt-1 block">{selectedOrder.agreementTerms.agreementType || 'Rental'} · {selectedOrder.agreementTerms.language || 'English'} · ₹{selectedOrder.agreementTerms.stampPaperDenomination || 100} stamp · Total: ₹{(selectedOrder.payment?.totalBeforeCredits ?? selectedOrder.payment?.amount) || (selectedOrder.agreementTerms.stampPaperDenomination === 200 ? (selectedOrder.agreementTerms.deliveryLocation === 'Within Tamil Nadu' ? 500 : 450) : (selectedOrder.agreementTerms.deliveryLocation === 'Within Tamil Nadu' ? 400 : 350)) + (selectedOrder.agreementTerms.includeNotary ? 200 : 0)}
+                  </span>
+                </span>
+              </summary>
+              <div className="px-4 pb-4">
             {/* Application Data Tabs/Sections */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               {/* Landlord */}
@@ -1554,7 +1340,7 @@ function AdminBody() {
                   <div>{selectedOrder.agreementTerms.agreementType === 'Lease' ? 'Refundable lease advance' : 'Advance'}: <strong>₹{selectedOrder.agreementTerms.securityDeposit?.toLocaleString('en-IN')}</strong></div>
                   <div>Tenure: <strong>{selectedOrder.agreementTerms.tenureMonths} Months</strong></div>
                   <div>Agreement language: <strong>{selectedOrder.agreementTerms.language || 'English'}</strong></div>
-                  {selectedOrder.agreementTerms.agreementType !== 'Lease' && selectedOrder.propertyDetails.propertyType !== 'Commercial Shop' && <div>Painting deduction: <strong>₹{selectedOrder.agreementTerms.paintingDeduction?.toLocaleString('en-IN')}</strong></div>}
+                  <div>Painting deduction: <strong>{paintingDeductionSummary(selectedOrder.agreementTerms.paintingDeduction)}</strong></div>
                   {selectedOrder.agreementTerms.language === 'Tamil' && selectedOrder.propertyDetails.propertyType === 'Commercial Shop' && <div>Template: <strong>Tamil shop rental agreement</strong></div>}
                   <div>Notice: <strong>{selectedOrder.agreementTerms.noticePeriodDays} Days</strong></div>
                   <div>Stamp Paper: <strong>In ₹{selectedOrder.agreementTerms.stampPaperDenomination || 100} Stamp Paper</strong></div>
@@ -1583,9 +1369,12 @@ function AdminBody() {
               </div>
             </div>
 
-            {/* Status Change & Workflow Action Box */}
-            {selectedOrder.correctionStatus === 'Submitted' && <div className="rounded-xl border border-sky-200 bg-sky-50 p-4"><h3 className="font-bold text-sky-900">Customer corrections submitted</h3><p className="mt-2 text-sm text-sky-800">{selectedOrder.correctionChangedFields?.map(field => field.replaceAll('.', ' / ').replace(/([A-Z])/g, ' $1')).join(', ')}</p><p className="mt-1 text-xs text-sky-700">Review the changes below before continuing preparation.</p></div>}
-            <p className="rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-900">Print {1 + (selectedOrder.agreementTerms.extraCopies ?? 0)} copies total ({selectedOrder.agreementTerms.extraCopies ?? 0} extra), each on the selected ₹{selectedOrder.agreementTerms.stampPaperDenomination ?? 100} stamp paper.</p>
+            <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-900">Print {1 + (selectedOrder.agreementTerms.extraCopies ?? 0)} copies total ({selectedOrder.agreementTerms.extraCopies ?? 0} extra), each on the selected ₹{selectedOrder.agreementTerms.stampPaperDenomination ?? 100} stamp paper.</p>
+              </div>
+            </details>
+
+            {/* Order notices and secondary actions */}
+            {selectedOrder.correctionStatus === 'Submitted' && <div className="rounded-xl border border-sky-200 bg-sky-50 p-4"><h3 className="font-bold text-sky-900">Customer corrections submitted</h3><p className="mt-2 text-sm text-sky-800">{selectedOrder.correctionChangedFields?.map(field => field.replaceAll('.', ' / ').replace(/([A-Z])/g, ' $1')).join(', ')}</p><p className="mt-1 text-xs text-sky-700">Expand Agreement details to review the changes before continuing preparation.</p></div>}
             {(selectedOrder.correctionRequestId || selectedOrder.correctionMessage) && <OrderCorrectionHistory orderId={selectedOrder.orderId} updatedAt={selectedOrder.updatedAt} />}
             {selectedOrder.customerClarification && (
               <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">
@@ -1593,8 +1382,7 @@ function AdminBody() {
                 <p className="mt-2 whitespace-pre-wrap break-words text-sky-950">{selectedOrder.customerClarification}</p>
               </div>
             )}
-            <div className="border-t border-stone-200 pt-4 space-y-4">
-              <h3 className="font-bold text-stone-900 text-xs">Fulfillment Workflow Actions</h3>
+            <div className="space-y-4">
               {selectedOrder.replacedByOrderId && <p className="text-sm text-amber-800">Replaced by <OrderReference reference={selectedOrder.replacedByOrderId} />. This record is retained for history.</p>}
               {selectedOrder.replacementPendingId && <section className="replacement-hold-panel" aria-labelledby="replacement-hold-title">
                 <div className="replacement-hold-heading">
@@ -1612,39 +1400,28 @@ function AdminBody() {
               </section>}
               {selectedOrder.payment?.status !== 'Paid' && <p className="text-sm text-amber-800">Payment must be confirmed before drafting, dispatch or delivery.</p>}
 
-              <section className="fulfillment-status-card" aria-labelledby="fulfillment-status-title">
-                <div className="fulfillment-action-heading"><span className="fulfillment-action-icon"><RefreshCw aria-hidden="true" className="h-5 w-5" /></span><div><h4 id="fulfillment-status-title">Update order status</h4><p>Choose the next stage and apply the change.</p></div></div>
-                <div className="fulfillment-status-controls">
-                  <div className="fulfillment-status-field">
-                    <label htmlFor="admin-order-status">Order status</label>
-                    <select id="admin-order-status"
-                      disabled={updatingStatus || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId}
-                      value={newStatus} onChange={(e) => setNewStatus(e.target.value as OrderStatus)}>
-                      <option value="Under verification">Under verification</option>
-                      {selectedOrder.payment?.status === 'Paid' && <option value="Drafting">Drafting on Stamp Paper</option>}
-                      {selectedOrder.payment?.status === 'Paid' && <option value="Delivered">Delivered</option>}
-                      <option value="Cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                  <button type="button" disabled={updatingStatus || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId} onClick={handleUpdateStatus} className="fulfillment-apply-button">{updatingStatus ? 'Updating...' : 'Apply Status Change'}</button>
+              <details className="rounded-xl border border-stone-200 p-4">
+                <summary className="cursor-pointer text-sm font-semibold">Other actions <span className="ml-2 font-normal text-stone-500">Corrections and cancellation</span></summary>
+                <div className="mt-4 divide-y divide-stone-200">
+                  <section className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between" aria-label="Customer corrections">
+                    <div className="flex items-start gap-3">
+                      <span className="rounded-lg bg-blue-50 p-2 text-blue-800"><MessageSquare aria-hidden="true" className="h-4 w-4" /></span>
+                      <div><h4 className="text-sm font-semibold text-stone-900">Customer corrections</h4><p id="correction-action-help" className="mt-1 text-xs leading-relaxed text-stone-600">{secondaryActionReason || 'Ask the customer to update agreement details.'}</p></div>
+                    </div>
+                    <button type="button" aria-describedby="correction-action-help" aria-expanded={showCorrectionForm} aria-controls="admin-correction-form" disabled={updatingStatus || !!secondaryActionReason} onClick={() => setShowCorrectionForm(!showCorrectionForm)} className="min-h-11 shrink-0 rounded-lg border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400">{showCorrectionForm ? 'Close form' : 'Request correction'}</button>
+                  </section>
+                  <section className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between" aria-label="Cancellation and refund">
+                    <div className="flex items-start gap-3">
+                      <span className="rounded-lg bg-rose-50 p-2 text-rose-700"><X aria-hidden="true" className="h-4 w-4" /></span>
+                      <div><h4 className="text-sm font-semibold text-stone-900">Cancellation and refund</h4><p id="cancel-action-help" className="mt-1 text-xs leading-relaxed text-stone-600">{secondaryActionReason || (selectedOrder.payment.status === 'Paid' ? 'Cancel this order and request a payment refund.' : 'Cancel this unpaid order.')}</p></div>
+                    </div>
+                    <button type="button" aria-describedby="cancel-action-help" disabled={updatingStatus || !!secondaryActionReason} onClick={() => void handleCancelOrder()} className="min-h-11 shrink-0 rounded-lg border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-800 hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-50 disabled:text-stone-400">{selectedOrder.payment.status === 'Paid' ? 'Cancel / request refund' : 'Cancel order'}</button>
+                  </section>
                 </div>
-              </section>
-              <div className="fulfillment-secondary-actions">
-                <section className="fulfillment-option-card fulfillment-correction-card">
-                  <div className="fulfillment-action-heading"><span className="fulfillment-action-icon"><MessageSquare aria-hidden="true" className="h-5 w-5" /></span><h4>Customer corrections</h4></div>
-                  <p>Ask the customer to correct agreement details.</p>
-                  <button type="button" aria-expanded={showCorrectionForm} aria-controls="admin-correction-form" onClick={() => { setShowCorrectionForm(!showCorrectionForm); setShowCourierForm(false); }} className="fulfillment-option-button">{showCorrectionForm ? 'Close Correction Form' : 'Request Customer Correction'}<ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
-                </section>
-                <section className="fulfillment-option-card fulfillment-dispatch-card">
-                  <div className="fulfillment-action-heading"><span className="fulfillment-action-icon"><Truck aria-hidden="true" className="h-5 w-5" /></span><h4>Dispatch order</h4></div>
-                  <p>Add courier details and share shipment tracking.</p>
-                  <button type="button" aria-expanded={showCourierForm} aria-controls="admin-courier-form" disabled={selectedOrder.payment?.status !== 'Paid' || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId} onClick={() => { setShowCourierForm(!showCourierForm); setShowCorrectionForm(false); }} className="fulfillment-option-button">{showCourierForm ? 'Close Dispatch Form' : 'Dispatch & Add Tracking'}<ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
-                </section>
-              </div>
 
               {/* Correction Form */}
               {showCorrectionForm && (
-                <div id="admin-correction-form" className="p-4 bg-rose-50 border border-rose-200 rounded-2xl space-y-3">
+                <div id="admin-correction-form" className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-2xl space-y-3">
                   <h4 className="font-bold text-rose-900 text-xs">Customer Correction Message</h4>
                   <textarea
                     rows={2}
@@ -1664,46 +1441,9 @@ function AdminBody() {
                 </div>
               )}
 
-              {/* Courier Form */}
-              {showCourierForm && selectedOrder.payment?.status === 'Paid' && (
-                <div id="admin-courier-form" className="p-4 bg-sky-50 border border-sky-200 rounded-2xl space-y-3">
-                  <h4 className="font-bold text-sky-900 text-xs">Consignment Courier Details</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-sky-900 mb-1">Courier Partner</label>
-                      <select
-                        value={courierName}
-                        onChange={(e) => setCourierName(e.target.value)}
-                        className="w-full p-2 rounded-xl border border-sky-300 bg-white text-xs text-stone-900"
-                      >
-                        {courierPartners.map((partner) => (
-                          <option key={partner} value={partner}>{partner}</option>
-                        ))}
-                      </select>
-                    </div>
+              </details>
+              {selectedOrder.payment.status === 'Paid' && selectedOrder.status !== 'Cancelled' && !selectedOrder.replacedByOrderId && <details className="rounded-xl border border-stone-200 p-4"><summary className="cursor-pointer text-sm font-semibold">Envelope printing and address</summary><div className="mt-4"><EnvelopePrint key={`${selectedOrder.orderId}-${selectedOrder.updatedAt}`} order={selectedOrder} /></div></details>}
 
-                    <div>
-                      <label className="block text-xs font-semibold text-sky-900 mb-1">Tracking Number</label>
-                      <input
-                        type="text"
-                        value={trackingNumber}
-                        onChange={(e) => setTrackingNumber(e.target.value)}
-                        placeholder="e.g. EM123456789IN"
-                        className="w-full p-2 rounded-xl border border-sky-300 bg-white text-xs text-stone-900 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={updatingStatus || !!selectedOrder.replacementPendingId || !!selectedOrder.replacedByOrderId || !!selectedOrder.cancellationRefundId}
-                    onClick={handleDispatchCourier}
-                    className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer"
-                  >
-                    Confirm Dispatch
-                  </button>
-                </div>
-              )}
             </div>
           </div>
           )}

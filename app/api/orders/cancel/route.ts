@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       const account = rewardCreditReturn > 0 ? (await tx.get(accountRef)).data() : null;
       if (rewardCreditReturn > 0 && (!account || !Number.isSafeInteger(account.balance) || account.balance < 0 || !Number.isSafeInteger(account.balance + rewardCreditReturn))) throw new ApiInputError('Your reward credits need admin reconciliation before cancellation.', 409);
       const now = new Date().toISOString();
-      const updates = { status: 'Cancelled', cancellationRefundId: requestId, cancellationRefundAmount: refundAmount,
+      const updates = { status: 'Cancelled', stageChangedAt: now, cancellationRefundId: requestId, cancellationRefundAmount: refundAmount,
         cancellationRefundStatus: refundAmount > 0 ? 'Awaiting approval' : 'Not required', cancelledAt: now, updatedAt: now,
         cancellationRewardCreditsReturned: rewardCreditReturn };
       tx.update(ref, updates);

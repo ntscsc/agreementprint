@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
         const newRef = ref.collection('corrections').doc(randomUUID());
         if (!order.correctionRequestId && order.correctionMessage) tx.create(historyRef, { message: order.correctionMessage, requestedAt: order.updatedAt, status: 'Previous request', changes: [] });
         tx.create(newRef, { message: body.message.trim(), requestedAt: now, requestedBy: identity.uid, status: 'Requested', changes: [] });
-        const updates = { status: 'Documents needed', correctionMessage: body.message.trim(), correctionRequestId: newRef.id, correctionStatus: 'Requested', correctionChangedFields: [], correctionSubmittedAt: null, updatedAt: now };
+        const updates = { status: 'Documents needed', stageChangedAt: now, correctionMessage: body.message.trim(), correctionRequestId: newRef.id, correctionStatus: 'Requested', correctionChangedFields: [], correctionSubmittedAt: null, updatedAt: now };
         tx.update(ref, updates);
         tx.create(db.collection('adminLogs').doc(), { orderId: body.orderId, adminUid: identity.uid, action: 'CORRECTION_REQUESTED', notes: body.message.trim(), previousStatus: order.status, newStatus: 'Documents needed', timestamp: now });
         return { ...order, ...updates };
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       const changes = changedValues(before, details);
       if (!changes.length) throw new ApiInputError('Correct the requested details before resubmitting.');
       tx.set(historyRef, { ...(previous || { message: order.correctionMessage || '', requestedAt: order.updatedAt }), status: 'Submitted', submittedAt: now, submittedBy: identity.uid, submissionKey: body.submissionKey, changes });
-      const updates = { ...details, customerPhone: body.ownerDetails.phone, status: 'Under verification', correctionRequestId: historyRef.id, correctionStatus: 'Submitted', correctionSubmittedAt: now, correctionChangedFields: changes.map(change => change.field), updatedAt: now };
+      const updates = { ...details, customerPhone: body.ownerDetails.phone, status: 'Under verification', stageChangedAt: now, correctionRequestId: historyRef.id, correctionStatus: 'Submitted', correctionSubmittedAt: now, correctionChangedFields: changes.map(change => change.field), updatedAt: now };
       tx.update(ref, updates);
       tx.create(db.collection('adminLogs').doc(), { orderId: body.orderId, actorUid: identity.uid, action: 'CUSTOMER_CORRECTIONS_SUBMITTED', changedFields: changes.map(change => change.field), previousStatus: order.status, newStatus: 'Under verification', timestamp: now });
       return { ...order, ...updates };

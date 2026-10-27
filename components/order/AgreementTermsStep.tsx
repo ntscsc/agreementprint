@@ -110,14 +110,13 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
 
       <div className="space-y-2">
         <label htmlFor="terms-language" className="block text-sm font-bold text-stone-700">Agreement language / ஒப்பந்த மொழி</label>
-        <select id="terms-language" disabled={isLease} value={data.language || 'English'} onChange={event => onChange({ language: event.target.value as 'English' | 'Tamil', ...(event.target.value === 'Tamil' && propertyType === 'Commercial Shop' && data.language !== 'Tamil' && (data.noticePeriodDays === undefined || data.noticePeriodDays === 30) ? { noticePeriodDays: 90 } : {}), ...(event.target.value === 'Tamil' && propertyType !== 'Commercial Shop' ? { paintingDeduction: data.paintingDeduction ?? 5000 } : {}) })} aria-describedby="terms-language-help" className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm">
+        <select id="terms-language" disabled={isLease} value={data.language || 'English'} onChange={event => onChange({ language: event.target.value as 'English' | 'Tamil', ...(event.target.value === 'Tamil' && propertyType === 'Commercial Shop' && data.language !== 'Tamil' && (data.noticePeriodDays === undefined || data.noticePeriodDays === 30) ? { noticePeriodDays: 90 } : {}), ...(event.target.value === 'Tamil' && propertyType !== 'Commercial Shop' ? { paintingDeduction: data.paintingDeduction ?? 0 } : {}) })} aria-describedby="terms-language-help" className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm">
           <option value="English">English</option>
           <option value="Tamil">தமிழ் (Tamil)</option>
         </select>
-        <p id="terms-language-help" className="text-xs leading-relaxed text-stone-600">{propertyType === 'Commercial Shop' ? 'Tamil uses your supplied shop rental template and the business name entered in Step 3. The sample notice period is 90 days; you can change it below. ' : ''}Names and addresses appear exactly as entered. Enter them in Tamil if you want Tamil text; they are not automatically translated.</p>
+        <p id="terms-language-help" className="text-xs leading-relaxed text-stone-600">Enter names and addresses in the language you want printed. They will appear as entered.</p>
         {errors.language && <p role="alert" className="text-xs text-rose-700">{errors.language}</p>}
-        {!isLease && propertyType !== 'Commercial Shop' && <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3"><label htmlFor="terms-paintingDeduction" className="block text-sm font-bold text-stone-700">Painting deduction on vacating (₹)</label><input id="terms-paintingDeduction" type="number" min="0" max="1000000000" step="0.01" required value={data.paintingDeduction ?? ''} onChange={event => onChange({ paintingDeduction: event.target.value === '' ? undefined : Number(event.target.value) })} className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm" aria-describedby="painting-deduction-help" /><p id="painting-deduction-help" className="text-xs leading-relaxed text-stone-600">Deducted from the deposit on vacating; enter 0 for none. All amounts, tenure, due date and notice period follow your form values. Review the draft before payment.</p>{errors.paintingDeduction && <p role="alert" className="text-xs text-rose-700">{errors.paintingDeduction}</p>}</div>}
-        {data.language === 'Tamil' && propertyType === 'Commercial Shop' && <p className="rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm text-brand-800">Selected template: கடை வாடகை ஒப்பந்தப் பத்திரம் (Tamil shop rental agreement). Rent, deposit, duration and notice period follow your form values.</p>}
+
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-x-5 gap-y-5">
@@ -190,6 +189,8 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
           )}
         </div>
 
+        <div className="space-y-2"><label htmlFor="terms-paintingDeduction" className="block text-xs font-bold text-stone-700">Painting deduction on vacating (₹)</label><input id="terms-paintingDeduction" type="number" min="0" max={data.securityDeposit ?? 0} step="0.01" required value={data.paintingDeduction ?? ''} onChange={event => onChange({ paintingDeduction: event.target.value === '' ? undefined : Number(event.target.value) })} className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm" aria-describedby="painting-deduction-help" /><p id="painting-deduction-help" className="text-xs leading-relaxed text-stone-600">Deducted from the deposit when the tenant vacates. Cannot exceed the security deposit or lease advance. Enter 0 if no deduction applies.</p>{errors.paintingDeduction && <p role="alert" className="text-xs text-rose-700">{errors.paintingDeduction}</p>}</div>
+
         {/* Maintenance Charges */}
         <div>
           <label htmlFor="terms-maintenance" className="block text-xs font-bold text-stone-700 mb-1">
@@ -259,7 +260,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
           </select>
         </div>}
         {/* Annual Rent Escalation % */}
-        {!isLease && <div className="sm:col-span-2">
+        {!isLease && <div>
           <label htmlFor="terms-escalation" className="block text-xs font-bold text-stone-700 mb-1">
             Annual Rent Increase Clause (%) *
           </label>
@@ -276,7 +277,7 @@ export const AgreementTermsStep: React.FC<AgreementTermsStepProps> = ({
             <option value={15}>15% annual increase</option>
           </select>
         </div>}
-        <div><label htmlFor="terms-tenure" className="block text-xs font-bold text-stone-700 mb-1">Agreement duration (months) *</label><input id="terms-tenure" type="number" min="1" max="120" required value={data.tenureMonths ?? ''} onChange={event => onChange({ tenureMonths: event.target.value === '' ? undefined : Number(event.target.value) })} className="min-h-11 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm" />{errors.tenureMonths && <p role="alert" className="text-xs text-rose-700">{errors.tenureMonths}</p>}</div>
+        <div className="sm:col-span-2"><label htmlFor="terms-tenure" className="block text-xs font-bold text-stone-700 mb-1">Agreement duration (months) *</label><input id="terms-tenure" type="number" min="1" max="120" required value={data.tenureMonths ?? ''} onChange={event => onChange({ tenureMonths: event.target.value === '' ? undefined : Number(event.target.value) })} className="min-h-11 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm" />{errors.tenureMonths && <p role="alert" className="text-xs text-rose-700">{errors.tenureMonths}</p>}</div>
         {/* ================= PACKAGE AND DELIVERY OPTIONS ================= */}
         <div className="sm:col-span-2 pt-4 border-t border-stone-200">
           <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3 sm:p-5 space-y-4">

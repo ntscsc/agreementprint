@@ -5,7 +5,7 @@ import { Copy, Check } from 'lucide-react';
 
 const referenceCache = new Map<string, Promise<string>>();
 
-export function OrderReference({ reference }: { reference: string }) {
+export function OrderReference({ reference, compact = true }: { reference: string; compact?: boolean }) {
   const [resolved, setResolved] = useState<{ reference: string; value?: string; failed?: boolean } | null>(null);
   const [clipboard, setClipboard] = useState<{ reference: string; status: 'copied' | 'failed' } | null>(null);
   const publicReference = /^AP-\d{6}$/.test(reference) ? reference : resolved?.reference === reference ? resolved.value || '' : '';
@@ -32,8 +32,8 @@ export function OrderReference({ reference }: { reference: string }) {
       event.preventDefault(); event.stopPropagation();
       try { await navigator.clipboard.writeText(publicReference); setClipboard({ reference, status: 'copied' }); setTimeout(() => setClipboard(previous => previous?.reference === reference ? null : previous), 2000); }
       catch { setClipboard({ reference, status: 'failed' }); }
-    }} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 hover:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700">
-      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+    }} className={`inline-flex items-center justify-center border bg-white text-stone-700 hover:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700 ${compact ? 'h-7 w-7 rounded-md border-stone-200' : 'min-h-11 min-w-11 rounded-lg border-stone-300'}`}>
+      {copied ? <Check className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} /> : <Copy className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />}
     </button>
     <span role="status" className="text-sm text-stone-700">{copied ? 'Copied' : error ? publicReference ? `Copy manually: ${publicReference}` : 'Reference unavailable - refresh to retry' : ''}</span>
   </span>;

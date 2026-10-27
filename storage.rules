@@ -10,7 +10,7 @@ service firebase.storage {
       return isSignedIn()
         && (
           request.auth.token.email == "pradeep1992official@gmail.com"
-          || request.auth.token.email == "ntcsc@gmail.com"
+          || request.auth.token.email == "ntscsc@gmail.com"
         )
         && request.auth.token.email_verified == true;
     }

@@ -1,10 +1,11 @@
 'use client';
 
+import { openPaymentCheckout } from '@/lib/open-payment-checkout';
 import { propertyPostcodeError } from '@/lib/property-postcode';
 import { readApiResponse } from '@/lib/api-response';
 import { createOrderReference } from '@/lib/order-reference';
 
-import { validateAgreement } from '@/lib/agreement-validation';
+import { paintingDeductionError, validateAgreement } from '@/lib/agreement-validation';
 
 import { requestReviewedCheckout } from '@/lib/checkout-client';
 
@@ -438,6 +439,8 @@ function OrderIntakeBody() {
   // Step 4 Validation (Agreement Terms)
   const validateTerms = (): boolean => {
     const errs: Record<string, string> = {};
+    const paintingError = paintingDeductionError(termsData.paintingDeduction, termsData.securityDeposit);
+    if (paintingError) errs.paintingDeduction = paintingError;
     if (termsData.agreementType !== 'Lease' && propertyData.propertyType !== 'Commercial Shop' && (typeof termsData.paintingDeduction !== 'number' || !Number.isFinite(termsData.paintingDeduction) || termsData.paintingDeduction < 0 || termsData.paintingDeduction > 1e9)) errs.paintingDeduction = 'Enter a painting deduction from ₹0 to ₹1,000,000,000.';
     if (termsData.agreementType !== 'Lease' && (!termsData.monthlyRent || Number(termsData.monthlyRent) <= 0)) {
       errs.monthlyRent = 'Monthly rent must be a positive amount';
@@ -613,7 +616,7 @@ function OrderIntakeBody() {
       }
 
       if (paymentResult.gateway === 'Razorpay') {
-        window.location.assign(paymentResult.redirectUrl);
+        await openPaymentCheckout(paymentResult.redirectUrl);
         return;
       }
       setPhonePeCheckout({
@@ -854,8 +857,6 @@ function OrderIntakeBody() {
             data={propertyData}
             onChange={(fields) => {
               setPropertyData((prev) => ({ ...prev, ...fields }));
-              if (fields.propertyType === 'Commercial Shop') setTermsData(prev => ({ ...prev, paintingDeduction: undefined }));
-              else if (fields.propertyType && propertyData.propertyType === 'Commercial Shop') setTermsData(prev => ({ ...prev, paintingDeduction: prev.paintingDeduction ?? 5000 }));
               setErrors({});
               scheduleAutosave();
             }}

@@ -37,7 +37,7 @@ Repository-wide automated verification and targeted manual review of authenticat
 ## Deployment and remaining checks
 
 - These are local changes. Deploy the application and updated Firestore rules together. Storage rules are retained only for the legacy storage configuration; current custom uploads use Supabase.
-- The secondary administrator now follows the existing application setting, ntcsc@gmail.com. Review that intended account before deploying an authorization change.
+- The secondary administrator now follows the existing application setting, ntscsc@gmail.com. Review that intended account before deploying an authorization change.
 - Configure Firestore TTL on orderTrackingLimits.expiresAt to remove expired per-reference counters. Existing enquiry/custom-request counter TTL and abandoned-upload cleanup also require operational configuration.
 - Real Google sign-in, signed-in order/payment completion, PhonePe webhooks and real private Supabase upload/download flows still require staging verification. No customer data was modified and no real payment was started during this review.
 - The public tracking design still discloses its limited tracking fields to anyone who knows the reference and a registered phone number. Rate limiting reduces guessing; it does not turn these values into strong authentication.

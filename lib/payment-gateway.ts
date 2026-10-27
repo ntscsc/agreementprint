@@ -107,13 +107,23 @@ export async function createGatewayCheckout(credentials: GatewayCredentials, acc
   return new Response(JSON.stringify({ redirectUrl: paymentReturnPath(url.toString()), order_id: saved.razorpayOrderId, amount: saved.amount, currency: saved.currency }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
-export async function fetchGatewayOrderStatus(credentials: GatewayCredentials, accessToken: string, merchantOrderId: string): Promise<{ state?: string; amount?: number; expireAt?: number; paymentDetails?: Array<{ state?: string; transactionId?: string }> }> {
+export async function fetchGatewayOrderStatus(credentials: GatewayCredentials, accessToken: string, merchantOrderId: string, checkRetry = false): Promise<{ state?: string; amount?: number; expireAt?: number; retrySafe?: boolean; paymentDetails?: Array<{ state?: string; transactionId?: string }> }> {
   if (credentials.gateway !== 'Razorpay') return fetchPhonePeOrderStatus(credentials, accessToken, merchantOrderId);
   const record = (await getAdminDb().collection('razorpayCheckouts').doc(merchantOrderId).get()).data();
   if (!record?.razorpayOrderId || record.keyId !== credentials.keyId) throw new ApiInputError('The existing Razorpay checkout needs verification. No new charge was started.', 409);
   const order = await razorpayRequest(`orders/${encodeURIComponent(record.razorpayOrderId)}`, credentials);
   if (order.id !== record.razorpayOrderId || order.amount !== record.amount || order.currency !== 'INR' || order.receipt !== record.receipt) throw new Error('Razorpay order mismatch.');
-  if (order.status !== 'paid') return { state: 'PENDING', amount: record.amount };
+  if (order.status !== 'paid') {
+    if (!checkRetry) return { state: 'PENDING', amount: record.amount };
+    const payments = await razorpayRequest(`orders/${encodeURIComponent(record.razorpayOrderId)}/payments`, credentials);
+    // Retry only with a complete set of failed attempts, or an untouched order.
+    // Authorised, created or unknown payment attempts must remain locked.
+    const items = payments.items;
+    const retrySafe = Array.isArray(items) && order.amount_paid === 0 && order.amount_due === record.amount && Number.isSafeInteger(order.attempts) && order.attempts === items.length
+      && (items.length > 0 || order.status === 'created')
+      && items.every((p: { order_id?: string; status?: string; amount?: number; currency?: string }) => p.order_id === record.razorpayOrderId && p.status === 'failed' && p.amount === record.amount && p.currency === 'INR');
+    return { state: 'PENDING', amount: record.amount, retrySafe };
+  }
   const payments = await razorpayRequest(`orders/${encodeURIComponent(record.razorpayOrderId)}/payments`, credentials);
   const captured = payments.items?.find((payment: { order_id: string; currency: string; amount: number; status: string; captured: boolean }) => payment.order_id === record.razorpayOrderId && payment.currency === 'INR' && payment.amount === record.amount && payment.status === 'captured' && payment.captured === true);
   if (!captured || order.amount_paid !== record.amount || order.amount_due !== 0) throw new Error('Razorpay capture is not confirmed.');

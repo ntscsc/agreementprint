@@ -1,5 +1,6 @@
 'use client';
 
+import { openPaymentCheckout } from '@/lib/open-payment-checkout';
 import { ExtraCopiesField } from './ExtraCopiesField';
 import { OrderReference } from './OrderReference';
 import { useState } from 'react';
@@ -33,7 +34,7 @@ export function ModifyReplaceOrder({ order, onSaved, onCancel, correctionMode = 
       }
       const response = await fetch('/api/orders/replace', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: quote ? 'submit' : 'preview', acceptAdminReview: reviewRequired, requestKey, reviewedTotal: quote?.total, orderId: order.orderId, updatedAt: order.updatedAt, ownerDetails: owner, tenantDetails: tenant, propertyDetails: property, agreementTerms: terms }) });
       const result = await readApiResponse(response);
-      if (result.redirectUrl) { window.location.assign(result.redirectUrl); return; }
+      if (result.redirectUrl) { await openPaymentCheckout(result.redirectUrl); return; }
       if (result.edited) { onSaved(result.order as Order); return; }
       if (result.completed) { onSaved(result.order as Order, result.original as Order); return; }
       if (result.reviewRequired && !result.quote) { setSubmitted(true); return; }
@@ -56,7 +57,7 @@ export function ModifyReplaceOrder({ order, onSaved, onCancel, correctionMode = 
           ['monthlyRent', 'Monthly rent', 0, 1000000000], ['securityDeposit', terms.agreementType === 'Lease' ? 'Lease advance' : 'Security deposit', 0, 1000000000],
           ['maintenanceCharges', 'Monthly maintenance', 0, 1000000000], ['tenureMonths', 'Duration in months', 1, 120],
           ['noticePeriodDays', 'Notice period in days', 0, 365], ['rentIncreasePct', 'Annual rent increase (%)', 0, 100], ['paymentDueDay', 'Rent due day', 1, 31],
-          ...(terms.agreementType !== 'Lease' && property.propertyType !== 'Commercial Shop' ? [['paintingDeduction', 'Painting deduction', 0, 1000000000]] : []),
+          ['paintingDeduction', 'Painting deduction (0 for none)', 0, 1000000000],
         ] as [keyof AgreementTerms, string, number, number][]).map(([key, label, min, max]) => <label key={key}>{label}<input required={key !== 'paymentDueDay'} className={input} type="number" min={min} max={max} step={['tenureMonths', 'noticePeriodDays', 'paymentDueDay'].includes(key) ? 1 : '0.01'} value={terms[key] === undefined ? '' : String(terms[key])} disabled={terms.agreementType === 'Lease' && ['monthlyRent', 'rentIncreasePct'].includes(key)} onChange={event => change({ [key]: event.target.value === '' ? undefined : Number(event.target.value) })} /></label>)}
         <label>Start date<input required className={input} type="date" value={terms.startDate} onChange={event => change({ startDate: event.target.value })} /></label>
         <label>Delivery recipient<select className={input} value={terms.deliveryRecipient || ''} required onChange={event => change({ deliveryRecipient: event.target.value as AgreementTerms['deliveryRecipient'] })}><option value="">Choose recipient</option><option>Owner</option><option>Tenant</option></select></label>

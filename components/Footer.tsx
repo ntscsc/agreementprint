@@ -10,7 +10,6 @@ import { useAuth } from '@/lib/auth-context';
 
 const services = [
   { label: 'Rental Agreements', href: '/order' },
-  { label: 'Rental Agreement in Chennai', href: '/rental-agreement-chennai' },
   { label: 'Custom Agreements', href: '/custom-agreement' },
   { label: 'Free Rent Receipts', href: '/rent-receipt' },
   { label: 'All Services', href: '/services' },

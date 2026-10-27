@@ -11,7 +11,7 @@ service cloud.firestore {
       return isSignedIn()
         && (
           request.auth.token.email == "pradeep1992official@gmail.com"
-          || request.auth.token.email == "ntcsc@gmail.com"
+          || request.auth.token.email == "ntscsc@gmail.com"
         )
         && request.auth.token.email_verified == true;
     }
@@ -46,7 +46,7 @@ service cloud.firestore {
         && validProperty(data.propertyDetails)
         && data.agreementTerms is map
         && (!('language' in data.agreementTerms) || data.agreementTerms.language in ['English', 'Tamil'])
-        && (!('paintingDeduction' in data.agreementTerms) || (data.agreementTerms.paintingDeduction is number && data.agreementTerms.paintingDeduction >= 0 && data.agreementTerms.paintingDeduction <= 1000000000))
+        && (!('paintingDeduction' in data.agreementTerms) || (data.agreementTerms.paintingDeduction is number && data.agreementTerms.paintingDeduction >= 0 && data.agreementTerms.paintingDeduction <= 1000000000 && data.agreementTerms.paintingDeduction <= data.agreementTerms.securityDeposit))
         && (!('language' in data.agreementTerms) || data.agreementTerms.language != 'Tamil' || data.propertyDetails.propertyType == 'Commercial Shop' || 'paintingDeduction' in data.agreementTerms)
         && (!('agreementType' in data.agreementTerms) || data.agreementTerms.agreementType in ['Rental', 'Lease'])
         && (('agreementType' in data.agreementTerms && data.agreementTerms.agreementType == 'Lease')
@@ -168,11 +168,13 @@ service cloud.firestore {
       // - Admins manage workflow; payment records are gateway/server-managed.
       // - Customer corrections use the transactional server API; direct client edits are denied.
       allow update: if (isAdmin()
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['agreementTerms']) || validAgreement(request.resource.data))
         && !('cancellationRefundId' in resource.data)
         && !(resource.data.payment.status == 'Paid' && request.resource.data.status == 'Cancelled')
         && (!('replacementPendingId' in resource.data) || resource.data.replacementPendingId == null)
         && !('replacedByOrderId' in resource.data)
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['payment', 'replacementPendingId', 'replacesOrderId', 'replacedByOrderId', 'replacementRequestId', 'replacementAdjustment', 'modificationReviewId', 'modificationReviewOutcome', 'cancellationRefundId', 'cancellationRefundAmount', 'cancellationRefundStatus', 'cancellationRefundNote', 'cancellationRewardCreditsReturned', 'correctionRequestId', 'correctionStatus', 'correctionSubmittedAt', 'correctionChangedFields', 'correctionMessage'])
+        // Workflow transitions and their checks are transactional server actions.
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'courier', 'stageChangedAt', 'detailsVerifiedAt', 'preparationStartedAt', 'preparationCompletedAt', 'preparationChecks', 'completedAt', 'payment', 'replacementPendingId', 'replacesOrderId', 'replacedByOrderId', 'replacementRequestId', 'replacementAdjustment', 'modificationReviewId', 'modificationReviewOutcome', 'cancellationRefundId', 'cancellationRefundAmount', 'cancellationRefundStatus', 'cancellationRefundNote', 'cancellationRewardCreditsReturned', 'correctionRequestId', 'correctionStatus', 'correctionSubmittedAt', 'correctionChangedFields', 'correctionMessage'])
         && (!('preparationStartedAt' in resource.data)
           || (request.resource.data.preparationStartedAt == resource.data.preparationStartedAt))
         && (!(request.resource.data.status in ['Drafting', 'Dispatched', 'Delivered'])

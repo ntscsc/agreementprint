@@ -18,9 +18,26 @@ export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [agentAccess, setAgentAccess] = useState<{ uid: string; allowed: boolean } | null>(null);
+  const accountOpen = openMenu === 'account';
+  const hasAgentAccess = !!user && user.emailVerified && agentAccess?.uid === user.uid && agentAccess.allowed;
   const activeMenuRef = useRef<HTMLDivElement>(null);
   const mobileButtonRef = useRef<HTMLButtonElement>(null);
   const closeMenus = () => { setOpenMenu(null); setMobileMenuOpen(false); };
+
+  useEffect(() => {
+    if (!user?.emailVerified) return;
+    let active = true;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch('/api/agents/dashboard?access=1', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store', signal: controller.signal });
+        const data = response.ok ? await response.json() : null;
+        if (active) setAgentAccess({ uid: user.uid, allowed: data?.eligible === true });
+      } catch { if (active) setAgentAccess({ uid: user.uid, allowed: false }); }
+    })();
+    return () => { active = false; controller.abort(); };
+  }, [user, pathname, accountOpen, mobileMenuOpen]);
 
   useEffect(() => {
     if (!openMenu && !mobileMenuOpen) return;
@@ -63,6 +80,7 @@ export const Header: React.FC<HeaderProps> = ({ onStartAgreement }) => {
     { label: 'Feedback & Reviews', href: '/reviews' },
     { label: t.nav.trackOrder, href: '/track' },
     { label: 'Referral Credits', href: '/referrals' },
+    ...(hasAgentAccess ? [{ label: 'Agent Dashboard', href: '/agent-dashboard' }] : []),
   ];
   const linkClass = (href: string, dropdown = false) => dropdown
     ? `block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${pathname === href ? 'bg-amber-50 text-amber-900' : 'text-stone-700 hover:bg-stone-100'}`

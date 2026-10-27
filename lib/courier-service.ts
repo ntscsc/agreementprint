@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { validCourierTrackingLink } from './courier-tracking';
 
 export const DEFAULT_COURIER_PARTNERS = ['Professional Courier'];
 
@@ -23,13 +24,24 @@ export async function getCourierPartners(): Promise<string[]> {
   return normalizeCourierPartners(courierDoc.data()?.partners);
 }
 
+export async function getCourierSettings() {
+  const snapshot = await getDoc(doc(db, 'settings', 'couriers'));
+  return { partners: normalizeCourierPartners(snapshot.data()?.partners), trackingLinks: (snapshot.data()?.trackingLinks || {}) as Record<string, string> };
+}
+
 export async function saveCourierPartners(
   partners: string[],
   adminEmail: string,
+  trackingLinks: Record<string, string> = {},
 ): Promise<void> {
   const normalizedPartners = normalizeCourierPartners(partners);
+  const links: Record<string, string> = Object.fromEntries(normalizedPartners.map((name): [string, string] => [name, (trackingLinks[name] || '').trim()]).filter(([, link]) => !!link));
+  for (const [name, link] of Object.entries(links)) {
+    if (!validCourierTrackingLink(link)) throw new Error(`Enter a valid HTTPS tracking link for ${name}.`);
+  }
   await setDoc(doc(db, 'settings', 'couriers'), {
     partners: normalizedPartners,
+    trackingLinks: links,
     updatedAt: new Date().toISOString(),
     updatedBy: adminEmail,
   });

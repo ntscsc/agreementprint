@@ -141,7 +141,7 @@ function ReferralDashboardBody() {
               >
                 {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
                 {copied ? 'Referral link copied' : 'Copy share link'}
-                {!copied && <Copy className="h-4 w-4" />}
+                {!copied && <Copy className="h-3.5 w-3.5" />}
               </button>
             </div>
           </section>

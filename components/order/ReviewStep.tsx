@@ -1,5 +1,6 @@
 'use client';
 
+import { formatAgreementAmount, paintingDeductionSummary } from '@/lib/agreement-formatter';
 import { maskedAadhaar } from '@/lib/identity-display';
 
 import { readApiResponse } from '@/lib/api-response';
@@ -388,24 +389,6 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         </div>
       </div>
 
-      {/* Featured Preview Banner */}
-      <div className="p-4 bg-gradient-to-r from-amber-50 via-stone-50 to-emerald-50 border border-amber-200/80 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="p-2 bg-white rounded-xl shadow-xs border border-amber-200 text-amber-800 shrink-0">
-            <FileText className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-stone-900">Official Non-Judicial Stamping Format</h4>
-            <p className="text-[11px] text-stone-600 mt-0.5">
-              Agreement type: {termsData.agreementType || 'Rental'}. Agreement language: {termsData.language || 'English'}. Your inputs will be drafted into the selected template with stamp margins, amounts in words, tenure and witness clauses.
-            </p>
-            {termsData.agreementType !== 'Lease' && propertyData.propertyType !== 'Commercial Shop' && <p className="mt-2 text-xs font-semibold text-amber-900">Painting deduction on vacating: ₹{(termsData.paintingDeduction ?? 0).toLocaleString('en-IN')} from the deposit. Review the draft before payment.</p>}
-            {termsData.language === 'Tamil' && <p className="mt-2 text-xs font-semibold text-amber-900">{propertyData.propertyType === 'Commercial Shop' ? `Tamil shop rental agreement for ${propertyData.businessName || 'your business'}.` : 'Tamil residential rental agreement.'} Notice period: {termsData.noticePeriodDays} days. Review the draft before payment.</p>}
-            {termsData.agreementType === 'Lease' && <p className="mt-2 text-xs font-semibold text-amber-900">Lease template: refundable advance with interest treated as rent, and no separate monthly rent. Clause 15 retains the supplied document&apos;s replacement-tenant provision if the advance is not refunded. Review this alongside the no-subletting clause before payment.</p>}
-          </div>
-        </div>
-      </div>
-
       {submissionError && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 flex items-start gap-2.5">
           <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
@@ -558,9 +541,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-stone-700">
-            {termsData.agreementType !== 'Lease' && <div><span className="text-stone-400">Monthly Rent:</span> <strong className="text-stone-900">₹{termsData.monthlyRent?.toLocaleString('en-IN')}</strong></div>}
-            <div><span className="text-stone-400">{termsData.agreementType === 'Lease' ? 'Refundable Lease Advance:' : 'Security Advance:'}</span> <strong className="text-stone-900">₹{termsData.securityDeposit?.toLocaleString('en-IN')}</strong></div>
-            <div><span className="text-stone-400">Maintenance Charges:</span> ₹{(termsData.maintenanceCharges || 0).toLocaleString('en-IN')} / mo</div>
+            {termsData.agreementType !== 'Lease' && <div><span className="text-stone-400">Monthly Rent:</span> <strong className="text-stone-900">₹{formatAgreementAmount(termsData.monthlyRent)}</strong></div>}
+            <div><span className="text-stone-400">{termsData.agreementType === 'Lease' ? 'Refundable Lease Advance:' : 'Security Advance:'}</span> <strong className="text-stone-900">₹{formatAgreementAmount(termsData.securityDeposit)}</strong></div>
+            <div><span className="text-stone-400">Maintenance Charges:</span> ₹{formatAgreementAmount(termsData.maintenanceCharges ?? 0)} / mo</div>
+            <div><span className="text-stone-400">Painting deduction on vacating:</span> <strong className="text-stone-900">{paintingDeductionSummary(termsData.paintingDeduction)}</strong></div>
             <div><span className="text-stone-400">Commencement Date:</span> {termsData.startDate}</div>
             <div><span className="text-stone-400">Tenure:</span> {termsData.tenureMonths} Months</div>
             <div><span className="text-stone-400">Notice Period:</span> {termsData.noticePeriodDays} Days</div>

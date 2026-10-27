@@ -9,6 +9,7 @@ import { getOrderBill } from '@/lib/order-bill';
 import { renderOrderBill } from '@/lib/order-bill-pdf';
 import { VENDOR_CONFIG } from '@/src/config/vendor';
 import type { CounterOrder } from '@/lib/counter-order';
+import { workflowPatch } from '@/lib/order-workflow';
 
 export const runtime = 'nodejs';
 export async function GET(req: NextRequest) {
@@ -64,19 +65,23 @@ export async function POST(req: NextRequest) {
           payment: { status: paid ? 'Paid' : 'Pending', amount: paid ? body.counterAmount : 0, totalBeforeCredits: body.counterAmount, subtotal: body.counterAmount, gateway: 'Counter', ...(paid ? { paidAt: existing?.payment.paidAt || now } : {}) },
           saveKey: body.saveKey,
         } as CounterOrder;
-        if (existing && checkoutDetailsChanged({ ...existing }, details)) { next.status = 'Under verification'; delete next.preparationStartedAt; }
+        if (!existing) next.stageChangedAt = now;
+        if (existing && checkoutDetailsChanged({ ...existing }, details)) {
+          next.status = 'Under verification'; next.stageChangedAt = now;
+          delete next.preparationStartedAt; delete next.detailsVerifiedAt; delete next.preparationCompletedAt; delete next.preparationChecks;
+        }
         allocation?.write();
       } else {
         if (!existing) throw new ApiInputError('Counter order not found.', 404);
         if (body.updatedAt !== existing.updatedAt) throw new ApiInputError('Order changed. Refresh and try again.', 409);
         next = { ...existing, updatedAt: now };
-        if (body.action === 'print') {
-          if (existing.payment.status !== 'Paid' && body.allowUnpaid !== true) throw new ApiInputError('Confirm printing without payment.', 409);
-          if (!existing.collectedAt) { next.status = 'Drafting'; next.preparationStartedAt = existing.preparationStartedAt || now; }
+        if (body.action === 'prepare') {
+          if (existing.collectedAt) return existing;
+          try { next = { ...next, ...workflowPatch(existing, 'Counter', { action: 'prepare', checks: body.checks, allowUnpaid: body.allowUnpaid }, now) }; }
+          catch (error) { throw new ApiInputError((error as Error).message, 409); }
         } else if (body.action === 'collect') {
-          if (existing.payment.status !== 'Paid') throw new ApiInputError('Record the counter payment before collection.', 409);
-          if (!existing.preparationStartedAt) throw new ApiInputError('Prepare the print copy before collection.', 409);
-          next.status = 'Delivered'; next.collectedAt = existing.collectedAt || now;
+          try { next = { ...next, ...workflowPatch(existing, 'Counter', { action: 'complete', confirmed: body.confirmed }, now), collectedAt: now }; }
+          catch (error) { throw new ApiInputError((error as Error).message, 409); }
         } else throw new ApiInputError('Invalid counter action.');
       }
       tx.set(ref, next);

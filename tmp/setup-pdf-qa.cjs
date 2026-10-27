@@ -1,0 +1,21 @@
+const fs=require('fs');
+let s=fs.readFileSync('tmp/pdfs-generate.cjs','utf8');
+s=s.slice(0,s.indexOf('// Use the actual receipt'))+'await b.close();})();';
+s=s.replace("fs.mkdirSync('tmp/pdfs',{recursive:true});", "fs.mkdirSync('tmp/pdfs/review-fixes',{recursive:true});");
+s=s.replace("const manifest=[];",`const manifest=[];
+const exporter=ts.transpileModule(fs.readFileSync('lib/agreement-pdf-client.ts','utf8').replace('win.print();','/* intercepted for automated QA */'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+`);
+s=s.replace("['lease','English residential lease']", "['lease','English residential lease'],['lease-shop','English shop lease'],['tamil-lease','Tamil residential lease'],['tamil-lease-shop','Tamil shop lease']");
+s=s.replace("kind==='lease'?", "kind.includes('lease')?");
+const a=s.indexOf(' const layout='); const z=s.indexOf('\n}',a);
+s=s.slice(0,a)+` await page.addScriptTag({content:'var exports = {};'+exporter});
+ await page.evaluate(async()=>{await exports.downloadAgreementPdf(document.getElementById('printable-agreement-doc'),'QA');const f=document.querySelector('iframe');if(!f)throw Error('No export frame');const d=f.contentDocument;document.head.innerHTML=d.head.innerHTML;document.body.innerHTML=d.body.innerHTML;f.remove();});
+ await page.evaluate(()=>document.fonts.ready);
+ const layout=await page.locator('.agreement-page').evaluateAll(ps=>ps.map(p=>{const s=p.querySelector('.agreement-signatures'),body=p.querySelector('.agreement-export-body');return {height:p.getBoundingClientRect().height,font:getComputedStyle(p).fontSize,space:s.getBoundingClientRect().top-body.getBoundingClientRect().bottom,signing:s.getBoundingClientRect().height};}));
+ if(layout.some(p=>p.space<15||p.signing<110))throw Error('Bad signing space '+JSON.stringify(layout));
+ const file='tmp/pdfs/review-fixes/'+kind+'-'+stamp+'.pdf';
+ await page.pdf({path:file,format:'A4',preferCSSPageSize:true,printBackground:true,displayHeaderFooter:false});
+ if(kind==='tamil-lease-shop'&&stamp===100)await page.screenshot({path:'tmp/pdfs/review-fixes/tamil-shop-100.png',fullPage:true});
+ console.log(kind,stamp,JSON.stringify(layout));`+s.slice(z);
+fs.writeFileSync('tmp/verify-pdf-fixes.cjs',s);
+

@@ -303,3 +303,43 @@ test('refund approval stays blocked in test mode without contacting the payment 
   assert.equal(h.read(`creditRefundRequests/${cancellationId}`).state, 'Awaiting approval');
   assert.equal(h.calls.length, 0);
 });
+
+
+test('Razorpay timeout retries require a complete, verified set of failed payments or an untouched order', async () => {
+  const base = { id: 'order_123', amount: 35000, amount_paid: 0, amount_due: 35000, currency: 'INR', receipt: 'receipt123', status: 'attempted', attempts: 1 };
+  const failed = { id: 'pay_123', order_id: 'order_123', amount: 35000, currency: 'INR', status: 'failed' };
+  for (const scenario of [
+    { order: { ...base, status: 'created', attempts: 0 }, items: [], retry: true },
+    { order: base, items: [failed], retry: true },
+    { order: base, items: [{ ...failed, status: 'authorized' }], retry: false },
+    { order: base, items: [{ ...failed, status: 'created' }], retry: false },
+    { order: base, items: [{ ...failed, status: 'captured' }], retry: false },
+    { order: { ...base, attempts: 2 }, items: [failed], retry: false },
+    { order: { ...base, amount_paid: 1 }, items: [failed], retry: false },
+    { order: base, items: [{ ...failed, order_id: 'order_other' }], retry: false },
+  ]) {
+    const h = harness({ 'razorpayCheckouts/TN123': checkout }, { fetch: async (url: string) => json(url.endsWith('/payments') ? { items: scenario.items } : scenario.order) });
+    const gateway = h.load('@/lib/payment-gateway');
+    const result = await gateway.fetchGatewayOrderStatus(gateway.gatewayCredentials('Razorpay'), '', 'TN123', true);
+    assert.equal(result.state, 'PENDING');assert.equal(result.retrySafe, scenario.retry);
+  }
+});
+
+
+test('closing an untouched regular QR checkout immediately returns to My Orders with retry available', async () => {
+  const h = harness({ 'razorpayCheckouts/TN123': checkout,
+    'phonepePaymentAttempts/TN123': { ownerUid: 'customer', orderId: 'O1', gateway: 'Razorpay', amount: 350 },
+    'orders/O1': { ownerUid: 'customer', status: 'Submitted', payment: { status: 'Pending', phonepeMerchantOrderId: 'TN123' } },
+  }, { fetch: async (url: string) => json(url.endsWith('/payments') ? { items: [] } : { id: 'order_123', amount: 35000, amount_paid: 0, amount_due: 35000, currency: 'INR', receipt: 'receipt123', status: 'created', attempts: 0 }) });
+  const route = h.load('@/app/api/payment/razorpay/checkout/route');
+  assert.equal((await route.POST(request({ attempt: 'TN123', action: 'dismiss' }, 'other'))).status, 404);
+  const response = await route.POST(request({ attempt: 'TN123', action: 'dismiss' }, 'customer'));
+  assert.equal(response.status, 200);const result = await response.json();
+  assert.equal(result.retryAvailable, true);assert.equal(result.returnUrl, '/my-orders');
+  assert.equal(h.read('orders/O1').payment.checkoutClosed, true);
+  assert.equal(h.read('orders/O1').payment.retryAvailable, true);
+  assert.equal(h.read('orders/O1').payment.status, 'Pending');
+  assert.equal(h.calls.filter(c => c.method === 'POST').length, 0, 'Dismissal creates no new gateway order');
+  await h.db.collection('orders').doc('O1').update({ status: 'Cancelled' });
+  assert.equal((await route.POST(request({ attempt: 'TN123', action: 'options' }, 'customer'))).status, 409);
+});

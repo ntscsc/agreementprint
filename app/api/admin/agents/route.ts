@@ -45,6 +45,9 @@ export async function POST(request: NextRequest) {
     const body = await readJsonObject(request);
     const db = getAdminDb();
     const now = new Date().toISOString();
+    const loginEmail = typeof body.loginEmail === 'string' ? body.loginEmail.trim().toLowerCase() : '';
+    if (['create', 'update'].includes(body.action) && body.loginEmail !== undefined && (typeof body.loginEmail !== 'string' || loginEmail.length > 254 || (loginEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail)))) throw new ApiInputError('Enter a valid agent login email, or leave it blank to disable dashboard access.', 400);
+
     if (body.action === 'reward') {
       if (typeof body.uid !== 'string' || !body.uid || body.uid.includes('/') || body.uid.length > 128 ||
           typeof body.notes !== 'string' || !body.notes.trim() || body.notes.length > 1000) {
@@ -76,7 +79,7 @@ export async function POST(request: NextRequest) {
       await db.runTransaction(async transaction => {
         const existing = await transaction.get(ref);
         if (existing.exists) throw new ApiInputError('This coupon code is already in use.', 409);
-        transaction.create(ref, { kind: 'agent', active: true, name: body.name.trim(), contact: body.contact.trim(), rewardAmount, customerDiscountAmount, createdAt: now, createdBy: admin.email });
+        transaction.create(ref, { kind: 'agent', active: true, loginEmail, name: body.name.trim(), contact: body.contact.trim(), rewardAmount, customerDiscountAmount, createdAt: now, createdBy: admin.email });
       });
     } else if (body.action === 'update' || body.action === 'delete') {
       const code = normalizeReferralCode(body.code);
@@ -96,6 +99,7 @@ export async function POST(request: NextRequest) {
         } else {
           if (agent.data()?.deletedAt) throw new ApiInputError('This agent has been removed.', 409);
           transaction.update(ref, { name: body.name.trim(), contact: body.contact.trim(), rewardAmount: body.rewardAmount,
+            ...(body.loginEmail === undefined ? {} : { loginEmail }),
             ...(body.customerDiscountAmount === undefined ? {} : { customerDiscountAmount: body.customerDiscountAmount }),
             ...(body.active === undefined ? {} : { active: body.active }), updatedAt: now, updatedBy: admin.email });
         }

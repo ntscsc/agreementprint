@@ -26,6 +26,16 @@ function Checkout() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not verify payment.'); }
     finally { setBusy(false); }
   }
+  async function closeCheckout() {
+    setBusy(true); setError(''); setMessage('Checking the closed checkout...');
+    try {
+      const result = await request('dismiss');
+      window.location.assign(result.returnUrl);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not check the closed checkout.');
+      setMessage('Checkout closed. Use Check payment status before retrying.');
+    } finally { setBusy(false); }
+  }
   return <div className="mx-auto max-w-xl space-y-5 px-4 py-12">
     <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" onReady={() => setReady(true)} onError={() => setError('Could not load secure checkout. Refresh this page to retry.')} />
     <div className="space-y-5 rounded-2xl border border-stone-200 bg-white p-6">
@@ -38,7 +48,7 @@ function Checkout() {
             const options = await request('options');
             if (options.paid) { window.location.assign(options.returnUrl); return; }
             const Razorpay = (window as unknown as { Razorpay: RazorpayConstructor }).Razorpay;
-            const checkout = new Razorpay({ key: options.key, order_id: options.razorpayOrderId, amount: options.amount, currency: options.currency, name: 'AgreementPrint', description: 'Agreement order', handler: (fields: Record<string, unknown>) => void verify(fields), modal: { ondismiss: () => { setBusy(false); setMessage('Checkout closed. You can resume or check your payment status.'); } } });
+            const checkout = new Razorpay({ key: options.key, order_id: options.razorpayOrderId, amount: options.amount, currency: options.currency, name: 'AgreementPrint', description: 'Agreement order', handler: (fields: Record<string, unknown>) => void verify(fields), modal: { ondismiss: () => { void closeCheckout(); } } });
             checkout.on('payment.failed', () => {
               setBusy(false);
               setMessage('');

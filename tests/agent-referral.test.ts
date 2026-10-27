@@ -52,6 +52,19 @@ function request(body: object, token?: string) {
   return new Request('https://example.test', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
 }
 
+test('admins explicitly link agent dashboard login emails and may remove access without changing the code', async () => {
+  const h = harness();
+  const api = h.load('@/app/api/admin/agents/route');
+  const details = { code: 'AGLOGIN01', name: 'Agent', contact: 'contact@example.test', rewardAmount: 100, customerDiscountAmount: 25 };
+  assert.equal((await api.POST(request({ action: 'create', ...details, loginEmail: 'not-an-email' }, 'admin'))).status, 400);
+  assert.equal((await api.POST(request({ action: 'create', ...details, loginEmail: ' Agent@Example.Test ' }, 'admin'))).status, 200);
+  assert.equal(h.read('referralCodes/AGLOGIN01').loginEmail, 'agent@example.test');
+  assert.equal((await api.POST(request({ action: 'update', ...details }, 'admin'))).status, 200);
+  assert.equal(h.read('referralCodes/AGLOGIN01').loginEmail, 'agent@example.test');
+  assert.equal((await api.POST(request({ action: 'update', ...details, loginEmail: '' }, 'admin'))).status, 200);
+  assert.equal(h.read('referralCodes/AGLOGIN01').loginEmail, '');
+});
+
 async function pay(h: ReturnType<typeof harness>, uid: string, code: string, orderId = `ORDER_${uid}`) {
   h.write(`orders/${orderId}`, { orderId, ownerUid: uid, referralCode: code, customerEmail: `${uid}@example.test`, payment: { status: 'Pending' } });
   await h.load('@/lib/referral-admin').confirmPaidOrderAndGrantReferral(orderId);

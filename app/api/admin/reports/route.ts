@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { customIdentity, customError } from '@/lib/custom-request-server';
 import { ApiInputError } from '@/lib/api-input';
-import { buildAdminReportSheets, type ReportData } from '@/lib/admin-reports';
+import type { ReportData } from '@/lib/admin-reports';
+import { buildEssentialReportSheets } from '@/lib/essential-reports';
 import { buildReportsXlsx } from '@/lib/admin-report-xlsx';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
-const sources = ['orders', 'customAgreementRequests', 'customerProfiles', 'phonepePaymentAttempts', 'customPhonepeAttempts', 'orderReplacements', 'creditRefundRequests', 'orderRefundHistory', 'referralAccounts', 'referralCodes', 'agentReferralCustomers', 'referralRewards', 'referralLedger', 'adminLogs', 'customAgreementAudit', 'customerReviews'] as const;
+const sources = ['orders', 'counterOrders', 'customAgreementRequests', 'customerProfiles', 'phonepePaymentAttempts', 'customPhonepeAttempts', 'orderReplacements', 'creditRefundRequests', 'orderRefundHistory', 'referralCodes', 'agentReferralCustomers'] as const;
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,12 +24,12 @@ export async function GET(req: NextRequest) {
       }));
     }
     if (Object.values(data).reduce((total, records) => total + records.length, 0) > 100000) throw new ApiInputError('This export exceeds 100,000 records in total. A larger export is needed; no partial workbook was downloaded.', 409);
-    const buffer = buildReportsXlsx(buildAdminReportSheets(data, generatedAt));
+    const buffer = buildReportsXlsx(buildEssentialReportSheets(data, generatedAt));
     const indiaDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(generatedAt);
     return new NextResponse(new Uint8Array(buffer), { headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="AgreementPrint-Analytics-v2-${indiaDate}.xlsx"`,
-      'X-Report-Version': 'analytics-v2',
+      'Content-Disposition': `attachment; filename="AgreementPrint-Business-Reports-${indiaDate}.xlsx"`,
+      'X-Report-Version': 'essential-v1',
       'Cache-Control': 'private, no-store, max-age=0',
       'X-Content-Type-Options': 'nosniff',
     } });

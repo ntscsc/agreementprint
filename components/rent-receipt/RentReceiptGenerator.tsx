@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { Download, Printer, ReceiptText } from 'lucide-react';
-import { numberToWordsIndian } from '@/lib/number-to-words';
+import { amountInWords } from '@/lib/number-to-words';
+import { formatReceiptAmount, receiptPeriods } from '@/lib/rent-receipt';
 
 interface ReceiptFormData {
   landlordName: string;
@@ -34,25 +35,12 @@ const initialFormData: ReceiptFormData = {
   months: '1',
 };
 
-const amountFormatter = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
-
 function formatReceiptDate(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
-}
-
-function addMonthsClamped(date: Date, months: number) {
-  const targetMonth = date.getMonth() + months;
-  const lastDayOfTargetMonth = new Date(date.getFullYear(), targetMonth + 1, 0).getDate();
-
-  return new Date(
-    date.getFullYear(),
-    targetMonth,
-    Math.min(date.getDate(), lastDayOfTargetMonth),
-  );
 }
 
 export function RentReceiptGenerator() {
@@ -65,21 +53,18 @@ export function RentReceiptGenerator() {
     const [year, month, day] = formData.paymentDate.split('-').map(Number);
     const firstPaymentDate = new Date(year, month - 1, day);
     const receiptCount = Number(formData.months);
-    const receiptData: RentReceiptData = {
+    const receiptData = {
       landlordName: formData.landlordName.trim(),
       landlordPan: formData.landlordPan.trim().toUpperCase(),
       tenantName: formData.tenantName.trim(),
       propertyAddress: formData.propertyAddress.trim(),
       monthlyRent: Number(formData.monthlyRent),
-      paymentDate: firstPaymentDate,
-      periodEndDate: addMonthsClamped(firstPaymentDate, 1),
     };
 
     setReceipts(
-      Array.from({ length: receiptCount }, (_, index) => ({
+      receiptPeriods(firstPaymentDate, receiptCount).map((period) => ({
         ...receiptData,
-        paymentDate: addMonthsClamped(firstPaymentDate, index),
-        periodEndDate: addMonthsClamped(firstPaymentDate, index + 1),
+        ...period,
       })),
     );
   }
@@ -99,8 +84,8 @@ export function RentReceiptGenerator() {
             Monthly rent amount (₹)
             <input
               type="number"
-              min="1"
-              step="1"
+              min="0.01"
+              step="0.01"
               required
               value={formData.monthlyRent}
               onChange={(event) => updateField('monthlyRent', event.target.value)}
@@ -125,8 +110,8 @@ export function RentReceiptGenerator() {
           </label>
 
           <label className="block text-sm font-semibold text-stone-700">
-            Landlord PAN number *
-            <input type="text" required minLength={10} maxLength={10} pattern="[A-Z]{5}[0-9]{4}[A-Z]" title="Enter a valid 10-character PAN, for example ABCDE1234F" autoCapitalize="characters" spellCheck={false} value={formData.landlordPan} onChange={event => updateField('landlordPan', event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="ABCDE1234F" className="mt-1.5 w-full rounded-xl border border-stone-300 px-3.5 py-3 text-sm uppercase text-stone-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200" />
+            Landlord PAN number (Optional)
+            <input type="text" minLength={10} maxLength={10} pattern="[A-Z]{5}[0-9]{4}[A-Z]" title="Enter a valid 10-character PAN, for example ABCDE1234F, or leave blank" autoCapitalize="characters" spellCheck={false} value={formData.landlordPan} onChange={event => updateField('landlordPan', event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="ABCDE1234F" className="mt-1.5 w-full rounded-xl border border-stone-300 px-3.5 py-3 text-sm uppercase text-stone-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200" />
           </label>
 
           <label className="block text-sm font-semibold text-stone-700">
@@ -237,9 +222,9 @@ export function RentReceiptGenerator() {
 
                 <p className="mt-20 text-lg leading-relaxed text-black sm:mt-24">
                   This is to acknowledge receipt from <strong>{receipt.tenantName}</strong> the sum
-                  of <strong>Rs. {amountFormatter.format(receipt.monthlyRent)}/-</strong>{' '}
+                  of <strong>Rs. {formatReceiptAmount(receipt.monthlyRent)}/-</strong>{' '}
                   <strong>
-                    ({numberToWordsIndian(receipt.monthlyRent)} Rupees)
+                    ({amountInWords(receipt.monthlyRent)})
                   </strong>{' '}
                   towards rent payment for the period from{' '}
                   <strong>{formatReceiptDate(receipt.paymentDate)}</strong> to{' '}
@@ -251,7 +236,7 @@ export function RentReceiptGenerator() {
                   <div>
                     <h3 className="font-bold">Landlord Details</h3>
                     <p className="mt-8">{receipt.landlordName}</p>
-                    <p className="mt-2 text-base">PAN: <strong>{receipt.landlordPan}</strong></p>
+                    {receipt.landlordPan && <p className="mt-2 text-base">PAN: <strong>{receipt.landlordPan}</strong></p>}
                   </div>
                   <div className="text-right">
                     <h3 className="font-bold">Signature</h3>

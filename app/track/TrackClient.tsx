@@ -1,5 +1,9 @@
 'use client';
 
+import { CourierTrackingButton } from '@/components/order/CourierTrackingButton';
+import { WorkflowProgress } from '@/components/ui/WorkflowProgress';
+import { useCourierTrackingLinks } from '@/components/order/useCourierTrackingLinks';
+import { courierTrackingUrl } from '@/lib/courier-tracking';
 import { readApiResponse } from '@/lib/api-response';
 
 import React, { useState, useEffect } from 'react';
@@ -34,6 +38,7 @@ interface TrackedOrder {
 }
 
 export function TrackClient() {
+  const courierLinks = useCourierTrackingLinks();
   const searchParams = useSearchParams();
   const [orderId, setOrderId] = useState(() => searchParams.get('orderId') || '');
   const [phone, setPhone] = useState(() => searchParams.get('phone') || '');
@@ -113,33 +118,6 @@ export function TrackClient() {
     };
   }, [searchParams]);
 
-  const timelineSteps: { key: OrderStatus; label: string; desc: string }[] = [
-    { key: 'Submitted', label: '1. Application Submitted', desc: 'Received at certified vendor desk.' },
-    { key: 'Under verification', label: '2. Under Verification', desc: 'Vendor reviewing the submitted agreement details.' },
-    { key: 'Drafting', label: '3. Stamping & Drafting', desc: 'Printed on non-judicial stamp paper.' },
-    { key: 'Dispatched', label: '4. Dispatched via Courier', desc: 'Handed over for doorstep delivery.' },
-    { key: 'Delivered', label: '5. Delivered', desc: 'Received and signed by customer.' },
-  ];
-
-  const getStepStatus = (stepKey: OrderStatus, currentStatus: OrderStatus) => {
-    const orderProgression: OrderStatus[] = [
-      'Submitted',
-      'Under verification',
-      'Drafting',
-      'Dispatched',
-      'Delivered',
-    ];
-
-    if (currentStatus === 'Cancelled') return 'cancelled';
-    if (currentStatus === 'Documents needed' && stepKey === 'Under verification') return 'attention';
-
-    const currentIndex = orderProgression.indexOf(currentStatus);
-    const stepIndex = orderProgression.indexOf(stepKey);
-
-    if (currentIndex > stepIndex) return 'completed';
-    if (currentIndex === stepIndex) return 'current';
-    return 'pending';
-  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
@@ -264,7 +242,7 @@ export function TrackClient() {
                   <span className="text-sky-700">Courier Partner:</span> <strong>{orderData.courier.courierName}</strong>
                 </div>
                 <div>
-                  <span className="text-sky-700">Consignment Number:</span> <strong className="font-mono">{orderData.courier.trackingNumber}</strong>
+                  <span className="text-sky-700">Consignment Number:</span> <strong className="font-mono">{orderData.courier.trackingNumber}</strong>{courierTrackingUrl(orderData.courier.courierName, orderData.courier.trackingNumber, courierLinks) && <CourierTrackingButton className="ml-auto" href={courierTrackingUrl(orderData.courier.courierName, orderData.courier.trackingNumber, courierLinks)!} courierName={orderData.courier.courierName} trackingNumber={orderData.courier.trackingNumber} />}
                 </div>
               </div>
               {orderData.courier.courierName.includes('India Post') && (
@@ -286,44 +264,13 @@ export function TrackClient() {
           {/* Timeline */}
           <div className="space-y-4 pt-2">
             <h3 className="font-bold text-stone-900 text-sm">Fulfillment Stages</h3>
-            <ol className="relative border-l border-stone-200 ml-3 space-y-6">
-              {timelineSteps.map((st) => {
-                const stepState = getStepStatus(st.key, orderData.status);
-                return (
-                  <li key={st.key} className="ml-6">
-                    <span
-                      className={`absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full ring-4 ring-white ${
-                        stepState === 'completed'
-                          ? 'bg-emerald-600 text-white'
-                          : stepState === 'current'
-                          ? 'bg-amber-500 text-stone-950 ring-amber-100'
-                          : stepState === 'attention'
-                          ? 'bg-rose-600 text-white'
-                          : 'bg-stone-200 text-stone-400'
-                      }`}
-                    >
-                      {stepState === 'completed' ? (
-                        <CheckCircle2 className="w-4 h-4" />
-                      ) : (
-                        <span className="w-2 h-2 rounded-full bg-current"></span>
-                      )}
-                    </span>
-                    <h4
-                      className={`font-semibold text-xs ${
-                        stepState === 'current'
-                          ? 'text-amber-900 font-bold'
-                          : stepState === 'completed'
-                          ? 'text-stone-900'
-                          : 'text-stone-400'
-                      }`}
-                    >
-                      {st.label}
-                    </h4>
-                    <p className="text-[11px] text-stone-500 mt-0.5">{st.desc}</p>
-                  </li>
-                );
-              })}
-            </ol>
+            <WorkflowProgress label="Order fulfilment stages" current={orderData.status === 'Delivered' ? 4 : orderData.status === 'Dispatched' ? 3 : orderData.status === 'Drafting' ? 2 : ['Under verification', 'Documents needed'].includes(orderData.status) ? 1 : 0} complete={orderData.status === 'Delivered'} stopped={orderData.status === 'Cancelled'} attention={orderData.status === 'Documents needed'} steps={[
+              { label: 'Submitted', icon: CheckCircle2 },
+              { label: 'Review', icon: Search },
+              { label: 'Preparing', icon: Clock },
+              { label: 'Dispatched', icon: Truck },
+              { label: 'Delivered', icon: CheckCircle2 },
+            ]} />
           </div>
         </div>
       )}
